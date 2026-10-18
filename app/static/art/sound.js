@@ -8,7 +8,7 @@
   let fxLevel=clamp(localStorage.getItem('uno_luck_fx_volume')??'0.85');
   let masterLevel=clamp(localStorage.getItem('uno_luck_master_volume')??'0.90');
   let musicLevel=clamp(localStorage.getItem('uno_luck_music_volume')??'0.22');
-  let audioEnabled=true, lastError='', lastLedTick=0, fanfareSource=null, studio=null;
+  let audioEnabled=true, lastError='', lastLedTick=0, fanfareSource=null, studio=null, jackpotSeq=0;
   const cueMap={tap:'push-button',spin:'spinning-sound',lock:'chosen-card',
     'tier-1':'jackpot-1','tier-2':'jackpot-2','tier-3':'jackpot-3',
     'tier-4':'jackpot-4','tier-5':'jackpot-5'};
@@ -87,8 +87,11 @@
     if(!audioEnabled||!isActive()||fxLevel===0)return false;
     if(name==='coin'||name==='win'||name==='lose'){chime(name==='lose'?260:name==='coin'?1750:1080);return true;}
     const cue=cueMap[name];
+    // When a user provides a custom JACKPOT clip, no bundled sample is layered over it.
     if(cue&&studio?.isCustomized(cue))return studio.play(cue);
+    const playSeq=jackpotSeq;
     const sound=await sample(name==='lock'?'spin':name);
+    if(name.startsWith('tier-')&&playSeq!==jackpotSeq)return false;
     if(!sound||!isActive()||!audioEnabled){
       // A decoded MP3 failure must never turn every game action completely silent.
       chime(name.startsWith('tier-')?1020:name==='lock'?530:820);
@@ -149,15 +152,35 @@
     const fanfare=await play('tier-5');
     return Boolean(impact&&fanfare);
   }
-  async function celebration(rank){
-    if(!Number.isInteger(rank)||rank<1||rank>5)return;
-    if(!isActive()||!audioEnabled)return;
-    cinematicImpact(rank);
-    if(musicBus){musicBus.gain.cancelScheduledValues(ctx.currentTime);
-      musicBus.gain.setTargetAtTime(musicLevel*.17,ctx.currentTime,.09);
-      musicBus.gain.setTargetAtTime(musicLevel,ctx.currentTime+({1:5.5,2:4.7,3:3.8,4:2.9,5:1.85}[rank]),.4);
+  function stopCelebration(){
+    jackpotSeq++; // prevents late decoded bundled samples from starting
+    studio?.stopCelebration?.();
+    if(fanfareSource){
+      try{fanfareSource.stop();}catch(_){} fanfareSource.disconnect();fanfareSource=null;
     }
-    return play(`tier-${rank}`);
+    if(musicBus&&ctx?.state==='running'){
+      musicBus.gain.cancelScheduledValues(ctx.currentTime);
+      musicBus.gain.setTargetAtTime(musicLevel,ctx.currentTime,.12);
+    }
+  }
+  async function celebration(rank){
+    if(!Number.isInteger(rank)||rank<1||rank>5)return {played:false,duration:0};
+    if(!isActive()||!audioEnabled||fxLevel===0)return {played:false,duration:0};
+    stopCelebration();
+    const token=jackpotSeq;
+    const key='jackpot-'+rank;
+    const customized=Boolean(studio?.isCustomized(key));
+    // The selected file alone wins: no synthetic hit, generic stinger or other tier.
+    if(!customized)cinematicImpact(rank);
+    if(musicBus){
+      musicBus.gain.cancelScheduledValues(ctx.currentTime);
+      musicBus.gain.setTargetAtTime(musicLevel*.17,ctx.currentTime,.09);
+    }
+    const played=await play(`tier-${rank}`);
+    if(token!==jackpotSeq)return {played:false,duration:0};
+    const duration=customized?await studio.segmentDuration(key):
+      (await sample(`tier-${rank}`))?.duration||0;
+    return {played:Boolean(played),duration:Number(duration)||0,cue:key,customized};
   }
   function setVolume(v){fxLevel=clamp(v);localStorage.setItem('uno_luck_fx_volume',String(fxLevel));if(fxBus&&ctx)fxBus.gain.setTargetAtTime(fxLevel,ctx.currentTime,.04);return fxLevel;}
   function setMasterVolume(v){masterLevel=clamp(v);localStorage.setItem('uno_luck_master_volume',String(masterLevel));
@@ -167,7 +190,7 @@
   function setEnabled(v){audioEnabled=Boolean(v);}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)music(false);});
   window.UNOLuckSound={unlock,play,music,celebration,testSound,ledTick,setVolume,setMasterVolume,setMusicVolume,setEnabled,
-    installStudio,channels,playCue,result,refreshMusic,
+    installStudio,channels,playCue,result,refreshMusic,stopCelebration,
     get volume(){return fxLevel;},get masterVolume(){return masterLevel;},
     get musicVolume(){return musicLevel;},get lastError(){return lastError;},
     get state(){return ctx?.state||'inactive';}};
