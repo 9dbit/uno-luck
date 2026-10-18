@@ -32,7 +32,12 @@ with sync_playwright() as p:
         row=editor.locator('details.studio-cue').nth(6+rank)
         row.locator('summary').click()
         row.locator('input[type=file]').set_input_files(str(SOUND[rank]))
-        row.locator('.studio-status').get_by_text('Audio tersimpan:',exact=False).wait_for(timeout=10000)
+        for _ in range(100):
+            if page.evaluate('(k)=>Boolean(window.UNOLuckSoundStudio.profile(k).custom)',f'jackpot-{rank}'):
+                break
+            page.wait_for_timeout(100)
+        assert page.evaluate('(k)=>Boolean(window.UNOLuckSoundStudio.profile(k).custom)',f'jackpot-{rank}'), (
+            rank,row.locator('.studio-status').inner_text())
         start=.20
         stop=4.9 if rank==5 else 1.12
         row.locator(f'input[name="jackpot-{rank}-start"]').fill(str(start))
