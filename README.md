@@ -92,6 +92,7 @@ To test: `python -m pytest -q`. UI QA uses an isolated Chromium snapshot test
 with mocked APIs because HTTP localhost is blocked in the test environment;
 backend state transitions are independently tested with FastAPI TestClient.
 
-### v0.7 Approved UI motion
 
-Approved 3D WebP assets live in `app/static/art/v1/`; the compositor motions and animated values are in `app/static/art/motion.css` and `motion.js`. The price/return/delta panel now lives below the SPIN button, and amounts always come from server-confirmed responses. The default round's 80% Color Match chance and 2× virtual payout are unchanged. `JACKPOT` animation is reserved for a future server-defined result.
+### v0.9 Golden-master LED Wheel (main screen)
+
+The user-approved 9:16 illustration is the visual anchor. `app/static/art/v2/wheel-dragon.webp` is a **static, undistorted square** dragon/wheel art layer. Nine fixed LED displays track its nine metallic openings; `app/static/art/ledwheel.js` changes their card contents left-to-right, then inserts the server-authoritative selected card so it stops at index 4 under the gold pointer. `transferTo` shows one GPU-animated card flying into the next upper result slot, filled left/center/right. The upper results never act as a second slot machine. The dynamically animated Biaya/Kembali/Selisih metallic bar is directly between result cards and wheel. Skin in `ledwheel.css`; no CSS layout geometry reads in the LED frame loop. The API/RNG/ledger remain untouched. See `docs/UNO_LUCK_v09.md`.

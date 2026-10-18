@@ -17,4 +17,4 @@ jobs:
       - run: python -m pytest -q
       - run: node --check app/static/orbit.js
       - run: node --check app/static/art/motion.js
-      - run: node --check app/static/art/wheel360.js
+      - run: node --check app/static/art/ledwheel.js

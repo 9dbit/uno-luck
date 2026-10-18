@@ -1,0 +1,56 @@
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1]
+STATIC=ROOT/'app'/'static'
+HTML=(STATIC/'orbit-index.html').read_text()
+ORBIT=(STATIC/'orbit.js').read_text()
+WHEEL=(STATIC/'art'/'ledwheel.js').read_text()
+CSS=(STATIC/'art'/'ledwheel.css').read_text()
+SERVER=(ROOT/'app'/'orbit.py').read_text()
+
+
+def test_single_approved_static_wheel_with_nine_led_placeholders():
+    assert HTML.count('id="orbit-ring"')==1
+    assert HTML.count('id="spin-btn"')==1
+    assert HTML.count('wheel-dragon.webp')==1
+    assert 'wheel360.js?v=8' not in HTML
+    assert '/assets/art/ledwheel.js?v=9' in HTML
+    assert '/assets/art/ledwheel.css?v=9' in HTML
+    assert 'const RING_COUNT = 9' in ORBIT
+    assert 'GEOMETRY = [' in WHEEL
+    assert 'this.count=count;' in WHEEL
+    assert 'this.displays[i]=this.displays[i-1]' in WHEEL
+    assert 'Math.sin(' not in WHEEL and 'Math.cos(' not in WHEEL
+    assert 'animation:ambientMove' in CSS
+    assert 'object-fit:contain!important' in CSS
+
+
+def test_betting_above_wheel_and_result_cards_are_three_separate_cells():
+    assert HTML.index('id="result-2"') < HTML.index('id="last-stake"')
+    assert HTML.index('id="last-delta"') < HTML.index('class="wheel-area"')
+    assert HTML.count('class="result-cell"') == 3
+    assert 'grid-template-columns:repeat(3,minmax(0,1fr))' in CSS
+    assert 'height:100dvh' in CSS
+    assert 'env(safe-area-inset' in (STATIC/'orbit.css').read_text()
+
+
+def test_server_selected_card_moves_from_led_pointer_to_next_result():
+    assert "confirmed=await api('/pick','POST'" in ORBIT
+    assert "const card=confirmed.round.cards[phase-1]" in ORBIT
+    assert 'await wheel.settle(card,phase)' in ORBIT
+    assert "await wheel.transferTo($('result-'+(phase-1)))" in ORBIT
+    assert 'paintRound(confirmed.round,false,true)' in ORBIT
+    assert ORBIT.index('await wheel.transferTo')<ORBIT.index('paintRound(confirmed.round,false,true)')
+    assert 'if(this.ready && !this.injected' in WHEEL
+    assert 'this.shift(this.ready.card)' in WHEEL
+    assert 'this.afterInject===PICKS' in WHEEL
+    assert 'this.lastSelected=this.ready?.card' in WHEEL
+    assert 'this.host.replaceChildren(...this.nodes)' in WHEEL
+
+
+def test_ledger_probability_and_request_deduplication_unchanged():
+    assert 'secrets.randbelow(100) < WIN_PERCENT' in SERVER
+    assert 'def choose_cards()' in SERVER
+    assert "db.execute('SELECT round_id,selected_count FROM orbit_requests" in SERVER
+    assert 'new_balance=acct[\'balance\']-payload.stake' in SERVER
+    assert "payout=2*row['stake'] if row['combo']=='COLOR_MATCH' else 0" in SERVER
+    assert 'fetch(' not in WHEEL

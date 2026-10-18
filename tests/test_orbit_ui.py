@@ -33,26 +33,32 @@ def test_bundled_visual_assets():
         assert (P/name).is_file()
 
 
-def test_one_gpu_card_wheel_and_metal_assets():
-    motion = (P/'art'/'wheel360.js').read_text()
-    stylesheet = (P/'art'/'wheel360.css').read_text()
+def test_fixed_nine_led_placeholders_and_approved_result_layout():
+    engine = (P/'art'/'ledwheel.js').read_text()
+    style = (P/'art'/'ledwheel.css').read_text()
     assert HTML.count('id="orbit-ring"') == 1
     assert HTML.count('class="wheel-area"') == 1
     assert HTML.count('id="spin-btn"') == 1
-    assert HTML.index('id="last-stake"') > HTML.index('id="spin-btn"')
-    assert 'window.UNOLuckWheel360' in motion
-    assert 'requestAnimationFrame(tick)' in motion
-    assert 'Math.cos(theta)' in motion and 'Math.sin(theta)' in motion
-    assert 'wheel-running' in stylesheet
-    assert 'translate3d' in stylesheet
+    assert HTML.index('id="last-stake"') < HTML.index('id="spin-btn"')
+    assert 'window.UNOLuckLEDWheel' in engine
+    assert 'GEOMETRY = [' in engine
+    assert 'this.displays[i]=this.displays[i-1]' in engine
+    assert 'requestAnimationFrame(tick)' in engine
+    assert 'flyTo' not in engine and 'transferTo(target)' in engine
+    assert 'wheel-static-v09' in HTML
     assert 'wheel-dragon.webp' in HTML
+    assert 'object-fit:contain!important' in style
+    assert 'led-screen' in style
     for name in ('wheel-dragon','card-placeholder','card-red','card-blue','card-green','card-yellow','card-wild','card-back'):
         assert (P/'art'/'v2'/(name+'.webp')).is_file()
 
+
 def test_auditable_authoritative_payout_only():
-    motion=(P/'art'/'wheel360.js').read_text()
+    motion=(P/'art'/'ledwheel.js').read_text()
     assert "api('/pick','POST'" in JS
     assert 'confirmed.round.cards[phase-1]' in JS
     assert 'await wheel.settle(card,phase)' in JS
+    assert 'await wheel.transferTo(' in JS
     assert 'pendingKey' in JS
     assert 'api(' not in motion and 'request_id' not in motion
+    assert 'window.UNOLuckWheel360' not in JS
