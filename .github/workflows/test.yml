@@ -34,6 +34,8 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - name: Verify game and Sound Studio in Chromium
         run: |
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-${GITHUB_RUN_ID}"
+          export UNO_SOUND_ADMIN_TOKEN="uno-ci-only-shared-sound-secret-for-playwright-2026"
           python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
@@ -42,6 +44,7 @@ jobs:
           python tests/visual_qa_sound_studio.py
           python tests/visual_qa_jackpot_sfx.py
           python tests/visual_qa_ios_safari_audio.py
+          python tests/visual_qa_shared_sound.py
       - name: Upload QA screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,4 +54,5 @@ jobs:
             artifacts/uno-v11-sound-studio/*.png
             artifacts/uno-v11-jackpot-audio/*.png
             artifacts/uno-v11-ios-safari-audio/*.png
+            artifacts/uno-v11-shared-sound/*.png
           if-no-files-found: ignore
