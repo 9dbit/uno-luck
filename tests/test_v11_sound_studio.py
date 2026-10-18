@@ -64,7 +64,7 @@ def test_native_slider_editor_on_every_cue():
     assert "for(const [key,title,defaultSample] of KEYS)" in A
     assert "slider.type='range'" in A
     assert "slider.dataset.field=field" in A
-    assert "['start','START'],['stop','STOP'],['fadeIn','FADE IN'],['fadeOut','FADE OUT']" in A
+    assert "['start','START'],['stop','STOP'],['duration','DURATION']" in A
     assert "values[field].value=slider.value" in A
     assert "updateSliderView()" in A
     assert "studio-timeline-selection" in A
