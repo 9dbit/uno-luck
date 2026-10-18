@@ -652,6 +652,9 @@ function show(host){
       const wrap=element('label','studio-field',label);
       const input=element('input');
       input.type='number';input.step='.05';input.min='0';input.inputMode='decimal';
+      // The <details> toggle event fires asynchronously after the user opens
+      // a cue. Leave inputs locked from creation until paint() hydrates them.
+      input.disabled=true;
       input.setAttribute('aria-label',title+' '+label);
       input.name=key+'-'+field;
       values[field]=input;wrap.append(input);form.append(wrap);
@@ -701,6 +704,7 @@ function show(host){
     if(key==='background-music'){
       repeatInput=element('input','studio-repeat-input');
       repeatInput.type='checkbox';repeatInput.name='background-music-repeat';
+      repeatInput.disabled=true;
       repeatInput.checked=getDraftRepeat(key);
       repeatInput.setAttribute('aria-label','REPEAT BACKGROUND MUSIC');
       const repeatTitle=element('span','studio-repeat-label','REPEAT BACKGROUND MUSIC');
@@ -765,14 +769,14 @@ function show(host){
         const r=limits(key,actualDuration,{draft:true});
         for(const name of ['start','stop','fadeIn','fadeOut'])values[name].value=String(decimals(r[name]));
         values.duration.value=String(decimals(r.length));
-        if(repeatInput)repeatInput.checked=getRepeat(key);
+        if(repeatInput)repeatInput.checked=getDraftRepeat(key);
         if(repeatInput)repeatRow.querySelector('.studio-repeat-state').textContent=repeatInput.checked?'ON':'OFF';
         updateSliderView();
         setStatus((shared.revision?'☁ SHARED · ':'LOCAL · ')+
           (p.custom||p.source==='custom'?'CUSTOM: '+p.fileName:'DEFAULT: '+(defaultSample||'-'))+
           ' · File '+decimals(actualDuration)+' s');
       }catch(error){if(seq===paintSeq)setStatus('Audio tidak bisa dibaca: '+String(error.message));}
-      finally{if(seq===paintSeq)setEditorBusy(false);}
+      finally{if(seq===paintSeq)setEditorBusy(actualDuration<=0);}
     };
     let updating=false;
     const sync=(changed)=>{
@@ -794,6 +798,7 @@ function show(host){
     fileInput.addEventListener('change',async()=>{
       if(!fileInput.files?.[0])return;
       ++paintSeq; // cancel stale audio measurements from the open-details event
+      setEditorBusy(true);
       setStatus('Memeriksa dan menyimpan audio…');
       try{
         await window.UNOLuckSound?.unlock();
