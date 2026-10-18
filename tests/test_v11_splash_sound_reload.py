@@ -17,7 +17,7 @@ def test_splash_has_audio_choice_and_no_autoplay_skip():
     assert "silentStart.addEventListener('click'" in B
     assert "const pendingUnlock = window.UNOLuckSound?.unlock()" in B
     assert "await window.UNOLuckSound.playCue('soft-tech-splash-screen')" in B
-    assert "if (custom && !played)" in B
+    assert "if(custom&&!played)" in B
     assert "AUDIO GAGAL:" in B
     assert "if (requestedSound) window.UNOLuckSound?.playCue('loading-scene')" in B
     assert "soundGate.hidden = true" in B
