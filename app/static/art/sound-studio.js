@@ -186,7 +186,7 @@ function stopFallback(key=null){
 }
 function useFallbackSource(key,url){
   const player=mediaPlayer();
-  if(player.src!==url){player.pause();player.src=url;player.load();}
+  if(player.getAttribute('src')!==url){player.pause();player.src=url;player.load();}
   if(url.startsWith('blob:')&&url!==splashUrl)activeTemporaryUrl=url;
   return player;
 }
