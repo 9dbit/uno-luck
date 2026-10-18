@@ -225,7 +225,7 @@ function renderGame(g){
   g.players.filter(p=>p.id!==playerId).forEach((p,i)=>{
     const div=textElement('div','seat'+(g.turn===p.id?' active':''),'');
     const avatar=textElement('div','avatar',(p.name?.[0]||'?').toUpperCase());
-    const details=textElement('div','seat-text','');details.append(textElement('strong','',p.name));details.append(textElement('small','',`${p.count} cards • ${p.score} pts`));div.append(avatar,details);
+    const details=textElement('div','seat-text','');const nameLabel=textElement('strong','',p.name);nameLabel.title=p.name;details.append(nameLabel);details.append(textElement('small','',`${p.count} cards • ${p.score} pts`));div.append(avatar,details);div.title=p.name;
     if(p.uno_warning)div.append(textElement('span','uno-flag','UNO?'));
     opponents.append(div);
   });

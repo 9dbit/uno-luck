@@ -8,3 +8,64 @@
 @media(max-width:900px){.lobby{grid-template-columns:44% 56%}.lobby-panel{padding:26px}.lobby-features{gap:6px}.lobby-features div{padding:10px}.hero-photo{min-height:600px}.hero-gradient{padding:100px 18px 25px}.hero-gradient h1{font-size:49px}.hint-text{display:block;width:100%;max-width:none}}
 @media(max-width:650px){.topbar{height:61px;padding:0 12px}.status-pill{font-size:10px;padding:7px 9px}.top-actions{gap:5px}.icon-btn{width:30px;height:30px}.small-brand strong{font-size:14px}.small-brand small{font-size:8px}.brand-mark{width:33px;height:33px;font-size:21px}.lobby{display:block;min-height:unset}.hero-photo{height:290px;min-height:290px}.hero-photo img{object-position:center 25%}.hero-gradient{padding:55px 21px 19px}.hero-gradient h1{font-size:48px;margin:2px 0}.hero-gradient p{font-size:12px}.lobby-panel{padding:21px 18px 32px}.lobby-header h2{font-size:29px}.lobby-header p{font-size:13px;margin-top:10px}.lobby-features{grid-template-columns:1fr 1fr 1fr;gap:6px}.lobby-features strong{font-size:10px}.lobby-features small{font-size:9px}.action-pair>button{font-size:12px;padding:10px 11px}.game-meta{padding:10px;gap:4px}.game-room small{font-size:8px}.game-room strong{font-size:12px}.turn-banner{font-size:10px;padding:8px 9px}.game-tools .micro-btn{padding:7px 7px;font-size:9px}.arena{min-height:375px;padding:17px 8px 0}.opponents{gap:3px}.seat{padding:5px;min-width:0;flex:1;gap:4px;border-radius:10px}.seat .avatar{height:26px;width:26px;font-size:10px}.seat .seat-text strong{font-size:10px;max-width:62px}.seat .seat-text small{font-size:8px}.table-wrap{margin-top:29px}.table-oval{height:248px;border-width:8px}.card-stacks{gap:45px}.deck-button,.stack-zone .card{width:70px;height:104px}.deck-button span{font-size:18px}.card .number{font-size:34px}.card .corner{font-size:13px}.card .wild-mark{width:32px;height:50px}.stack-zone .card .number{font-size:33px}.stack-zone .card .wild-mark{width:28px;height:44px}.stack-zone .card.wild .number{font-size:12px}.color-indicator{right:7%;bottom:29px}.felt-text{font-size:23px;bottom:20px}.my-panel{margin:-16px 8px 7px;border-radius:15px;padding:11px 9px}.my-player strong{font-size:13px}.hand-row{min-height:147px;padding-top:13px;gap:9px}.hand-row .card{width:77px;height:116px}.hint-text{font-size:11px}.turn-controls{gap:7px}.uno-action{min-width:75px;font-size:19px;padding:8px}.action-button{min-width:110px;padding:8px;font-size:11px}.waiting-card{padding:24px 17px}.waiting-card h2{font-size:29px}.waiting-actions button{font-size:11px}.game footer{font-size:8px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+
+/* UNO LUCK UI-safe layout: lobby artwork, in-flow game status, narrow devices. */
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.app-shell,.lobby-panel,.waiting-card,.game,.arena,.my-panel{min-width:0}
+.hero-photo{isolation:isolate}
+.hero-photo img{display:block}
+.game-meta>*{min-width:0}
+.game-room{flex:0 0 auto}
+.turn-banner{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.game-tools{flex:0 0 auto}
+.table-wrap{margin-bottom:0}
+.table-status-row{position:relative;z-index:1;max-width:840px;margin:19px auto 0;padding:0 10px;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:14px;align-items:center;min-height:32px}
+.table-status-row .color-indicator{position:static;display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:20px;background:#fff0c5;color:#6d2b12;border:1px solid rgba(154,78,20,.24);box-shadow:0 2px 6px rgba(123,65,18,.14);font-size:11px;white-space:nowrap}
+.table-status-row .color-indicator i{flex:0 0 17px}
+.table-status-row .round-event{position:static;min-width:0;overflow-wrap:anywhere;text-align:right;color:#703317;font-size:12px;line-height:1.35;padding:2px 0}
+.my-panel{margin:12px auto 14px}
+.my-player>div:nth-child(2){min-width:0;flex:1}
+.my-player strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.my-badges{flex:0 0 auto}
+.seat .avatar{flex:0 0 auto}
+.waiting-member{gap:10px;min-width:0;text-align:left}
+.waiting-member strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.waiting-member small{flex:0 0 auto;white-space:nowrap}
+.dialog{width:min(92vw,485px);max-height:min(85dvh,760px);overflow-y:auto;overscroll-behavior:contain;min-width:0}
+.dialog .modal-actions>button{white-space:normal;min-width:0}
+.toast{max-width:calc(100vw - 24px);white-space:normal;overflow-wrap:anywhere}
+@media(max-width:650px){
+  .hero-photo{height:284px;min-height:284px}
+  .hero-photo img{object-position:center 26%}
+  .arena{min-height:0;padding:17px 8px 13px;overflow:hidden}
+  .table-wrap{margin-top:20px}
+  .table-oval{height:228px}
+  .table-status-row{margin:12px auto 0;gap:7px;min-height:32px;padding:0 4px}
+  .table-status-row .color-indicator{font-size:10px;padding:6px 8px}
+  .table-status-row .color-indicator i{width:13px;height:13px;flex-basis:13px}
+  .table-status-row .round-event{font-size:10px;text-align:left}
+  .my-panel{margin:4px 8px 16px}
+  .my-player>div:nth-child(2){min-width:0}
+  .waiting-member{padding:10px 11px}
+  .seat .seat-text strong,.seat .seat-text small{max-width:calc((100vw - 70px)/3 - 43px)}
+  .game-meta{min-width:0}
+  .game-room strong{letter-spacing:1px}
+  .turn-banner{font-size:10px;max-width:40vw}
+  .dialog{padding:20px 16px}
+}
+@media(max-width:350px){
+  .small-brand small{font-size:7px;letter-spacing:.7px}
+  .topbar{padding:0 8px}
+  .top-actions{gap:4px}
+  .status-pill{font-size:9px;padding:6px}
+  .game-tools .micro-btn{font-size:9px;padding:7px 6px}
+  .game-meta{gap:3px;padding:9px 6px}
+  .turn-banner{padding:7px 6px}
+  .table-status-row{grid-template-columns:max-content minmax(0,1fr)}
+  .waiting-actions{flex-wrap:wrap}
+  .waiting-actions button{flex:1 1 120px}
+  .dialog .modal-actions{display:grid;grid-template-columns:1fr}
+  .dialog .modal-actions>button{width:100%}
+}
+@media(prefers-reduced-motion:reduce){.sunburst{animation:none}}
