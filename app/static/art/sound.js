@@ -4,8 +4,11 @@
   const samples = {spin:'spin-impact',tap:'led-click',tick:'led-click',
     'tier-1':'tier-1','tier-2':'tier-2','tier-3':'tier-3','tier-4':'tier-4','tier-5':'tier-5',music:'music-loop'};
   let ctx=null, master=null, compressor=null, fxBus=null, musicBus=null, playingMusic=null;
-  let fxLevel=Math.min(1,Math.max(0,Number(localStorage.getItem('uno_luck_fx_volume')??'0.85')))||0;
-  let audioEnabled=true;
+  const clamp=v=>Math.min(1,Math.max(0,Number.isFinite(Number(v))?Number(v):0));
+  let fxLevel=clamp(localStorage.getItem('uno_luck_fx_volume')??'0.85');
+  let masterLevel=clamp(localStorage.getItem('uno_luck_master_volume')??'0.90');
+  let musicLevel=clamp(localStorage.getItem('uno_luck_music_volume')??'0.22');
+  let audioEnabled=true, lastError='', lastLedTick=0, fanfareSource=null;
   const buffers=new Map();
   const pending=new Map();
   const isActive=()=>ctx?.state==='running';
@@ -14,12 +17,12 @@
     const AudioCtor=window.AudioContext||window.webkitAudioContext;
     if(!AudioCtor)return false;
     ctx=new AudioCtor({latencyHint:'interactive'});
-    master=ctx.createGain(); master.gain.value=.86;
+    master=ctx.createGain(); master.gain.value=masterLevel;
     compressor=ctx.createDynamicsCompressor();
     compressor.threshold.value=-18;compressor.knee.value=18;
     compressor.ratio.value=4.6;compressor.attack.value=.003;compressor.release.value=.24;
     fxBus=ctx.createGain(); fxBus.gain.value=fxLevel;
-    musicBus=ctx.createGain(); musicBus.gain.value=.13;
+    musicBus=ctx.createGain(); musicBus.gain.value=musicLevel;
     fxBus.connect(compressor);musicBus.connect(compressor);
     compressor.connect(master);master.connect(ctx.destination);
     return true;
@@ -32,7 +35,9 @@
       .then(r=>{if(!r.ok)throw Error(`audio ${r.status}`);return r.arrayBuffer();})
       .then(bytes=>ctx.decodeAudioData(bytes))
       .then(buf=>{buffers.set(nameInFile,buf);return buf;})
-      .catch(()=>null).finally(()=>pending.delete(nameInFile));
+      .catch(error=>{lastError='MP3 '+nameInFile+': '+String(error?.message||error);
+        console.warn('[UNO LUCK AUDIO]',lastError);return null;})
+      .finally(()=>pending.delete(nameInFile));
     pending.set(nameInFile,promise);
     return promise;
   }
@@ -50,15 +55,44 @@
       if(ctx.state==='suspended')await ctx.resume();
       if(isActive()){sample('spin');sample('tick');sample('tier-5');sample('music');}
       return isActive();
-    }catch(_){return false;}
+    }catch(error){lastError='Audio unlock: '+String(error?.message||error);
+      console.warn('[UNO LUCK AUDIO]',lastError);return false;}
+  }
+  function ledTick(slowing=false){
+    if(!isActive()||!audioEnabled||fxLevel===0)return false;
+    const now=ctx.currentTime;
+    if(now-lastLedTick<(slowing?.078:.065))return false;
+    lastLedTick=now;
+    const osc=ctx.createOscillator(),env=ctx.createGain();
+    osc.type='triangle';osc.frequency.setValueAtTime(slowing?1140:1420,now);
+    osc.frequency.exponentialRampToValueAtTime(slowing?810:1060,now+.038);
+    env.gain.setValueAtTime(.0001,now);
+    env.gain.exponentialRampToValueAtTime(slowing?.055:.034,now+.003);
+    env.gain.exponentialRampToValueAtTime(.0001,now+.045);
+    osc.connect(env).connect(fxBus);osc.start(now);osc.stop(now+.05);
+    return true;
   }
   async function play(name){
     if(!audioEnabled||!isActive()||fxLevel===0)return false;
     if(name==='coin'||name==='win'||name==='lose'){chime(name==='lose'?260:name==='coin'?1750:1080);return true;}
-    const sound=await sample(name);
-    if(!sound||!isActive()||!audioEnabled)return false;
-    const src=ctx.createBufferSource();src.buffer=sound;src.connect(fxBus);src.start();
-    return true;
+    const sound=await sample(name==='lock'?'spin':name);
+    if(!sound||!isActive()||!audioEnabled){
+      // A decoded MP3 failure must never turn every game action completely silent.
+      chime(name.startsWith('tier-')?1020:name==='lock'?530:820);
+      return isActive();
+    }
+    if(name.startsWith('tier-')&&fanfareSource){
+      try{fanfareSource.stop();}catch(_){} fanfareSource.disconnect();fanfareSource=null;
+    }
+    const src=ctx.createBufferSource();src.buffer=sound;
+    if(name==='lock'){const gain=ctx.createGain();gain.gain.value=.66;
+      src.playbackRate.value=1.23;src.connect(gain).connect(fxBus);}
+    else src.connect(fxBus);
+    if(name.startsWith('tier-')){
+      fanfareSource=src;
+      src.onended=()=>{if(fanfareSource===src)fanfareSource=null;};
+    }
+    src.start();return true;
   }
   async function music(playIt){
     if(!playIt){if(playingMusic){try{playingMusic.stop();}catch(_){}playingMusic.disconnect();playingMusic=null;}return;}
@@ -86,23 +120,29 @@
   async function testSound(){
     if(!isActive())return false;
     cinematicImpact(3);
-    await play('spin');
-    await play('tier-5');
-    return true;
+    const impact=await play('spin');
+    const fanfare=await play('tier-5');
+    return Boolean(impact&&fanfare);
   }
   async function celebration(rank){
     if(!Number.isInteger(rank)||rank<1||rank>5)return;
     if(!isActive()||!audioEnabled)return;
     cinematicImpact(rank);
     if(musicBus){musicBus.gain.cancelScheduledValues(ctx.currentTime);
-      musicBus.gain.setTargetAtTime(.035,ctx.currentTime,.09);
-      musicBus.gain.setTargetAtTime(.13,ctx.currentTime+({1:5.5,2:4.7,3:3.8,4:2.9,5:1.85}[rank]),.4);
+      musicBus.gain.setTargetAtTime(musicLevel*.17,ctx.currentTime,.09);
+      musicBus.gain.setTargetAtTime(musicLevel,ctx.currentTime+({1:5.5,2:4.7,3:3.8,4:2.9,5:1.85}[rank]),.4);
     }
     return play(`tier-${rank}`);
   }
-  function setVolume(v){fxLevel=Math.max(0,Math.min(1,Number(v)||0));localStorage.setItem('uno_luck_fx_volume',String(fxLevel));if(fxBus&&ctx)fxBus.gain.setTargetAtTime(fxLevel,ctx.currentTime,.04);return fxLevel;}
+  function setVolume(v){fxLevel=clamp(v);localStorage.setItem('uno_luck_fx_volume',String(fxLevel));if(fxBus&&ctx)fxBus.gain.setTargetAtTime(fxLevel,ctx.currentTime,.04);return fxLevel;}
+  function setMasterVolume(v){masterLevel=clamp(v);localStorage.setItem('uno_luck_master_volume',String(masterLevel));
+    if(master&&ctx)master.gain.setTargetAtTime(masterLevel,ctx.currentTime,.04);return masterLevel;}
+  function setMusicVolume(v){musicLevel=clamp(v);localStorage.setItem('uno_luck_music_volume',String(musicLevel));
+    if(musicBus&&ctx)musicBus.gain.setTargetAtTime(musicLevel,ctx.currentTime,.05);return musicLevel;}
   function setEnabled(v){audioEnabled=Boolean(v);}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)music(false);});
-  window.UNOLuckSound={unlock,play,music,celebration,testSound,setVolume,setEnabled,
-    get volume(){return fxLevel;},get state(){return ctx?.state||'inactive';}};
+  window.UNOLuckSound={unlock,play,music,celebration,testSound,ledTick,setVolume,setMasterVolume,setMusicVolume,setEnabled,
+    get volume(){return fxLevel;},get masterVolume(){return masterLevel;},
+    get musicVolume(){return musicLevel;},get lastError(){return lastError;},
+    get state(){return ctx?.state||'inactive';}};
 })();
