@@ -89,7 +89,7 @@ def test_music_repeat_off_and_on_end_to_end_wiring():
 def test_jackpot_audio_is_exclusive_cancelable_and_server_confirmed():
     celebration=(P/'art/celebrations.js').read_text()
     assert "if(!preview&&!isWin)return false;" in celebration
-    assert "if(!customized)cinematicImpact(rank)" in S
+    assert "if(!customized&&isActive())cinematicImpact(rank)" in S
     assert "const key='jackpot-'+rank" in S
     assert "if(cue&&studio?.isCustomized(cue))return studio.play(cue)" in S
     assert "window.UNOLuckSound?.stopCelebration?.()" in celebration
