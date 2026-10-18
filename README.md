@@ -28,7 +28,8 @@ Open http://127.0.0.1:8000. Use two separate browser profiles, create a room in 
 
 This repository includes a `Dockerfile` and `railway.json`. Railway should use **one replica only** and a single Uvicorn worker because rooms are stored in process memory. A deploy/restart clears rooms and game progress. For durable production multiplayer, add Redis or PostgreSQL state plus shared events before enabling multiple replicas.
 
-- Build: Dockerfile, service exposes `${PORT}` automatically.
+- Runtime port: explicitly set Railway service variable `PORT=8080` and keep the Railway service domain target port **8080**. The Dockerfile exposes 8080 and Uvicorn binds `0.0.0.0:${PORT:-8080}`. A mismatch causes HTTP 502 `connection refused` despite a `SUCCESS` deployment.
+- Build: Dockerfile, listening on `${PORT}` (default 8080).
 - Healthcheck: `/health`.
 - Optional `UNO_ALLOWED_ORIGINS`: comma-separated extra exact URL origins. The served same-origin origin is allowed by default.
 
