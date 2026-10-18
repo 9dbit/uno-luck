@@ -1,0 +1,213 @@
+/* UNO LUCK v0.9.1 : visual fidelity pass anchored on approved IMG_3035.
+ * Preserves server-selected LED sequence, frozen dragon image and three-result state machine.
+ * All size changes here are cosmetic; no stake/RNG/payout code.
+ */
+.game-header {
+  grid-template-columns:20% minmax(0,1fr) 11.7% 11.7% 11.7%!important;
+  gap:1%!important;
+  padding:1.2% 2% 0!important;
+}
+.uno-logo{object-fit:contain!important;max-height:95%;}
+.game-header .balance-chip {
+  display:grid!important;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:clamp(3px,.75vw,8px)!important;
+  align-content:center;
+  height:min(68%,62px)!important;
+  width:100%;
+  padding:2px clamp(4px,1.1vw,8px)!important;
+  overflow:hidden;
+}
+.balance-readout {
+  display:flex;flex-direction:column;min-width:0;justify-content:center;
+  align-items:center;gap:1px;
+}
+.balance-readout small {
+  font-size:clamp(7px,1.8vw,11px);
+  line-height:1.05;
+  font-weight:800;
+  white-space:nowrap;
+  letter-spacing:.045em;
+  color:#f7d274;
+  text-shadow:0 0 4px #faca5c33;
+}
+.balance-chip .balance-readout strong {
+  display:block;
+  font-size:clamp(12px,3.2vw,20px)!important;
+  font-weight:1000;line-height:1.12;
+  min-width:0;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;
+  font-variant-numeric:tabular-nums;
+}
+.balance-chip .coin{width:clamp(22px,6.1vw,35px);border-width:1.5px;}
+.balance-chip .chip-plus{width:clamp(22px,6.1vw,35px);font-size:clamp(17px,4vw,26px)}
+.game-header #gift-btn,.game-header #menu-open,.game-header #profile-btn{
+  width:min(100%,clamp(35px,10vw,52px))!important;
+  height:auto!important;aspect-ratio:1!important;
+  min-width:0;min-height:0;
+  filter:drop-shadow(0 0 4px #ff9a2852);
+}
+.game-header #profile-btn img {object-fit:contain;}
+/* Title has a crown built into its approved asset. There must be no second crown. */
+.title-area>.crown{display:none!important}
+.title-area .motion-title {left:6%!important;width:88%!important;top:3%!important;height:72%!important;}
+.title-area>p{min-height:19px;line-height:1.2;}
+/* Fix corner indices against *baked* gold corner ovals of red/yellow/green art.
+   Blue and Wild have no matching ovals, so use conventional corner indices. */
+.result-cell .card3d {filter:drop-shadow(0 2px 4px #ffb43e6a) drop-shadow(0 6px 6px #130000aa);}
+.result-cell .card3d .number{
+  font-size:clamp(35px,10.25vw,82px)!important;
+  color:#fdfefe;
+  -webkit-text-stroke:clamp(.75px,.22vw,1.7px) #222235;
+  text-shadow:1.5px 2px 0 #13102b,0 1px 1px #fff,0 0 9px #ffffff50;
+}
+.result-cell .card3d .small-num {font-weight:1000;font-style:normal;font-size:clamp(10px,3.2vw,18px)!important;line-height:1;white-space:nowrap;}
+.result-cell .card3d[data-color='red'] .small-num:not(.bottom),
+.result-cell .card3d[data-color='yellow'] .small-num:not(.bottom),
+.result-cell .card3d[data-color='green'] .small-num:not(.bottom) {
+  left:23%;top:17%;right:auto;bottom:auto;
+  transform:translate(-50%,-50%) rotate(-30deg);
+}
+.result-cell .card3d[data-color='red'] .small-num.bottom,
+.result-cell .card3d[data-color='yellow'] .small-num.bottom,
+.result-cell .card3d[data-color='green'] .small-num.bottom {
+  left:77%;top:82%;right:auto;bottom:auto;
+  transform:translate(-50%,-50%) rotate(150deg);
+}
+.result-cell .card3d[data-color='yellow'] .small-num{
+  color:#1c1931;
+  -webkit-text-stroke:0!important;
+  text-shadow:0 1px 1px #fff8aa;
+}
+.result-cell .card3d[data-color='red'] .small-num,
+.result-cell .card3d[data-color='green'] .small-num{
+  color:#fffdf1;-webkit-text-stroke:.65px #1b1732;text-shadow:0 1px 2px #000c;
+}
+.result-cell .card3d[data-color='blue'] .small-num:not(.bottom),
+.result-cell .card3d[data-color='wild'] .small-num:not(.bottom) {left:13%;top:8%;transform:none;}
+.result-cell .card3d[data-color='blue'] .small-num.bottom,
+.result-cell .card3d[data-color='wild'] .small-num.bottom {right:11%;bottom:7%;left:auto;top:auto;transform:rotate(180deg);}
+.card3d[data-face='SKIP'] .number,.card3d[data-face='REVERSE'] .number{font-size:clamp(32px,9vw,68px)!important;}
+.card3d[data-face='+2'] .number{font-size:clamp(26px,7.4vw,54px)!important;}
+.card3d[data-face='+2'] .small-num{font-size:clamp(8px,2.5vw,14px)!important;}
+.card3d.placeholder{filter:grayscale(.65);opacity:.30;}
+/* Color-match cards glow once, with GPU-only animation on their own content. */
+.result-area.fx-color-match .result-cell .card3d,
+.title-area.fx-color-match ~ .result-area .result-cell .card3d {
+  animation:metalLockGlow .95s ease-out both;
+}
+@keyframes metalLockGlow {
+  0%{filter:drop-shadow(0 0 4px #ffe888)}
+  36%{filter:drop-shadow(0 0 14px #fef8bd) brightness(1.25)}
+  100%{filter:drop-shadow(0 2px 4px #ffb43e6a) drop-shadow(0 6px 6px #130000aa)}
+}
+/* Deeply embossed metallic horizontal betting HUD between result and dragon wheel. */
+.game-shell>.result-bar {
+  width:85%!important;height:90%!important;
+  padding:1% 6%!important;
+  background:linear-gradient(180deg,#7c0917 0%,#270009 36%,#0c0004 90%)!important;
+  box-shadow:inset 0 3px 4px #ed6a3850,inset 0 -3px 5px #090000a8!important;
+}
+.game-shell>.result-bar::before{inset:-5% -7%;filter:drop-shadow(0 0 3px #ffad3f66);}
+.game-shell>.result-bar>div{position:relative;min-width:0;padding:0 1% 0 4%;gap:1px;}
+.game-shell>.result-bar>div::before{
+  content:'✦';position:absolute;left:0;top:60%;transform:translateY(-50%);
+  display:grid;place-items:center;
+  width:clamp(12px,3.2vw,20px);aspect-ratio:1;
+  border:1px solid #ffde90;border-radius:50%;
+  background:radial-gradient(circle at 35% 25%,#ffffd2,#ffe16a 28%,#d67c10 65%,#713108 100%);
+  box-shadow:inset 0 1px 2px #fff9,0 1px 2px #160001;
+  color:#a35005;font-size:clamp(8px,2.1vw,12px);
+  line-height:1;
+}
+.game-shell>.result-bar small{font-size:clamp(9px,2.45vw,13px)!important;font-weight:700;letter-spacing:.01em;line-height:1.2}
+.game-shell>.result-bar strong{font-size:clamp(14px,4.15vw,23px)!important;font-weight:1000;line-height:1.05;text-shadow:0 2px 2px #000b,0 0 5px #ffde594a;}
+.game-shell>.result-bar strong.positive{color:#22ff88!important;text-shadow:0 0 6px #15c96b85;}
+/* Nine stationary gold sockets become crisp layered LED screens. Only contents advance. */
+.wheel-led-ring .led-slot{border:1px solid #f5b94e;border-radius:9% 9% 18% 18%;background:#110813;
+  box-shadow:inset 0 1px 2px #fff3b7,0 1px 2px #30000f88;
+  contain:layout style paint;
+}
+.wheel-led-ring .led-slot::before{content:'';position:absolute;inset:2px;z-index:3;pointer-events:none;
+  border:1px solid #ffdc936b;border-radius:inherit;box-shadow:inset 0 0 3px #ffecb086;}
+.wheel-led-ring .led-screen{inset:3px;border-radius:8% 8% 20% 20%;
+  filter:brightness(1.04);box-shadow:inset 0 0 10px #0009,inset 0 1px 4px #fff6;
+}
+.wheel-led-ring .led-screen::after{opacity:.34!important;background-size:3px 3px!important;}
+.wheel-led-ring .led-screen::before{
+  background:repeating-linear-gradient(180deg,transparent 0 2px,#05061929 2px 3px),
+    linear-gradient(120deg,#fff8 0%,#fff2 27%,transparent 45%,#03030c77 100%);
+}
+.wheel-led-ring .led-symbol {font-style:normal;font-weight:1000;
+  font-size:clamp(14px,5.4vw,30px);
+  -webkit-text-stroke:.6px #151026;
+  text-shadow:0 0 3px #fff,0 0 8px #ffffff91,0 2px 2px #0009;
+}
+.wheel-led-ring.led-running .led-screen{filter:brightness(1.25)}
+.wheel-led-ring.led-locked .led-slot:nth-child(5){border-color:#fff8b1;box-shadow:0 0 6px #ffe76e,inset 0 0 4px #fff;}
+.wheel-led-ring.led-locked .led-slot:nth-child(5) .led-screen{filter:brightness(1.34)}
+/* Enlarged, accessible auxiliary hit areas with the original approved art. */
+.wheel-stage .side-action {width:clamp(44px,15%,70px)!important;bottom:3.4%!important;
+  min-height:44px!important;box-shadow:none!important;
+}
+.wheel-stage #turbo-btn{left:4.5%!important}
+.wheel-stage #auto-btn{right:4.5%!important}
+.wheel-stage .side-action[aria-pressed='true']{filter:drop-shadow(0 0 6px #f3da83) brightness(1.15)}
+/* Keep the status away from dragon scales, with minimal translucent contrast. */
+.wheel-area .spin-caption{
+  bottom:0.7%!important;left:13%!important;right:13%!important;
+  width:auto;min-height:clamp(17px,2.8dvh,24px);
+  display:flex;align-items:center;justify-content:center;
+  padding:1px clamp(6px,2vw,12px);
+  background:linear-gradient(90deg,#16000608,#21030cc9 15%,#21030cc9 85%,#16000608);
+  border-radius:999px;
+  color:#ffe2a0;text-shadow:0 1px 2px #000;
+  font-size:clamp(8px,1.9vw,11px)!important;
+  white-space:nowrap;
+}
+/* Small portrait: the numbers and icons must not consume more space than cards. */
+@media(max-width:350px){
+ .game-header{grid-template-columns:20% minmax(0,1fr) 11.6% 11.6% 11.6%!important}
+ .balance-readout small{font-size:7px}
+ .game-shell>.result-bar>div::before{width:11px}
+ .game-shell>.result-bar strong{font-size:12px!important}
+ .game-shell>.result-bar small{font-size:8px!important}
+ .wheel-stage .side-action{width:clamp(44px,15%,56px)!important}
+}
+@media(max-height:610px) and (orientation:portrait){
+ .title-area .motion-title{width:82%!important;left:9%!important;height:54%!important}
+ .result-cell .card3d .number{font-size:clamp(30px,8.5vw,60px)!important}
+ .game-shell>.result-bar{height:83%!important}
+ .wheel-stage .side-action{width:clamp(38px,13%,60px)!important;min-height:38px!important}
+ .wheel-area .spin-caption{font-size:8px!important;min-height:16px}
+}
+@media(orientation:landscape) and (max-height:470px){
+ .game-header{grid-template-columns:17% minmax(0,1fr) 9% 9% 9%!important}
+ .game-header .balance-chip{height:36px!important;max-width:88%;justify-self:center}
+ .game-header #gift-btn,.game-header #menu-open,.game-header #profile-btn{width:min(100%,34px)!important}
+ .title-area .motion-title{left:1%!important;top:18%!important;width:98%!important;height:56%!important}
+ .game-shell>.result-bar{width:95%!important;height:92%!important}
+ .wheel-stage .side-action{width:clamp(30px,12%,44px)!important;min-height:30px!important}
+ .result-cell .card3d .number{font-size:clamp(20px,6vw,48px)!important}
+ .wheel-area .spin-caption{bottom:0!important;font-size:8px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ .result-cell .card3d{animation:none!important}
+ .wheel-led-ring .led-sheen{animation:none!important}
+}
+/* Landscape is a three-column HUD, not a squeezed portrait: preserve wordmark ratio
+   and lift metal betting panel above the browser-safe lower strip. */
+@media(orientation:landscape) and (max-height:470px){
+ .title-area .motion-title{left:0!important;top:16%!important;width:100%!important;height:57%!important;}
+ .title-area .motion-title img{object-fit:contain!important;}
+ .title-area>p{bottom:16%!important;font-size:clamp(7px,1.3vw,10px)!important;max-width:96%;white-space:normal!important;line-height:1.15;}
+ .game-shell>.result-bar{
+   grid-row:2!important;grid-column:1/3!important;
+   align-self:end!important;justify-self:center!important;
+   margin:0 0 12px!important;height:clamp(39px,13dvh,52px)!important;
+   width:93%!important;padding:0 6%!important;
+ }
+ .game-shell>.result-bar small{font-size:10px!important}
+ .game-shell>.result-bar strong{font-size:16px!important}
+ .wheel-area .spin-caption{bottom:1px!important;}
+}

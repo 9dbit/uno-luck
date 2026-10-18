@@ -10,7 +10,8 @@
   <link rel="stylesheet" href="/assets/orbit.css?v=9">
   <link rel="stylesheet" href="/assets/art/motion.css?v=9">
   <link rel="stylesheet" href="/assets/art/ledwheel.css?v=9">
-  <title>UNO LUCK | Color Match</title>
+  <link rel="stylesheet" href="/assets/art/fidelity.css?v=91">
+  <title>UNO LUCK | Color Match v0.9.1</title>
 </head>
 <body>
   <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
@@ -38,7 +39,7 @@
       <img class="uno-logo" src="/assets/art/v1/logo.webp" alt="UNO LUCK">
       <button class="balance-chip" id="wallet-open" type="button" aria-label="Saldo koin virtual">
         <span class="coin" aria-hidden="true">✦</span>
-        <strong id="wallet-balance">1.000</strong>
+        <span class="balance-readout"><small>KOIN VIRTUAL</small><strong id="wallet-balance">1.000</strong></span>
         <span class="chip-plus" aria-hidden="true">+</span>
       </button>
       <button class="round-hud-btn" id="gift-btn" type="button" aria-label="Klaim hadiah harian"><span aria-hidden="true">🎁</span></button>
@@ -46,7 +47,6 @@
       <button class="round-hud-btn menu" id="menu-open" type="button" aria-label="Menu"><span aria-hidden="true">☰</span></button>
     </header>
     <section class="title-area" aria-label="Mode permainan">
-      <div class="crown" aria-hidden="true">♛</div>
       <h1 class="motion-title"><img src="/assets/art/v1/color-match-title.webp" alt="COLOR MATCH!"></h1>
       <p>Tiga warna sama <span>•</span> <strong>2×</strong> biaya SPIN</p>
     </section>
@@ -100,7 +100,7 @@
   </dialog>
   <script src="/assets/art/motion.js?v=8" defer></script>
   <script src="/assets/art/ledwheel.js?v=9" defer></script>
-  <script src="/assets/orbit.js?v=9" defer></script>
+  <script src="/assets/orbit.js?v=91" defer></script>
   <script src="/assets/boot.js?v=6" defer></script>
 </body>
 </html>

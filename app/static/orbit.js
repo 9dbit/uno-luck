@@ -1,5 +1,5 @@
 'use strict';
-/* UNO LUCK v0.9: server-picked three cards, one GPU wheel with independent transparent card assets. */
+/* UNO LUCK v0.9.1: server-picked three cards, one GPU wheel with independent transparent card assets. */
 const $ = id => document.getElementById(id);
 const idMoney = n => new Intl.NumberFormat('id-ID').format(n);
 const COLORS = ['red','blue','yellow','green'];
@@ -24,7 +24,7 @@ function htmlCard(data,small=false,placeholder=false){
   const asset = placeholder ? 'card-placeholder' : `card-${color}`;
   const el=document.createElement('div');
   el.className='card3d'+(placeholder?' placeholder':'');
-  el.dataset.color=color;el.dataset.small=String(small);
+  el.dataset.color=color;el.dataset.small=String(small);el.dataset.face=face;
   el.setAttribute('aria-label',`${color} ${face}`);
   const front=document.createElement('span');front.className='card-face card-front';
   const art=document.createElement('img');art.className='metal-card-art';

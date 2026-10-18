@@ -96,3 +96,14 @@ backend state transitions are independently tested with FastAPI TestClient.
 ### v0.9 Golden-master LED Wheel (main screen)
 
 The user-approved 9:16 illustration is the visual anchor. `app/static/art/v2/wheel-dragon.webp` is a **static, undistorted square** dragon/wheel art layer. Nine fixed LED displays track its nine metallic openings; `app/static/art/ledwheel.js` changes their card contents left-to-right, then inserts the server-authoritative selected card so it stops at index 4 under the gold pointer. `transferTo` shows one GPU-animated card flying into the next upper result slot, filled left/center/right. The upper results never act as a second slot machine. The dynamically animated Biaya/Kembali/Selisih metallic bar is directly between result cards and wheel. Skin in `ledwheel.css`; no CSS layout geometry reads in the LED frame loop. The API/RNG/ledger remain untouched. See `docs/UNO_LUCK_v09.md`.
+
+### v0.9.1 UI Visual Fidelity (staging)
+
+The 9-slot LED wheel and dragon remain immobile. UI refinements are packaged
+separately in `app/static/art/fidelity.css` so the v0.9 gameplay state machine
+and payout remain identical. The original approved 3D art stays in `art/v1`
+and `art/v2`; dynamic card indices are aligned to their corresponding gold
+corner ovals by color, HUD displays `KOIN VIRTUAL`, betting cells receive
+embossed coin accents, and auxiliary actions have larger tap targets. A
+landscape-only rule preserves the wordmark aspect ratio and lifts betting
+above the bottom edge. See `docs/UNO_LUCK_v091.md`.
