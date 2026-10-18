@@ -33,9 +33,9 @@ def test_editing_is_real_and_persistent_without_server_upload():
     assert "function stopLoop()" in A and "function stopPreview()" in A
 
 def test_real_game_events_and_boot_use_studio_cues():
-    assert 'sound-studio.js?v=1115' in H
+    assert 'sound-studio.js?v=1116' in H
     assert 'sound-studio.css?v=1114' in H
-    assert H.index('sound.js?v=1114') < H.index('sound-studio.js?v=1115') < H.index('orbit.js?v=1112')
+    assert H.index('sound.js?v=1116') < H.index('sound-studio.js?v=1115') < H.index('orbit.js?v=1116')
     assert "installStudio,channels,playCue,result" in S
     assert "studio?.isCustomized(cue)" in S
     assert "studio?.isCustomized('background-music')" in S
@@ -43,7 +43,7 @@ def test_real_game_events_and_boot_use_studio_cues():
     assert "playCue('soft-tech-splash-screen')" in BOOT
     assert "playCue('loading-scene')" in BOOT
     assert "showSoundStudio" in GAME and 'Sound Studio · 12 Custom Sound Effects' in GAME
-    assert "?.result(last.combo==='COLOR_MATCH')" in GAME
+    assert "last.combo!=='COLOR_MATCH')window.UNOLuckSound?.result(false)" in GAME
     assert "window.UNOLuckSound?.play('lock')" in (P/'art/ledwheel.js').read_text()
     assert "sfx('spin')" in GAME and "sfx('tap')" in GAME
 
@@ -85,3 +85,19 @@ def test_music_repeat_off_and_on_end_to_end_wiring():
     assert "musicRequested=Boolean(playIt)" in S
     assert "async function refreshMusic()" in S
     assert "refreshMusic," in S
+
+def test_jackpot_audio_is_exclusive_cancelable_and_server_confirmed():
+    celebration=(P/'art/celebrations.js').read_text()
+    assert "if(!preview&&!isWin)return false;" in celebration
+    assert "if(!customized)cinematicImpact(rank)" in S
+    assert "const key='jackpot-'+rank" in S
+    assert "if(cue&&studio?.isCustomized(cue))return studio.play(cue)" in S
+    assert "window.UNOLuckSound?.stopCelebration?.()" in celebration
+    assert "window.UNOLuckSound?.celebration(selected)" in celebration
+    assert "Math.max(minimumMs,configuredMs)" in celebration
+    assert "stopCelebration,segmentDuration" in A
+    assert "jackpotToken!==celebrationRequest" in A
+    assert "if(isJackpot){item.key=key;celebrationNode=item;}" in A
+    assert "if(sfxEnabled && last.combo!=='COLOR_MATCH')" in GAME
+    assert [__import__('app.orbit',fromlist=['CELEBRATIONS']).CELEBRATIONS[i]['multiplier']
+        for i in range(1,6)] == [200,80,30,10,2]
