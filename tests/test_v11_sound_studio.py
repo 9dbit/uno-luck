@@ -29,7 +29,8 @@ def test_editing_is_real_and_persistent_without_server_upload():
             "if(![start,stop,fi,fo].every(Number.isFinite)"]:
         assert contract in A, contract
     assert "UNO_SPIN_DB_PATH" not in A
-    assert "/api/" not in A
+    assert "/api/orbit/pick" not in A
+    assert "/api/sounds/manifest" in A
     assert "function stopLoop()" in A and "function stopPreview()" in A
 
 def test_real_game_events_and_boot_use_studio_cues():
