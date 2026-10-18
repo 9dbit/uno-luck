@@ -360,7 +360,8 @@ function limits(key,duration,{draft=false}={}){
 }
 function isCustomized(key){
   const p=liveProfile(key);
-  return Boolean(p&&(p.custom||p.edited||p.source==='custom'));
+  return Boolean(p&&(p.custom||p.edited||p.source==='custom'||
+    (cloudProfiles.has(key)&&known.get(key)?.[2])));
 }
 function profile(key){return {...editProfile(key)};}
 function publishedProfile(key){return {...(cloudProfiles.get(key)||{})};}
@@ -368,12 +369,15 @@ function getRepeat(key){return key==='background-music' && liveProfile(key)?.rep
 function getDraftRepeat(key){return key==='background-music' && editProfile(key)?.repeat!==false;}
 function setRepeat(key,enabled){
   if(key!=='background-music')throw Error('Repeat hanya untuk BACKGROUND MUSIC');
-  profiles[key]={...profiles[key],repeat:Boolean(enabled),edited:true};
+  profiles[key]={...editProfile(key),repeat:Boolean(enabled),edited:true};
   save();
+  if(hasAdminKey())void publishCue(key).catch(error=>{
+    lastError=error.message;console.warn('[UNO SOUND CLOUD]',lastError);
+  });
   window.UNOLuckSound?.refreshMusic?.();
-  return getRepeat(key);
+  return getDraftRepeat(key);
 }
-async function measure(key){const b=await getBuffer(key);return b?.duration||0;}
+async function measure(key){const b=await getBuffer(key,{draft:true});return b?.duration||0;}
 async function configure(key,settings){
   if(!known.has(key))throw Error('Sound event tidak dikenal');
   const length=await measure(key);
@@ -382,11 +386,12 @@ async function configure(key,settings){
   const fi=Number(settings.fadeIn),fo=Number(settings.fadeOut);
   if(![start,stop,fi,fo].every(Number.isFinite)||start<0||stop>length+.001||stop-start<.02||
       fi<0||fo<0||fi+fo>stop-start+.001)throw Error('Rentang start/stop atau fade tidak valid');
-  profiles[key]={...profiles[key],start:decimals(start),stop:decimals(Math.min(stop,length)),
+  profiles[key]={...editProfile(key),start:decimals(start),stop:decimals(Math.min(stop,length)),
     fadeIn:decimals(fi),fadeOut:decimals(fo),edited:true};
-  save();
+  save();bufferCache.delete('draft:'+key);
+  if(hasAdminKey())await publishCue(key);
   if(key==='background-music')window.UNOLuckSound?.refreshMusic?.();
-  return limits(key,length);
+  return limits(key,length,{draft:true});
 }
 async function upload(key,file){
   if(!known.has(key))throw Error('Sound event tidak dikenal');
@@ -399,11 +404,12 @@ async function upload(key,file){
   const decoded=await context.decodeAudioData(bytes.slice(0));
   if(!decoded.duration||!Number.isFinite(decoded.duration))throw Error('Durasi audio tidak valid');
   await writeFile(key,file);
-  bufferCache.set(key,decoded);
+  bufferCache.set('draft:'+key,decoded);
   profiles[key]={custom:true,edited:true,fileName:file.name,fileDuration:decimals(decoded.duration),
     start:0,stop:decimals(decoded.duration),fadeIn:0,fadeOut:0,
     ...(key==='background-music'?{repeat:getRepeat(key)}:{})};
   save();
+  if(hasAdminKey())await publishCue(key);
   if(key==='soft-tech-splash-screen'&&splashUrl){
     URL.revokeObjectURL(splashUrl);splashUrl=null;
   }
@@ -435,7 +441,7 @@ async function segmentDuration(key){
     const buffer=await getBuffer(key);
     return buffer?limits(key,buffer.duration).length:0;
   }catch(error){
-    const duration=Number(profiles[key]?.fileDuration)||0;
+    const duration=Number(liveProfile(key)?.fileDuration)||0;
     return duration?limits(key,duration).length:0;
   }
 }
@@ -459,11 +465,11 @@ async function play(key,{looping=false,forPreview=false}={}){
       return ok;
     }
     const {context,fx,music}=channel();
-    const buffer=await getBuffer(key);
+    const buffer=await getBuffer(key,{draft:forPreview});
     if(!buffer)return false;
     if(looping&&serial!==loopSerial)return false;
     if(isJackpot&&jackpotToken!==celebrationRequest)return false;
-    const bounds=limits(key,buffer.duration);
+    const bounds=limits(key,buffer.duration,{draft:forPreview});
     const source=context.createBufferSource(),envelope=context.createGain();
     const now=context.currentTime+.012;
     const repeat=looping && getRepeat(key);
@@ -511,7 +517,8 @@ async function previewCue(key){
 async function reset(key){
   stopPreview();if(key==='background-music')stopLoop();
   try{await removeFile(key);}catch(_){/* No DB for bundled-only sound. */}
-  delete profiles[key];bufferCache.delete(key);save();
+  delete profiles[key];bufferCache.delete('draft:'+key);save();
+  if(hasAdminKey())await publishCue(key,{remove:true});
   if(key==='soft-tech-splash-screen'&&splashUrl){
     URL.revokeObjectURL(splashUrl);splashUrl=null;
   }
