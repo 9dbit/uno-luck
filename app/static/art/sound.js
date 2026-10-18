@@ -15,9 +15,11 @@
   function installStudio(adapter){studio=adapter;}
   function channels(){return {context:ctx,fx:fxBus,music:musicBus};}
   function playCue(name){return studio?.play(name)??Promise.resolve(false);}
+  const audioAvailable=()=>isActive()||Boolean(studio?.mediaUnlocked);
   function result(winning){
-    if(!audioEnabled||!isActive()||fxLevel===0)return false;
+    if(!audioEnabled||fxLevel===0)return false;
     if(studio?.isCustomized('result-sound'))return studio.play('result-sound');
+    if(!isActive())return studio?.play('push-button')??false;
     chime(winning?1080:260);return true;
   }
   const buffers=new Map();
@@ -61,13 +63,43 @@
     env.gain.exponentialRampToValueAtTime(.001,now+.20);
     osc.connect(env).connect(fxBus);osc.start(now);osc.stop(now+.22);
   }
+  // Called directly from a trusted click/touch. Prime a source before
+  // awaiting any promise. WebKit can be "interrupted", not only "suspended".
+  function primeOnGesture(){
+    if(!ctx||ctx.state==='closed')return;
+    try{
+      const silent=ctx.createBuffer(1,1,ctx.sampleRate||44100);
+      const source=ctx.createBufferSource();
+      source.buffer=silent;
+      source.connect(master);
+      source.start(0);
+    }catch(error){console.warn('[UNO AUDIO] Safari prime:',error);}
+  }
   async function unlock(){
-    try{if(!makeCtx())return false;
-      if(ctx.state==='suspended')await ctx.resume();
-      if(isActive()){sample('spin');sample('tick');sample('tier-5');sample('music');}
-      return isActive();
-    }catch(error){lastError='Audio unlock: '+String(error?.message||error);
-      console.warn('[UNO LUCK AUDIO]',lastError);return false;}
+    try{
+      if(!makeCtx()){
+        lastError='Web Audio API tidak tersedia';
+        return Boolean(studio?.mediaUnlocked);
+      }
+      if(!isActive()&&ctx.state!=='closed'){
+        primeOnGesture();
+        // Invoke resume while still in the trusted gesture, even if interrupted.
+        const pending=ctx.resume();
+        await Promise.race([pending,new Promise(resolve=>setTimeout(resolve,1100))]);
+      }
+      if(isActive()){
+        lastError='';
+        sample('spin');sample('tick');sample('tier-5');sample('music');
+        return true;
+      }
+      lastError='Web Audio '+ctx.state+' · memakai HTML5 Audio jika tersedia';
+      console.warn('[UNO AUDIO]',lastError);
+      return Boolean(studio?.mediaUnlocked);
+    }catch(error){
+      lastError='Web Audio '+(ctx?.state||'unavailable')+': '+String(error?.message||error);
+      console.warn('[UNO AUDIO]',lastError);
+      return Boolean(studio?.mediaUnlocked);
+    }
   }
   function ledTick(slowing=false){
     if(!isActive()||!audioEnabled||fxLevel===0)return false;
@@ -84,7 +116,12 @@
     return true;
   }
   async function play(name){
-    if(!audioEnabled||!isActive()||fxLevel===0)return false;
+    if(!audioEnabled||fxLevel===0)return false;
+    if(!isActive()){
+      const fallback=cueMap[name]||(name==='tick'?'push-button':
+        name==='coin'||name==='win'||name==='lose'?'result-sound':null);
+      return fallback?Boolean(await studio?.play(fallback)):false;
+    }
     if(name==='coin'||name==='win'||name==='lose'){chime(name==='lose'?260:name==='coin'?1750:1080);return true;}
     const cue=cueMap[name];
     // When a user provides a custom JACKPOT clip, no bundled sample is layered over it.
@@ -113,6 +150,11 @@
   async function music(playIt){
     musicRequested=Boolean(playIt);
     if(!playIt)studio?.stopLoop();
+    if(!isActive()){
+      if(!playIt)return false;
+      if(!audioEnabled||document.hidden)return false;
+      return Boolean(await studio?.play('background-music',{looping:true}));
+    }
     if(playIt&&studio?.isCustomized('background-music')){
       if(!isActive()||document.hidden)return;
       if(playingMusic){try{playingMusic.stop();}catch(_){}playingMusic.disconnect();playingMusic=null;}
@@ -125,7 +167,7 @@
     const src=ctx.createBufferSource();src.buffer=buffer;src.loop=true;src.connect(musicBus);src.start();playingMusic=src;
   }
   async function refreshMusic(){
-    if(!musicRequested || !isActive() || document.hidden)return false;
+    if(!musicRequested || !audioAvailable() || document.hidden)return false;
     await music(false);
     return music(true);
   }
@@ -165,14 +207,14 @@
   }
   async function celebration(rank){
     if(!Number.isInteger(rank)||rank<1||rank>5)return {played:false,duration:0};
-    if(!isActive()||!audioEnabled||fxLevel===0)return {played:false,duration:0};
+    if(!audioEnabled||fxLevel===0)return {played:false,duration:0};
     stopCelebration();
     const token=jackpotSeq;
     const key='jackpot-'+rank;
     const customized=Boolean(studio?.isCustomized(key));
     // The selected file alone wins: no synthetic hit, generic stinger or other tier.
-    if(!customized)cinematicImpact(rank);
-    if(musicBus){
+    if(!customized&&isActive())cinematicImpact(rank);
+    if(isActive()&&musicBus){
       musicBus.gain.cancelScheduledValues(ctx.currentTime);
       musicBus.gain.setTargetAtTime(musicLevel*.17,ctx.currentTime,.09);
     }
@@ -198,5 +240,6 @@
     installStudio,channels,playCue,result,refreshMusic,stopCelebration,
     get volume(){return fxLevel;},get masterVolume(){return masterLevel;},
     get musicVolume(){return musicLevel;},get lastError(){return lastError;},
-    get state(){return ctx?.state||'inactive';}};
+    get state(){return isActive()?'running':studio?.mediaUnlocked?'media-fallback':
+      ctx?.state||'inactive';},get webAudioState(){return ctx?.state||'inactive';}};
 })();
