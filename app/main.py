@@ -19,15 +19,22 @@ from fastapi.staticfiles import StaticFiles
 
 from .engine import COLORS, RuleError, UnoGame
 from .spin import router as spin_router
+from .orbit import router as orbit_router
 
 APP_ROOT = Path(__file__).resolve().parent
-app = FastAPI(title="UNO LUCK Spin Staging", version="0.5.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="UNO LUCK Spin Staging", version="0.6.0", docs_url=None, redoc_url=None)
 app.include_router(spin_router)
+app.include_router(orbit_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")
 
 
 @app.get("/")
 async def homepage():
+    return FileResponse(APP_ROOT / "static" / "orbit-index.html")
+
+
+@app.get("/spin-legacy")
+async def legacy_spin_home():
     return FileResponse(APP_ROOT / "static" / "spin-index.html")
 
 
@@ -39,7 +46,7 @@ async def classic_home():
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "version": "0.5.0", "game": "UNO LUCK SPIN", "money_enabled": False, "main_mode": "spin"}
+    return {"ok": True, "version": "0.6.0", "game": "UNO LUCK SPIN", "money_enabled": False, "main_mode": "spin"}
 
 
 @dataclass

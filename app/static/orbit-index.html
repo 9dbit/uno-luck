@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#0b0006">
+  <meta name="description" content="UNO LUCK Color Match: kartu melingkar dan tiga pilihan SPIN, memakai koin virtual gratis.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <link rel="icon" href="/assets/spin-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/orbit.css?v=6">
+  <title>UNO LUCK | Color Match</title>
+</head>
+<body>
+  <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
+    <section class="boot-stage boot-softtech" id="boot-softtech" aria-label="Soft Tech">
+      <img class="boot-softtech-logo" id="boot-softtech-img" src="/assets/boot-softtech.webp" alt="Soft Tech" fetchpriority="high">
+    </section>
+    <section class="boot-stage boot-banner" id="boot-banner" aria-label="Memuat UNO LUCK" hidden>
+      <img id="boot-banner-img" class="boot-banner-img" src="/assets/boot-uno-banner.webp" alt="UNO LUCK" decoding="async">
+      <div class="boot-banner-vignette" aria-hidden="true"></div>
+      <div class="boot-loading-panel" id="boot-loading-panel">
+        <div class="boot-loading-track" id="boot-loading-track" role="progressbar" aria-label="Loading game system" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="boot-loading-fill" class="boot-loading-fill"></div>
+          <span class="boot-loading-label" id="boot-loading-label">loading game system</span>
+        </div>
+        <strong id="boot-loading-percent" class="boot-loading-percent">0%</strong>
+        <div class="boot-ready-actions" id="boot-ready-actions" hidden>
+          <button type="button" class="boot-sound-start" id="boot-with-audio" aria-label="Let's Play dengan suara">♫</button>
+          <button type="button" class="boot-continue" id="boot-continue">LET'S PLAY</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <main class="game-shell is-booting" id="game-shell" aria-hidden="true">
+    <header class="game-header">
+      <img class="uno-logo" src="/assets/orbit-logo.webp" alt="UNO LUCK">
+      <button class="balance-chip" id="wallet-open" type="button" aria-label="Saldo koin virtual">
+        <span class="coin" aria-hidden="true">✦</span>
+        <strong id="wallet-balance">1.000</strong>
+        <span class="chip-plus" aria-hidden="true">+</span>
+      </button>
+      <button class="round-hud-btn" id="gift-btn" type="button" aria-label="Klaim hadiah harian"><span aria-hidden="true">🎁</span></button>
+      <button class="avatar-btn" id="profile-btn" type="button" aria-label="Profil pemain"><img src="/assets/avatar_crop.jpg" alt=""></button>
+      <button class="round-hud-btn menu" id="menu-open" type="button" aria-label="Menu"><span aria-hidden="true">☰</span></button>
+    </header>
+    <section class="title-area" aria-label="Mode permainan">
+      <div class="crown" aria-hidden="true">♛</div>
+      <h1>COLOR MATCH!</h1>
+      <p>Tiga warna sama <span>•</span> <strong>2×</strong> biaya SPIN</p>
+    </section>
+    <section class="result-area" aria-label="Tiga kartu hasil SPIN">
+      <div class="result-frame" id="result-frame">
+        <div class="result-point" aria-hidden="true">◆</div>
+        <div class="result-cards">
+          <div class="result-cell" id="result-0" data-pos="0" aria-label="Kartu kiri"></div>
+          <div class="result-cell" id="result-1" data-pos="1" aria-label="Kartu tengah"></div>
+          <div class="result-cell" id="result-2" data-pos="2" aria-label="Kartu kanan"></div>
+        </div>
+      </div>
+      <div class="result-bar" aria-live="polite">
+        <div><small>Biaya</small><strong id="last-stake">25</strong></div>
+        <div><small>Kembali</small><strong id="last-payout">—</strong></div>
+        <div><small>Selisih</small><strong id="last-delta">—</strong></div>
+      </div>
+    </section>
+    <section class="wheel-area" aria-label="Carousel kartu berputar">
+      <div class="ring-halo" aria-hidden="true"></div>
+      <div id="orbit-ring" class="orbit-ring" aria-label="Lingkaran kartu UNO"></div>
+      <div class="pick-point" id="pick-point" aria-hidden="true">▼</div>
+      <div class="action-row">
+        <button class="side-action" id="turbo-btn" type="button" aria-label="Turbo" aria-pressed="false"><span class="action-icon">ϟ</span><small>TURBO</small></button>
+        <button id="spin-btn" class="spin-candy" type="button" aria-label="Spin kartu berikutnya" disabled>
+          <span class="spin-top">SPIN</span><small id="spin-step">1 / 3</small>
+        </button>
+        <button class="side-action" id="auto-btn" type="button" aria-label="Auto tiga spin per ronde" aria-pressed="false"><span class="action-icon">↻</span><small id="auto-label">AUTO</small></button>
+      </div>
+      <div class="spin-caption" id="spin-caption" role="status" aria-live="polite">SPIN pertama mengisi kartu kiri</div>
+      <div id="win-particles" class="win-particles" aria-hidden="true"></div>
+    </section>
+    <footer class="game-footer">
+      <div class="steps" id="steps" aria-label="Urutan spin">
+        <div class="step active"><span class="step-number">1</span><div class="step-slots"><i></i><i></i><i></i></div><small>KIRI</small></div>
+        <b class="step-arrow" aria-hidden="true">›</b>
+        <div class="step"><span class="step-number">2</span><div class="step-slots"><i></i><i></i><i></i></div><small>TENGAH</small></div>
+        <b class="step-arrow" aria-hidden="true">›</b>
+        <div class="step"><span class="step-number">3</span><div class="step-slots"><i></i><i></i><i></i></div><small>KANAN</small></div>
+      </div>
+      <div class="footer-aux"><span id="connection-status">Menghubungkan…</span><span>80% Color Match · Koin virtual</span></div>
+    </footer>
+  </main>
+  <dialog id="modal" class="modal" aria-label="Menu UNO LUCK">
+    <div class="modal-card"><div class="modal-header"><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" aria-label="Tutup">×</button></div><div class="modal-content" id="modal-content"></div></div>
+  </dialog>
+  <script src="/assets/orbit.js?v=6" defer></script>
+  <script src="/assets/boot.js?v=6" defer></script>
+</body>
+</html>

@@ -23,7 +23,7 @@
     fill.style.width = `${safe}%`;
     track.setAttribute('aria-valuenow', String(safe));
     percent.textContent = `${safe}%`;
-    if(message) loadingText.textContent = message;
+    if(message) loadingText.textContent = 'loading game system';
   }
   function preloadImage(element){
     if(element.complete && element.naturalWidth) return Promise.resolve(true);
@@ -94,8 +94,9 @@
     }
     if(released) return;
     await Promise.race([readyAssets, wait(50)]);
-    progress(100, 'Siap bermain!');
+    progress(100, 'loading game system');
     actions.hidden = false;
+    find('boot-loading-panel').classList.add('is-ready');
     // Auto-entry preserves the requested flow even without touching the screen;
     // on iPhone the first real gesture (e.g. PLACE) will unlock the audio.
     finishTimer = setTimeout(() => release(false), reducedMotion ? 1200 : 2900);

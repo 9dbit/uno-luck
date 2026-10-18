@@ -55,3 +55,39 @@ Keep domain target port and `PORT` at **8080**. For persistence across redeploys
 - All boot layers are fixed at `100dvh`; the underlying game remains hidden until the overlay fully closes. The splash CTA, panel, and progress bar stay within the safe viewport; full page scrolling is disabled.
 - Quality checks: `python -m pytest -q`, then execute `tests/visual_boot_v05.py` locally when Chromium Playwright is present (uses a simulated API, browser gesture checks and responsive screenshots).
 - The wallet is **demo virtual coins only**, not redeemable or withdrawable. State is currently SQLite-backed without a persistent Railway volume.
+
+
+## UNO LUCK v0.6 · 3-Spin Circular Card Carousel (main route)
+
+The `/` screen uses the approved black-red / gold design reference. One UNO LUCK
+winged crest lives in the upper-left, with an orbit of 13 dynamic card fronts
+rotating around the candy-red SPIN button. Individual card results use large
+standalone 3D cards in a horizontal tray, **not a mechanical slot reel**.
+
+- `POST /api/orbit/pick`: First click selects the left card and charges one
+  stake. Second click selects the center card, third click selects the right
+  card and settles the round. Each request uses an idempotency key. No hidden
+  card is revealed before its pick.
+- Color Match: exactly **80%** win probability per round, generated securely on
+  the server (80 in 100 branch), with three cards sharing the same color. Winning
+  payout is **2× stake**. In the remaining 20%, cards do not all share one
+  color and there is no payout. This is a custom demo rule, not official UNO.
+- Stakes 10, 25, 50, 100, 250 koin can be chosen from Menu before a round.
+  One stake is charged for all three spin actions.
+- `GET /api/orbit/state` restores unfinished rounds after reload. The server
+  validates game state and changes credit balances atomically in SQLite; no
+  frontend animation or client-supplied card changes the result.
+- Animated orbit carousel, CSS card vibration, win shards, turbo, auto (max 10
+  rounds), synthesized background music and sound effects unlocked on gesture.
+- Single-screen `100dvh` layout tested at 10 sizes including 320×480 mobile and
+  667×375 landscape. No horizontal or vertical body scroll.
+- Original Classic at `/classic`; previous Spin at `/spin-legacy`.
+
+**Staging virtual-only notice:** 1,000 starting demo credits, daily +250,
+refill +1,000. No paid purchases, withdrawals, conversions to fiat, or cash
+rewards. The current SQLite database defaults to `/tmp` and is not durable on
+Railway without mounting a persistent volume and setting `UNO_SPIN_DB_PATH`.
+
+To test: `python -m pytest -q`. UI QA uses an isolated Chromium snapshot test
+with mocked APIs because HTTP localhost is blocked in the test environment;
+backend state transitions are independently tested with FastAPI TestClient.

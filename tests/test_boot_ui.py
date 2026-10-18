@@ -26,7 +26,7 @@ def test_splash_sequence_and_auto_entry():
     assert 'id="boot-continue"' in HTML
     assert "logo.classList.add('is-fading')" in BOOT
     assert "banner.hidden = false" in BOOT
-    assert "progress(100, 'Siap bermain!')" in BOOT
+    assert "progress(100, 'loading game system')" in BOOT
     assert "finishTimer = setTimeout(() => release(false)" in BOOT
     assert 'game.classList.remove(\'is-booting\')' in BOOT
     assert 'aria-hidden' in BOOT

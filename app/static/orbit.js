@@ -1,0 +1,288 @@
+'use strict';
+/* UNO LUCK v0.6: three server-authored card picks, rotating ring; demo credits only. */
+const $ = id => document.getElementById(id);
+const idMoney = n => new Intl.NumberFormat('id-ID').format(n);
+const COLORS = ['red','blue','yellow','green'];
+const FACES = ['0','1','2','3','4','5','6','7','8','9','SKIP','REVERSE','+2'];
+const STAKES = [10,25,50,100,250];
+const RING_COUNT = 13;
+const MUTE_MUSIC = 'uno_orbit_music';
+const MUTE_EFFECTS = 'uno_orbit_sfx';
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let account = null, currentRound=null, last=null, stakeIndex=1, isSpinning=false;
+let isTurbo=false, isAuto=false, cancelAuto=false, motorAngle=0, ringCards=[];
+let audioContext=null, musicTimer=null, musicEnabled=localStorage.getItem(MUTE_MUSIC)!=='off';
+let sfxEnabled=localStorage.getItem(MUTE_EFFECTS)!=='off', nextMusicAt=0, musicStep=0;
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+const previewCard = () => ({color:COLORS[Math.floor(Math.random()*COLORS.length)],face:FACES[Math.floor(Math.random()*FACES.length)]});
+function say(message){$('spin-caption').textContent=message;$('spin-caption').title=message;}
+function symbol(face){return ({SKIP:'⊘',REVERSE:'⇄','+2':'+2','+4':'+4',WILD:'◉'})[face]||face;}
+function htmlCard(data,small=false,placeholder=false){
+  const el=document.createElement('div');
+  el.className='card3d'+(placeholder?' placeholder':'');
+  el.dataset.color=data.color;el.dataset.small=String(small);
+  el.setAttribute('aria-label',`${data.color} ${data.face}`);
+  const tl=document.createElement('span');tl.className='small-num';tl.textContent=data.face;
+  const num=document.createElement('span');num.className='number';num.textContent=symbol(data.face);
+  const br=document.createElement('span');br.className='small-num bottom';br.textContent=data.face;
+  el.append(tl,num,br);return el;
+}
+function resetRing(){
+  ringCards=Array.from({length:RING_COUNT},(_,i)=>i===0?{color:'red',face:'7'}:previewCard());
+  const ring=$('orbit-ring');ring.replaceChildren();
+  ringCards.forEach((card,index)=>{
+    const holder=document.createElement('div');holder.className='orbit-card';holder.dataset.index=index;
+    holder.append(htmlCard(card,true));ring.append(holder);
+  });
+  layoutRing(0);
+}
+function layoutRing(angle=motorAngle,shake=false){
+  const zone=$('orbit-ring').getBoundingClientRect();
+  if(!zone.width||!zone.height)return;
+  const rx=Math.max(16,zone.width*.45-Math.max(12,zone.width*.052));
+  const ry=zone.height*.31;
+  const nodes=$('orbit-ring').children;
+  for(let i=0;i<nodes.length;i++){
+    const theta=2*Math.PI*i/nodes.length+angle;
+    const sin=Math.sin(theta),cos=Math.cos(theta);
+    const el=nodes[i];
+    const tx=sin*rx,ty=-cos*ry;
+    const scale=.65+.30*(cos+1)/2;
+    const rotate=Math.sin(theta)*26;
+    el.style.transform=`translate(-50%,-50%) translate(${tx.toFixed(2)}px,${ty.toFixed(2)}px) rotate(${rotate.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+    el.style.zIndex=String(Math.round((cos+1)*9)+2);
+    el.style.opacity=cos<-.67?'0.57':'1';
+    el.classList.toggle('pick',!shake&&i===0&&Math.abs(Math.sin(theta/2))<.02);
+    el.classList.toggle('shaking',shake);
+  }
+}
+function changeSelectedCard(data){
+  ringCards[0]=data;
+  $('orbit-ring').children[0].replaceChildren(htmlCard(data,true));
+}
+function paintRound(round,preview=false){
+  currentRound=round?.complete?null:round;
+  const show=round?.cards||[];
+  const placeholders=[{color:'blue',face:'6'},{color:'blue',face:'3'},{color:'blue',face:'8'}];
+  for(let idx=0;idx<3;idx++){
+    const slot=$('result-'+idx);const card=show[idx]||(preview?placeholders[idx]:{color:'blue',face:'?' });
+    const element=htmlCard(card,false,idx>=show.length);
+    if(preview)element.classList.add('preview-card');
+    slot.replaceChildren(element);
+    slot.classList.remove('picked');
+  }
+  const stake=round?.stake ?? STAKES[stakeIndex];
+  $('last-stake').textContent=idMoney(stake);
+  $('last-payout').textContent=round?.complete?idMoney(round.payout):'—';
+  const delta=$('last-delta');
+  delta.textContent=round?.complete?`${round.delta>0?'+':''}${idMoney(round.delta)}`:'—';
+  delta.className=round?.complete?(round.delta>0?'positive':'negative'):'';
+  renderProgress(round?.picked||0);
+}
+function renderProgress(picked){
+  const next=picked===3?0:picked;
+  [...$('steps').querySelectorAll('.step')].forEach((item,index)=>{
+    item.classList.toggle('done',index<picked);item.classList.toggle('active',index===next);
+    [...item.querySelectorAll('.step-slots i')].forEach((dot,j)=>dot.classList.toggle('filled',j<Math.min(picked,index+1)));
+  });
+  $('spin-step').textContent=`${next+1} / 3`;
+  const btn=$('spin-btn');btn.setAttribute('aria-label',`SPIN ${next+1} dari 3`);
+}
+function syncAccount(a){
+  if(!a)return;account=a;$('wallet-balance').textContent=idMoney(a.balance);
+  $('gift-btn').disabled=!a.daily_available;
+  $('gift-btn').title=a.daily_available?'Hadiah harian tersedia':'Hadiah sudah diklaim';
+  updateButtons();
+}
+function updateButtons(){
+  const stake=currentRound?.stake ?? STAKES[stakeIndex];
+  $('spin-btn').disabled=isSpinning||isAuto||!account||(!currentRound && account.balance<stake);
+  $('turbo-btn').disabled=isSpinning;
+  $('turbo-btn').setAttribute('aria-pressed',String(isTurbo));
+  $('auto-btn').setAttribute('aria-pressed',String(isAuto));
+  $('auto-label').textContent=isAuto?'STOP':'AUTO';
+}
+async function api(path,method='GET',body){
+  const req={method,credentials:'same-origin',headers:{}};
+  if(method!=='GET'){req.headers['Content-Type']='application/json';req.headers['X-UNO-Client']='spin-ui';req.body=JSON.stringify(body??{});}
+  let response;
+  try{response=await fetch('/api/orbit'+path,req);}catch(_){throw Error('Koneksi terputus. Periksa internet dan coba lagi.');}
+  let data;try{data=await response.json();}catch(_){throw Error('Server mengirim respons tak valid.');}
+  if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:`HTTP ${response.status}`);
+  return data;
+}
+async function legacyBonus(endpoint){
+  const response=await fetch('/api/spin/'+endpoint,{method:'POST',headers:{'X-UNO-Client':'spin-ui','Content-Type':'application/json'},credentials:'same-origin',body:'{}'});
+  const data=await response.json();
+  if(!response.ok)throw Error(data.detail||'Gagal mengklaim hadiah');
+  return data;
+}
+function tone(f,delay,duration=.14,gain=.035,wave='triangle'){
+  if(!audioContext||audioContext.state!=='running')return;
+  const now=audioContext.currentTime+delay;
+  const oscillator=audioContext.createOscillator();const envelope=audioContext.createGain();
+  oscillator.type=wave;oscillator.frequency.value=f;
+  envelope.gain.setValueAtTime(.0001,now);
+  envelope.gain.exponentialRampToValueAtTime(gain,now+.008);
+  envelope.gain.exponentialRampToValueAtTime(.0001,now+duration);
+  oscillator.connect(envelope).connect(audioContext.destination);
+  oscillator.start(now);oscillator.stop(now+duration+.012);
+}
+function sfx(name){
+  if(!sfxEnabled||!audioContext||audioContext.state!=='running')return;
+  if(name==='tap'){tone(370,.00,.07,.060);tone(600,.055,.13,.050);}
+  if(name==='spin'){tone(280,0,.11,.034,'sawtooth');tone(490,.08,.15,.045);}
+  if(name==='tick'){tone(760,0,.08,.060,'square');tone(990,.065,.11,.040);}
+  if(name==='win'){[523,659,783,1047,1318].forEach((f,i)=>tone(f,i*.09,.32,.047));}
+  if(name==='coin'){[1490,2070,2500].forEach((f,i)=>tone(f,i*.058,.17,.03,'sine'));}
+  if(name==='lose'){tone(220,0,.16,.025,'triangle');}
+}
+function startMusic(){
+  if(!musicEnabled||musicTimer||!audioContext||audioContext.state!=='running'||document.hidden)return;
+  nextMusicAt=audioContext.currentTime+.07;musicStep=0;
+  musicTimer=setInterval(()=>{
+    if(document.hidden||!musicEnabled||!audioContext||audioContext.state!=='running')return;
+    while(nextMusicAt<audioContext.currentTime+.20){
+      const scale=[523,659,783,659,587,783,880,783,523,659,988,880,783,659,587,523];
+      const idx=musicStep%16;
+      if(idx%2===0)tone(scale[idx],Math.max(.008,nextMusicAt-audioContext.currentTime),.14,.015,'sine');
+      if(idx%4===0)tone([131,165,196,165][Math.floor(idx/4)],Math.max(.008,nextMusicAt-audioContext.currentTime),.28,.013,'triangle');
+      nextMusicAt+=.23;musicStep++;
+    }
+  },95);
+}
+function stopMusic(){if(musicTimer){clearInterval(musicTimer);musicTimer=null;}}
+async function unlockAudio(){
+  try{
+    if(!audioContext){const Context=window.AudioContext||window.webkitAudioContext;if(!Context)return false;audioContext=new Context({latencyHint:'interactive'});}
+    if(audioContext.state==='suspended')await audioContext.resume();
+    const success=audioContext.state==='running';if(success)startMusic();return success;
+  }catch(_){return false;}
+}
+window.UNOLuckAudio={unlock:unlockAudio,preview:()=>sfx('tap'),get state(){return audioContext?.state||'inactive';}};
+function winBurst(card){
+  const layer=$('win-particles');layer.replaceChildren();
+  if(reducedMotion)return;
+  const palette={red:'#ff2740',blue:'#0787ff',green:'#21ed6f',yellow:'#ffdc17'};
+  for(let i=0;i<36;i++){
+    const chip=document.createElement('i');chip.className='win-shard'+(i%5===0?' coin':'');
+    const theta=Math.PI*2*i/36,dist=40+Math.random()*130;
+    chip.style.setProperty('--dx',Math.cos(theta)*dist+'px');chip.style.setProperty('--dy',Math.sin(theta)*dist+'px');
+    chip.style.setProperty('--rot',Math.floor(Math.random()*360)+'deg');
+    chip.style.setProperty('--size',(5+Math.floor(Math.random()*9))+'px');
+    chip.style.setProperty('--c',palette[card.color]||'#ffce29');layer.append(chip);
+  }
+  setTimeout(()=>layer.replaceChildren(),1100);
+}
+function newRequestId(){return typeof crypto.randomUUID==='function'?crypto.randomUUID():(Date.now().toString(36)+'_'+Math.random().toString(36).slice(2)+'_id');}
+function animateRing(duration){
+  const initial=motorAngle;const revolution=2*Math.PI*(isTurbo?2:4);
+  const start=performance.now();
+  return new Promise(resolve=>{
+    if(reducedMotion){motorAngle=0;layoutRing(0);resolve();return;}
+    function frame(now){
+      const p=Math.min(1,(now-start)/duration),ease=1-Math.pow(1-p,3);
+      motorAngle=initial+revolution*ease;
+      layoutRing(motorAngle,true);
+      if(p<1)requestAnimationFrame(frame);else{motorAngle=0;layoutRing(0,false);resolve();}
+    }
+    requestAnimationFrame(frame);
+  });
+}
+async function pickOne(){
+  if(isSpinning||!account)return false;
+  const stake=currentRound?.stake ?? STAKES[stakeIndex];
+  if(!currentRound && account.balance<stake){say('Saldo virtual tidak cukup. Klaim hadiah harian.');return false;}
+  isSpinning=true;updateButtons();
+  unlockAudio().then(ok=>{if(ok){sfx('tap');sfx('spin');}});
+  const next=(currentRound?.picked||0)+1;say(`SPIN ${next}/3 · mencari kartu tengah…`);
+  // Use the same id for retries after a network error. Never charge again for an acknowledged pick.
+  const pendingKey='uno_orbit_pending';
+  let requestId=localStorage.getItem(pendingKey);
+  if(!requestId){requestId=newRequestId();localStorage.setItem(pendingKey,requestId);}
+  let apiResponse=null;
+  try{
+    const duration=isTurbo?570:1400;
+    const responsePromise=api('/pick','POST',{request_id:requestId,stake});
+    const spinAnimation=animateRing(duration);
+    apiResponse=await responsePromise;
+    const card=apiResponse.round.cards[next-1]||apiResponse.round.cards.at(-1);
+    if(!card)throw Error('Kartu tidak tersedia.');
+    changeSelectedCard(card);
+    await spinAnimation;
+    sfx('tick');
+    localStorage.removeItem(pendingKey);
+    paintRound(apiResponse.round);
+    const selected=$('result-'+(apiResponse.round.picked-1));
+    selected.classList.add('picked');
+    syncAccount(apiResponse.account);
+    if(apiResponse.round.complete){
+      last=apiResponse.round;
+      if(last.combo==='COLOR_MATCH'){
+        say(`COLOR MATCH! Kembali ${idMoney(last.payout)} · selisih +${idMoney(last.delta)} koin`);
+        winBurst(last.cards[0]);sfx('win');setTimeout(()=>sfx('coin'),250);
+      }else{say('Belum ada kecocokan warna. Mulai ronde baru!');sfx('lose');}
+    }else say(`Kartu ${['kiri','tengah','kanan'][next-1]} terpilih. SPIN ${next+1}/3 selanjutnya.`);
+    navigator.vibrate?.(18);
+    return true;
+  }catch(error){
+    say(`${error.message} · Memulihkan state server…`);
+    // State is authoritative. Leave the in-flight request ID available for a safe retry.
+    await loadState(true);
+    if(apiResponse)localStorage.removeItem(pendingKey);
+    if(isAuto)cancelAuto=true;
+    return false;
+  }finally{isSpinning=false;updateButtons();}
+}
+async function autoLoop(){
+  if(isAuto){cancelAuto=true;isAuto=false;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
+  if(isSpinning||!account)return;
+  isAuto=true;cancelAuto=false;updateButtons();
+  // Ten full rounds maximum; each round always consists of three manual-equivalent picks.
+  for(let rounds=0;rounds<10&&!cancelAuto&&!document.hidden;rounds++){
+    for(let k=(currentRound?.picked||0);k<3&&!cancelAuto&&!document.hidden;k++){
+      const done=await pickOne();if(!done||cancelAuto)break;
+      await wait(isTurbo?130:230);
+    }
+    if(!cancelAuto)await wait(isTurbo?270:510);
+  }
+  isAuto=false;updateButtons();
+}
+function modal(title){$('modal-title').textContent=title;$('modal-content').replaceChildren();if(!$('modal').open)$('modal').showModal();return $('modal-content');}
+function paragraph(parent,text){const p=document.createElement('p');p.textContent=text;parent.append(p);return p;}
+function modalButton(parent,text,fn){const b=document.createElement('button');b.textContent=text;b.type='button';b.addEventListener('click',fn);parent.append(b);return b;}
+function closeModal(){if($('modal').open)$('modal').close();}
+async function claimDaily(){try{const x=await legacyBonus('daily');syncAccount(x.account);sfx('coin');say(`Hadiah +${idMoney(x.credited)} koin virtual`);closeModal();}catch(e){say(e.message);}}
+async function claimRefill(){try{const x=await legacyBonus('refill');syncAccount(x.account);sfx('coin');say(`Refill gratis +${idMoney(x.credited)} koin`);closeModal();}catch(e){say(e.message);}}
+function showWallet(){const area=modal('Koin Virtual');paragraph(area,`Saldo saat ini ${idMoney(account?.balance||0)} koin.`);paragraph(area,'Tidak ada deposit, penarikan tunai, jual-beli koin, atau hadiah bernilai uang.');modalButton(area,'🎁 Klaim +250 harian',claimDaily).disabled=!account?.daily_available;modalButton(area,'✦ Refill gratis +1.000',claimRefill).disabled=!account?.refill_available;}
+async function showHistory(){const area=modal('Riwayat Ronde');try{const x=await api('/state');const list=x.recent||[];if(!list.length)paragraph(area,'Belum ada ronde selesai.');for(const item of list){const row=document.createElement('div');row.className='history-line';row.textContent=`${item.combo==='COLOR_MATCH'?'COLOR MATCH':'NO MATCH'} · Biaya ${idMoney(item.stake)} · ${item.delta>=0?'+':''}${idMoney(item.delta)} koin`;area.append(row);}}catch(e){paragraph(area,e.message);}}
+function showRules(){const area=modal('Aturan UNO LUCK Color Match');paragraph(area,'Satu ronde memiliki tiga SPIN: kartu kiri, tengah, lalu kanan. Kartu yang terpilih adalah kartu tepat di posisi tengah atas carousel saat berhenti.');paragraph(area,'Biaya ronde dipotong sekali pada SPIN pertama. Tiga warna sama memberikan kembali 2× biaya ronde setelah SPIN ketiga.');paragraph(area,'Peluang menang (Color Match) ditetapkan 80% per ronde oleh RNG di server; 20% tidak match. Ini adalah aturan prototipe UNO LUCK, bukan aturan resmi permainan UNO.');paragraph(area,'Angka kartu, Reverse, Skip dan +2 hanya simbol dalam mode ini. AUTO hingga 10 ronde dan TURBO hanya mengubah kecepatan animasi, bukan peluang menang.');paragraph(area,'Semua kredit virtual tidak memiliki nilai uang dan tidak dapat dibeli atau dicairkan.');}
+function showStakeChoices(){const area=modal('Biaya SPIN');paragraph(area,'Pilih biaya satu ronde tiga SPIN. Perubahan hanya dapat dilakukan sebelum ronde dimulai.');for(const [i,cost] of STAKES.entries()){const btn=modalButton(area,`${cost===STAKES[stakeIndex]?'✓ ':''}${idMoney(cost)} koin`,()=>{stakeIndex=i;paintRound(null,true);updateButtons();closeModal();say(`Biaya ronde berikutnya ${idMoney(cost)} koin.`);});btn.disabled=!!currentRound;}}
+function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v0.6 · staging · saldo hanya koin demo.');}
+function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
+async function loadState(quiet=false){
+  try{const data=await api('/state');syncAccount(data.account);currentRound=data.round;
+    if(data.round){paintRound(data.round);}else if(data.recent?.length){const lastSpin=data.recent[0];last={...lastSpin,complete:true,picked:3};paintRound(last);}else paintRound(null,true);
+    const pending=localStorage.getItem('uno_orbit_pending');
+    if(pending)localStorage.removeItem('uno_orbit_pending');
+    $('connection-status').textContent='ONLINE';
+    if(!quiet)say(data.round?`Lanjutkan ronde: SPIN ${data.round.picked+1}/3`:'Sentuh SPIN untuk memilih kartu pertama');
+  }catch(e){$('connection-status').textContent='OFFLINE';say(e.message);}
+}
+function listeners(){
+  $('spin-btn').addEventListener('click',pickOne);
+  $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();unlockAudio().then(()=>sfx('tap'));say(isTurbo?'Turbo aktif, peluang tetap 80%.':'Turbo nonaktif.');});
+  $('auto-btn').addEventListener('click',autoLoop);
+  $('wallet-open').addEventListener('click',showWallet);
+  $('gift-btn').addEventListener('click',claimDaily);
+  $('menu-open').addEventListener('click',showMenu);
+  $('profile-btn').addEventListener('click',showProfile);
+  $('modal-close').addEventListener('click',closeModal);
+  $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
+  addEventListener('resize',()=>layoutRing(motorAngle,false));
+  const activate=()=>{unlockAudio().then(yes=>{if(yes){document.removeEventListener('pointerdown',activate,true);document.removeEventListener('touchend',activate,true);}});};
+  document.addEventListener('pointerdown',activate,{passive:true,capture:true});
+  document.addEventListener('touchend',activate,{passive:true,capture:true});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){stopMusic();if(isAuto)cancelAuto=true;}else startMusic();});
+}
+resetRing();listeners();loadState();

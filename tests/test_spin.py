@@ -36,7 +36,7 @@ def test_spin_replaces_home_but_classic_remains(client):
     a = client.get('/')
     b = client.get('/classic')
     assert a.status_code == b.status_code == 200
-    assert 'SPIN YOUR CARDS' in a.text
+    assert 'orbit-ring' in a.text and 'COLOR MATCH!' in a.text
     assert 'PRIVATE ROOM' in b.text
     assert client.get('/health').json()['main_mode'] == 'spin'
 
