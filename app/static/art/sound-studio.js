@@ -17,6 +17,7 @@ const KEY='uno_sound_studio_profiles_v1',DB='uno-luck-custom-sound-v1',MAX_BYTES
 const profiles=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(_){return {};}})();
 const bufferCache=new Map();
 let database=null, preview=null, loop=null, loopSerial=0, lastError='';
+let celebrationNode=null, celebrationRequest=0;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number.isFinite(Number(v))?Number(v):min));
 const decimals=n=>Number(n.toFixed(2));
 const save=()=>localStorage.setItem(KEY,JSON.stringify(profiles));
@@ -146,6 +147,15 @@ function stopNode(item,fade=0){
   }catch(_){try{item.source.stop();}catch(_){}}
 }
 function stopPreview(){stopNode(preview,0.04);preview=null;}
+function stopCelebration(){
+  // Invalidate an in-flight IndexedDB/decode request as well as the playing node.
+  celebrationRequest++;
+  if(celebrationNode){stopNode(celebrationNode,0.065);celebrationNode=null;}
+}
+async function segmentDuration(key){
+  const buffer=await getBuffer(key);
+  return buffer?limits(key,buffer.duration).length:0;
+}
 function stopLoop(){
   loopSerial++;
   if(loop){stopNode(loop,loop.bounds.fadeOut);loop=null;}
@@ -154,12 +164,16 @@ async function play(key,{looping=false,forPreview=false}={}){
   if(!known.has(key))return false;
   if(forPreview)stopPreview();
   if(looping)stopLoop();
+  const isJackpot=key.startsWith('jackpot-')&&!forPreview;
+  if(isJackpot)stopCelebration();
+  const jackpotToken=celebrationRequest;
   const serial=loopSerial;
   try{
     const {context,fx,music}=channel();
     const buffer=await getBuffer(key);
     if(!buffer)return false;
     if(looping&&serial!==loopSerial)return false;
+    if(isJackpot&&jackpotToken!==celebrationRequest)return false;
     const bounds=limits(key,buffer.duration);
     const source=context.createBufferSource(),envelope=context.createGain();
     const now=context.currentTime+.012;
@@ -184,9 +198,12 @@ async function play(key,{looping=false,forPreview=false}={}){
       source.onended=()=>{if(loop===item)loop=null;};
     }else{
       source.start(now,bounds.start,bounds.length);
-      if(forPreview){
-        preview=item;source.onended=()=>{if(preview===item)preview=null;};
-      }
+      if(forPreview){preview=item;}
+      if(isJackpot){item.key=key;celebrationNode=item;}
+      source.onended=()=>{
+        if(preview===item)preview=null;
+        if(celebrationNode===item)celebrationNode=null;
+      };
     }
     return true;
   }catch(error){
@@ -397,8 +414,10 @@ function show(host){
   }
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
-  isCustomized,play,stopLoop,stopPreview,profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,
+  isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
+  profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
-  get lastError(){return lastError;}};
+  get lastError(){return lastError;},
+  get activeCelebrationCue(){return celebrationNode?.key||null;}};
 window.UNOLuckSoundStudio.install();
 })();
