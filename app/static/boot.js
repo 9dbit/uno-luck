@@ -120,26 +120,30 @@
   soundStart.addEventListener('click', () => { void startIntro(true); });
   silentStart.addEventListener('click', () => { void startIntro(false); });
   const studio=window.UNOLuckSoundStudio;
-  const splashProfile=studio?.profile('soft-tech-splash-screen');
-  if(splashProfile?.custom){
-    if(studio?.isIOS?.()){
-      // Read IndexedDB before the tap: WebKit often rejects media.play()
-      // when an IndexedDB await consumes the user activation.
-      soundStart.disabled=true;
-      soundStatus.textContent='Menyiapkan audio Soft Tech tersimpan…';
-      studio.prepareSplashMedia().then(()=>{
-        soundStart.disabled=false;
-        soundStatus.textContent='Audio siap: '+(splashProfile.fileName||'Soft Tech')+
-          ' · ketuk START WITH SOUND.';
-      }).catch(error=>{
-        soundStart.disabled=false;
-        soundStatus.textContent='File audio belum siap: '+
-          String(error?.message||error)+' · Ketuk START untuk mencoba Web Audio.';
-      });
+  soundStart.disabled=true;
+  soundStatus.textContent='Sinkronisasi audio desktop → mobile…';
+  // Fetch the server-published catalog BEFORE the first iOS sound gesture.
+  // Do not block the silent path if network or storage is temporarily down.
+  Promise.resolve(studio?.syncCloud?.()).then(async()=>{
+    const published=studio?.publishedProfile?.('soft-tech-splash-screen');
+    const local=studio?.profile?.('soft-tech-splash-screen');
+    const profile=published?.source==='custom'?published:local;
+    if(profile?.custom||profile?.source==='custom'){
+      if(studio?.isIOS?.()){
+        soundStatus.textContent='Memuat audio Soft Tech dari '+(published?.source==='custom'?'cloud':'perangkat')+'…';
+        await studio.prepareSplashMedia();
+      }
+      soundStatus.textContent='Audio siap: '+(profile.fileName||'Soft Tech')+
+        (published?.source==='custom'?' · SINKRON CLOUD':' · LOKAL')+
+        ' · ketuk START WITH SOUND.';
     }else{
-      soundStatus.textContent='Custom splash siap: '+(splashProfile.fileName||'audio tersimpan');
+      soundStatus.textContent='Ketuk START WITH SOUND · Audio publik menunggu konfigurasi.';
     }
-  }
+  }).catch(error=>{
+    console.warn('[UNO BOOT] sound sync',error);
+    soundStatus.textContent='Audio cloud tidak tersedia: '+String(error?.message||error)+
+      ' · Anda masih dapat masuk dengan suara lokal atau tanpa suara.';
+  }).finally(()=>{if(!introStarted)soundStart.disabled=false;});
 
   async function runBoot(){
     const imgs = [find('boot-softtech-img'), find('boot-banner-img')];
