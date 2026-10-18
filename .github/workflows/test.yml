@@ -19,5 +19,31 @@ jobs:
       - run: node --check app/static/art/motion.js
       - run: node --check app/static/art/ledwheel.js
       - run: node --check app/static/art/sound.js
+      - run: node --check app/static/art/sound-studio.js
       - run: node --check app/static/art/celebrations.js
       - run: node --check app/static/art/match-announce.js
+
+  visual-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt httpx playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Verify game and Sound Studio in Chromium
+        run: |
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          python tests/visual_qa_sound_studio.py
+      - name: Upload QA screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uno-v11-sound-studio-responsive
+          path: artifacts/uno-v11-sound-studio/*.png
+          if-no-files-found: ignore

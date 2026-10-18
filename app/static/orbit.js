@@ -174,13 +174,14 @@ async function pickOne(){
     syncAccount(confirmed.account);
     if(confirmed.round.complete){
       last=confirmed.round;
+      if(sfxEnabled)window.UNOLuckSound?.result(last.combo==='COLOR_MATCH');
       window.UNOLuckMotion?.result(last);
       if(last.combo==='COLOR_MATCH'){
         const title=last.tier?.title||'LUCKY COLOR WIN';
         say(`${title}! Kembali ${idMoney(last.payout)} · selisih ${last.delta>=0?'+':''}${idMoney(last.delta)} koin`);
         winBurst(last.cards[0]);
         await window.UNOLuckCelebration?.present(last);
-      }else{say('Belum ada kecocokan warna. Mulai ronde baru!');sfx('lose');}
+      }else{say('Belum ada kecocokan warna. Mulai ronde baru!');}
     }else say(`Kartu ${['kiri','tengah','kanan'][phase-1]} terpilih. SPIN ${phase+1}/3 berikutnya.`);
     navigator.vibrate?.(18);
     return true;
@@ -197,7 +198,7 @@ async function pickOne(){
   }
 }
 async function autoLoop(){
-  if(isAuto){cancelAuto=true;isAuto=false;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
+  if(isAuto){cancelAuto=true;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
   if(isSpinning||!account)return;
   isAuto=true;cancelAuto=false;updateButtons();
   // Ten full rounds maximum; each round always consists of three manual-equivalent picks.
@@ -235,21 +236,44 @@ async function testSound(){
   closeModal();
   const ok=await unlockAudio();
   if(!ok){say('Audio belum aktif. Sentuh Main dengan Suara lalu coba lagi.');return;}
-  window.UNOLuckSound?.testSound();
-  say('Tes audio: impact, coin, dan fanfare. Gunakan volume media iPhone jika tidak terdengar.');
+  const heard=await window.UNOLuckSound?.testSound();
+  say(heard?'Tes audio diputar. Pastikan volume media iPhone aktif.':`Audio gagal: ${window.UNOLuckSound?.lastError||'coba sentuh MAIN DENGAN SUARA'}`);
 }
 function showSoundVolume(){
-  const area=modal('Volume Sound Effect');
-  paragraph(area,'Gunakan pengaturan 0–100%. Default 85%, dengan limiter supaya efek kuat tanpa clipping digital.');
-  for(const p of [0,25,50,75,85,100]){
-    modalButton(area,`${p===Math.round(window.UNOLuckSound?.volume*100)?'✓ ':''}${p}%`,()=>{
-      window.UNOLuckSound?.setVolume(p/100);if(p>0){sfxEnabled=true;localStorage.setItem(MUTE_EFFECTS,'on');window.UNOLuckSound?.setEnabled(true);}
-      else{sfxEnabled=false;localStorage.setItem(MUTE_EFFECTS,'off');window.UNOLuckSound?.setEnabled(false);}
-      closeModal();say(`Volume sound effect ${p}%`);if(p>0)sfx('tap');
+  const area=modal('Audio Mixer · UNO LUCK');
+  paragraph(area,'Atur Master, Musik, dan Efek secara terpisah. Nilai tersimpan pada perangkat. Volume media iPhone tetap diatur melalui iOS.');
+  for(const [title,property,setter] of [
+    ['MASTER','masterVolume','setMasterVolume'],
+    ['MUSIC','musicVolume','setMusicVolume'],
+    ['SFX','volume','setVolume']]){
+    const label=paragraph(area,title+' · '+Math.round((window.UNOLuckSound?.[property]??0)*100)+'%');
+    const input=document.createElement('input');
+    input.type='range';input.min='0';input.max='100';input.step='5';
+    input.value=String(Math.round((window.UNOLuckSound?.[property]??0)*100));
+    input.setAttribute('aria-label',title+' Volume');
+    input.addEventListener('input',()=>{
+      const n=Number(input.value);
+      window.UNOLuckSound?.[setter](n/100);
+      label.textContent=title+' · '+n+'%';
+      if(title==='SFX'&&n>0){sfxEnabled=true;localStorage.setItem(MUTE_EFFECTS,'on');window.UNOLuckSound?.setEnabled(true);}
     });
+    area.append(input);
   }
+  modalButton(area,'TES AUDIO',async()=>{
+    const ok=await unlockAudio();
+    if(!ok){say('Audio belum aktif: '+(window.UNOLuckSound?.lastError||'periksa volume perangkat'));return;}
+    const heard=await window.UNOLuckSound.testSound();
+    say(heard?'Tes fanfare diputar. Jika senyap, naikkan volume media iPhone.':
+      'Tes audio gagal: '+(window.UNOLuckSound?.lastError||'periksa status audio'));
+  });
 }
-function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Volume Efek Suara',showSoundVolume);modalButton(area,'Tes Suara Meriah',testSound);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');window.UNOLuckSound?.setEnabled(sfxEnabled);if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v1.1 · staging · hadiah virtual tanpa nilai tunai.');}
+function showSoundStudio(){
+  const area=modal('SOUND STUDIO · CUSTOM EFFECTS');
+  if(window.UNOLuckSoundStudio)window.UNOLuckSoundStudio.show(area);
+  else paragraph(area,'Sound Studio belum tersedia. Refresh halaman.');
+}
+function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Sound Studio · 12 Custom Sound Effects',showSoundStudio);
+modalButton(area,'Mixer Master · Musik · SFX',showSoundVolume);modalButton(area,'Tes Suara Meriah',testSound);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');window.UNOLuckSound?.setEnabled(sfxEnabled);if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v1.1 · staging · hadiah virtual tanpa nilai tunai.');}
 function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 async function loadState(quiet=false){
   try{const data=await api('/state');syncAccount(data.account);currentRound=data.round;

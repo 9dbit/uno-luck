@@ -61,6 +61,8 @@
   find('boot-continue').addEventListener('click', () => release(false));
 
   async function runBoot(){
+    // Browser policy may keep the intro silent until the first user gesture.
+    window.UNOLuckSound?.playCue('soft-tech-splash-screen');
     const imgs = [find('boot-softtech-img'), find('boot-banner-img')];
     // Start downloading both brand assets immediately; do not start the intro
     // clock until the Soft Tech logo can be painted.
@@ -71,6 +73,7 @@
     logo.hidden = true;
     await wait(reducedMotion ? 100 : 230); // true black transition frame
     banner.hidden = false;
+    window.UNOLuckSound?.playCue('loading-scene');
     requestAnimationFrame(() => banner.classList.add('is-visible'));
     progress(7, 'Memuat aset game…');
 
