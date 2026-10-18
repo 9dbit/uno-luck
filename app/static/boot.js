@@ -69,19 +69,36 @@
     soundStart.disabled = true;
     silentStart.disabled = true;
     if (withSound) {
-      soundStatus.textContent = 'Mengaktifkan suara dan membaca file splash…';
-      // AudioContext.resume must be invoked inside the user click.
+      soundStatus.textContent = 'Mengaktifkan suara Soft Tech…';
+      const studio = window.UNOLuckSoundStudio;
+      const custom = Boolean(studio?.isCustomized('soft-tech-splash-screen'));
+      const htmlFallback = Boolean(custom && studio?.isIOS?.());
+      // IMPORTANT: Both .play() and AudioContext.resume() are initiated directly
+      // in the click callstack. No asynchronous IndexedDB read before HTML play.
+      const pendingMedia = htmlFallback?studio.playSplashGesture():null;
       const pendingUnlock = window.UNOLuckSound?.unlock();
       try {
-        const unlocked = await pendingUnlock;
-        if (!unlocked) throw Error(window.UNOLuckSound?.lastError || 'AudioContext belum aktif');
-        const studio = window.UNOLuckSoundStudio;
-        const custom = studio?.isCustomized('soft-tech-splash-screen');
-        const played = await window.UNOLuckSound.playCue('soft-tech-splash-screen');
-        if (custom && !played) {
-          throw Error(studio?.lastError || 'File splash tidak bisa diputar. Upload ulang di Sound Studio.');
+        let played=false;
+        if (htmlFallback){
+          // Safari may keep the Web Audio context "interrupted" forever.
+          // Do not await resume before the already-started HTML5 audio clip.
+          played=Boolean(await pendingMedia);
+          if (!played){
+            const unlocked=Boolean(await pendingUnlock);
+            if(unlocked)played=Boolean(await window.UNOLuckSound.playCue('soft-tech-splash-screen'));
+          }
+        }else{
+          const unlocked=Boolean(await pendingUnlock);
+          if(unlocked)played=Boolean(await window.UNOLuckSound.playCue('soft-tech-splash-screen'));
         }
-        soundStatus.textContent = played ? 'Suara Soft Tech aktif.' : 'Belum ada audio splash custom.';
+        if(custom&&!played){
+          const state=window.UNOLuckSound?.webAudioState||'unavailable';
+          throw Error('Splash tidak bisa diputar (WebAudio '+state+'). '+
+            (studio?.splashError||studio?.lastError||
+            'Pastikan file audio tersedia lalu ketuk kembali.'));
+        }
+        soundStatus.textContent=played?'Soft Tech audio aktif · intro dimulai.':
+          'Belum ada audio Soft Tech custom. Intro dilanjutkan.';
       } catch (error) {
         soundStatus.textContent = 'AUDIO GAGAL: ' + String(error?.message || error) +
           ' · Coba lagi atau pilih TANPA SUARA.';
@@ -102,9 +119,26 @@
   // Safari iPhone needs a gesture on each new page load, including reload.
   soundStart.addEventListener('click', () => { void startIntro(true); });
   silentStart.addEventListener('click', () => { void startIntro(false); });
-  const splashProfile = window.UNOLuckSoundStudio?.profile('soft-tech-splash-screen');
-  if (splashProfile?.custom) {
-    soundStatus.textContent = 'Custom splash siap: ' + (splashProfile.fileName || 'audio tersimpan');
+  const studio=window.UNOLuckSoundStudio;
+  const splashProfile=studio?.profile('soft-tech-splash-screen');
+  if(splashProfile?.custom){
+    if(studio?.isIOS?.()){
+      // Read IndexedDB before the tap: WebKit often rejects media.play()
+      // when an IndexedDB await consumes the user activation.
+      soundStart.disabled=true;
+      soundStatus.textContent='Menyiapkan audio Soft Tech tersimpan…';
+      studio.prepareSplashMedia().then(()=>{
+        soundStart.disabled=false;
+        soundStatus.textContent='Audio siap: '+(splashProfile.fileName||'Soft Tech')+
+          ' · ketuk START WITH SOUND.';
+      }).catch(error=>{
+        soundStart.disabled=false;
+        soundStatus.textContent='File audio belum siap: '+
+          String(error?.message||error)+' · Ketuk START untuk mencoba Web Audio.';
+      });
+    }else{
+      soundStatus.textContent='Custom splash siap: '+(splashProfile.fileName||'audio tersimpan');
+    }
   }
 
   async function runBoot(){
