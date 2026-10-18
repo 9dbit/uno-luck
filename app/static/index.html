@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f36b1d">
+  <meta name="description" content="UNO LUCK versi uji coba: main kartu dengan teman lewat kode room, atau melawan bot.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <link rel="manifest" href="/assets/manifest.webmanifest">
+  <link rel="icon" href="/assets/icon-512.png">
+  <link rel="stylesheet" href="/assets/style.css">
+  <title>UNO LUCK | Multiplayer Staging</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="small-brand"><div class="brand-mark">U</div><div><strong>UNO LUCK</strong><small>INTERACTIVE • STAGING</small></div></div>
+      <div class="top-actions"><span id="status-pill" class="status-pill"><i></i> Ready</span><button class="icon-btn" id="sound-toggle" aria-label="Toggle sound" title="Suara">♪</button><button class="icon-btn" id="help-button" aria-label="Lihat aturan" title="Aturan">?</button></div>
+    </header>
+
+    <main id="lobby-screen" class="lobby">
+      <section class="hero-photo"><img src="/assets/hero.jpg" alt="UNO LUCK, karakter fantasi, naga, dan kartu berkilau" loading="eager"><div class="hero-gradient"><div class="eyebrow">WELCOME TO THE TABLE</div><h1>UNO <em>LUCK</em></h1><p>Satu meja. Empat pemain. Keseruan tanpa batas.</p></div></section>
+      <section class="lobby-panel">
+        <div class="lobby-header"><span class="overline">PRIVATE ROOM • 2–4 FRIENDS</span><h2>Main kartu, bareng teman.</h2><p>Buat room dengan kode undangan, atau main sendiri melawan tiga bot. Semua aturan diproses di server.</p></div>
+        <label class="field-label" for="player-name">NAMA PEMAIN</label>
+        <input id="player-name" class="field" type="text" placeholder="Nama kamu" maxlength="20" autocomplete="nickname">
+        <div class="action-pair"><button id="create-room" class="cta"><span class="button-icon">✦</span> Buat Room Baru</button><button id="join-room" class="secondary">Gabung Room</button></div>
+        <div id="join-row" class="join-row hidden"><label class="field-label" for="room-input">KODE ROOM</label><div class="join-controls"><input id="room-input" class="field room-code-input" maxlength="6" spellcheck="false" placeholder="ABC123"><button id="confirm-join" class="cta">Masuk</button></div></div>
+        <div id="lobby-message" class="inline-message" aria-live="polite"></div>
+        <div class="lobby-features"><div><span>01</span><strong>Classic UNO</strong><small>108 kartu, tanpa stacking</small></div><div><span>02</span><strong>Room pribadi</strong><small>Kode undangan 6 karakter</small></div><div><span>03</span><strong>Bot cadangan</strong><small>4 kursi selalu terisi</small></div></div>
+        <div class="disclaimer"><strong>Versi uji coba.</strong> Tidak ada top up berbayar, taruhan, hadiah uang, atau withdrawal. Progres room tersimpan sementara di server dan hilang bila server restart.</div>
+      </section>
+    </main>
+
+    <main id="waiting-screen" class="waiting hidden">
+      <section class="waiting-card"><div class="overline">ROOM MULTIPLAYER</div><h2>Siap bermain?</h2><p>Bagikan kode berikut ke teman. Jika belum ada empat pemain, kursi kosong diisi bot setelah host menekan Mulai.</p><div class="code-display" id="room-display">------</div><div class="waiting-actions"><button class="cta" id="copy-link">Salin Link Undangan</button><button class="secondary" id="leave-waiting">Kembali</button></div><h3>Pemain yang bergabung</h3><div id="waiting-members" class="waiting-members"></div><button class="start-match cta" id="start-match">Mulai Permainan <span>→</span></button><p class="note" id="waiting-note">Menunggu host memulai permainan…</p></section>
+    </main>
+
+    <main id="game-screen" class="game hidden">
+      <div class="game-meta"><div class="game-room"><small>PRIVATE ROOM</small><strong id="game-room-code">------</strong></div><div id="turn-banner" class="turn-banner">Menunggu giliran</div><div class="game-tools"><button id="game-logs" class="micro-btn">Riwayat</button><button id="leave-game" class="micro-btn">Keluar</button></div></div>
+      <div class="arena" id="game-arena">
+        <div class="sunburst"></div>
+        <div id="opponents" class="opponents"></div>
+        <div class="table-wrap"><div class="table-oval"><span class="felt-text">UNO <b>LUCK</b></span><div class="card-stacks"><div class="stack-zone"><small>AMBIL KARTU</small><button id="deck-button" class="deck-button" title="Ambil satu kartu" aria-label="Ambil satu kartu"><span>UNO</span></button></div><div class="stack-zone"><small>KARTU TERBUKA</small><div id="discard-card"></div></div></div><div class="color-indicator"><i id="color-dot"></i><span id="active-color">MERAH</span></div></div></div>
+        <div class="round-event" id="round-event" aria-live="polite"></div>
+      </div>
+      <div class="my-panel"><div class="my-player"><div id="my-avatar" class="me-avatar">★</div><div><strong id="my-name">Player</strong><small id="my-stats">Skor 0</small></div><div class="my-badges"><span id="count-badge">7 KARTU</span><span id="direction-badge">↻</span></div></div><div class="hand-row" id="hand-row" aria-label="Kartu di tangan"></div><div class="turn-controls"><button id="call-uno" class="uno-action">UNO!</button><button id="draw-action" class="secondary action-button">Ambil 1 Kartu</button><button id="keep-action" class="secondary action-button hidden">Simpan Kartu</button><button id="catch-action" class="warn-action hidden">Tangkap UNO +2</button><span id="hint-text" class="hint-text">Tunggu giliranmu…</span></div></div>
+      <div id="result-banner" class="result-banner hidden"><div class="result-title" id="result-title">Selesai!</div><p id="result-copy">Ronde berakhir.</p><button id="new-round" class="cta">Ronde Berikutnya</button></div>
+    </main>
+
+    <footer>UNO LUCK • DEMO / STAGING • KOIN VIRTUAL TANPA NILAI UANG • TIDAK TERAFILIASI DENGAN MATTEL</footer>
+  </div>
+
+  <dialog id="modal" class="dialog"><div id="modal-content"></div><div class="modal-actions" id="modal-actions"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
