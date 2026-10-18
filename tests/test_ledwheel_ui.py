@@ -52,5 +52,5 @@ def test_ledger_probability_and_request_deduplication_unchanged():
     assert 'def choose_cards()' in SERVER
     assert "db.execute('SELECT round_id,selected_count FROM orbit_requests" in SERVER
     assert 'new_balance=acct[\'balance\']-payload.stake' in SERVER
-    assert "payout=2*row['stake'] if row['combo']=='COLOR_MATCH' else 0" in SERVER
+    assert "multiplier * row['stake']" in SERVER and 'CELEBRATIONS' in SERVER
     assert 'fetch(' not in WHEEL

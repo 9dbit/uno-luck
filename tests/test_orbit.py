@@ -17,6 +17,7 @@ def c(tmp_path,monkeypatch):
     monkeypatch.setenv('UNO_SPIN_DB_PATH', str(tmp_path / 'orbit.sqlite3'))
     spin.INITIALIZED.clear()
     orbit._initialized.clear()
+    monkeypatch.setattr(orbit,'choose_tier',lambda:5)
     with TestClient(app) as client:
         assert client.get('/api/orbit/state').status_code==200
         yield client
@@ -34,7 +35,7 @@ def test_route_and_rules(c):
     page=c.get('/')
     assert page.status_code==200
     assert 'orbit-ring' in page.text
-    assert 'COLOR MATCH' in page.text
+    assert 'DRAGON SPIN' in page.text
     assert 'SPIN' in page.text
     assert c.get('/spin-legacy').status_code==200
     rules=c.get('/api/orbit/state').json()['rules']

@@ -64,5 +64,5 @@ def test_media_queries_no_new_extra_reels_or_duplicated_crown():
 def test_server_ledger_does_not_depend_on_visual_assets():
     source=(ROOT/'app'/'orbit.py').read_text()
     assert 'secrets.randbelow(100) < WIN_PERCENT' in source
-    assert "payout=2*row['stake'] if row['combo']=='COLOR_MATCH' else 0" in source
+    assert "multiplier * row['stake']" in source and 'CELEBRATIONS' in source
     assert 'idempotent' not in STYLE.lower()

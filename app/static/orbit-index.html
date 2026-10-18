@@ -11,7 +11,8 @@
   <link rel="stylesheet" href="/assets/art/motion.css?v=9">
   <link rel="stylesheet" href="/assets/art/ledwheel.css?v=9">
   <link rel="stylesheet" href="/assets/art/fidelity.css?v=91">
-  <title>UNO LUCK | Color Match v0.9.1</title>
+  <link rel="stylesheet" href="/assets/art/celebrations.css?v=100">
+  <title>UNO LUCK | Dragon Spin v1.0</title>
 </head>
 <body>
   <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
@@ -47,8 +48,8 @@
       <button class="round-hud-btn menu" id="menu-open" type="button" aria-label="Menu"><span aria-hidden="true">☰</span></button>
     </header>
     <section class="title-area" aria-label="Mode permainan">
-      <h1 class="motion-title"><img src="/assets/art/v1/color-match-title.webp" alt="COLOR MATCH!"></h1>
-      <p>Tiga warna sama <span>•</span> <strong>2×</strong> biaya SPIN</p>
+      <h1 class="motion-title">DRAGON SPIN</h1>
+      <p>3 kartu sewarna <span>•</span> <strong>bonus 2×–200×</strong></p>
     </section>
     <section class="result-area" aria-label="Tiga kartu hasil SPIN">
       <div class="result-frame" id="result-frame">
@@ -95,12 +96,24 @@
       <div class="footer-aux"><span id="connection-status">Menghubungkan…</span><span>80% Color Match · Koin virtual</span></div>
     </footer>
   </main>
+  <section id="celebration-overlay" class="celebration-overlay" aria-label="Celebration" role="dialog" aria-modal="true" hidden>
+    <div class="celebration-particles" id="celebration-particles" aria-hidden="true"></div>
+    <img id="celebration-art" class="celebration-art" src="/assets/art/v3/tier-5.webp" alt="Ilustrasi peringkat celebration" draggable="false">
+    <div class="celebration-actual" role="status" aria-live="polite">
+      <strong id="celebration-title">LUCKY COLOR WIN</strong>
+      <span id="celebration-amount">Kembali 0 koin</span>
+      <small id="celebration-preview" class="celebration-preview" hidden>DEMO VISUAL · TIDAK ADA HADIAH</small>
+    </div>
+    <button class="celebration-continue" id="celebration-continue" type="button">LANJUTKAN</button>
+  </section>
   <dialog id="modal" class="modal" aria-label="Menu UNO LUCK">
     <div class="modal-card"><div class="modal-header"><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" aria-label="Tutup">×</button></div><div class="modal-content" id="modal-content"></div></div>
   </dialog>
   <script src="/assets/art/motion.js?v=8" defer></script>
   <script src="/assets/art/ledwheel.js?v=9" defer></script>
-  <script src="/assets/orbit.js?v=91" defer></script>
+  <script src="/assets/art/sound.js?v=100" defer></script>
+  <script src="/assets/art/celebrations.js?v=100" defer></script>
+  <script src="/assets/orbit.js?v=100" defer></script>
   <script src="/assets/boot.js?v=6" defer></script>
 </body>
 </html>

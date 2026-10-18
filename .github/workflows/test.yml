@@ -18,3 +18,5 @@ jobs:
       - run: node --check app/static/orbit.js
       - run: node --check app/static/art/motion.js
       - run: node --check app/static/art/ledwheel.js
+      - run: node --check app/static/art/sound.js
+      - run: node --check app/static/art/celebrations.js

@@ -22,7 +22,7 @@ from .spin import router as spin_router
 from .orbit import router as orbit_router
 
 APP_ROOT = Path(__file__).resolve().parent
-app = FastAPI(title="UNO LUCK Spin Staging", version="0.6.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
 app.include_router(spin_router)
 app.include_router(orbit_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")

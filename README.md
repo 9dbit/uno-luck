@@ -107,3 +107,7 @@ corner ovals by color, HUD displays `KOIN VIRTUAL`, betting cells receive
 embossed coin accents, and auxiliary actions have larger tap targets. A
 landscape-only rule preserves the wordmark aspect ratio and lifts betting
 above the bottom edge. See `docs/UNO_LUCK_v091.md`.
+
+## v1.0 Five celebrations and sound
+
+See [docs/UNO_LUCK_v10.md](docs/UNO_LUCK_v10.md) for five-tier probabilities, UI, original audio, accessibility, QA and virtual-only economy disclosure.

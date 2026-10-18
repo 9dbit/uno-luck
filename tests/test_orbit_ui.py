@@ -7,7 +7,7 @@ JS=(P/'orbit.js').read_text()
 def test_design_lock():
     assert '/assets/art/v1/logo.webp' in HTML
     assert HTML.count('uno-logo')==1
-    assert 'COLOR MATCH!' in HTML
+    assert 'DRAGON SPIN' in HTML and 'celebration-overlay' in HTML
     assert 'result-0' in HTML and 'result-1' in HTML and 'result-2' in HTML
     assert 'orbit-ring' in HTML and 'spin-btn' in HTML
     assert 'PLACE' not in HTML
@@ -24,7 +24,7 @@ def test_three_spin_card_binding_and_audio():
     assert "api('/pick','POST'" in JS
     assert "currentRound?.picked" in JS
     assert 'layoutRing' in JS and 'wheel.settle(card,phase)' in JS
-    assert 'AudioContext' in JS and 'unlockAudio' in JS
+    assert 'unlockAudio' in JS and (Path(__file__).resolve().parents[1]/'app/static/art/sound.js').read_text().count('AudioContext')>=1
     assert 'navigator.vibrate' in JS
 
 

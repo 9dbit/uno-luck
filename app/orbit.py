@@ -3,7 +3,7 @@
 The three selected cards are chosen server-side at round creation and revealed
 one by one. 80% of newly generated rounds have three cards of one color; the
 remaining 20% never have a complete color match. One round costs one stake,
-and pays twice that stake on a color match after its third pick.
+and awards one of five disclosed virtual multipliers on a color match.
 """
 from __future__ import annotations
 
@@ -22,6 +22,36 @@ WIN_PERCENT = 80
 FACES = spin.FACES
 COLORS = spin.COLORS
 
+# Per-winning-round probabilities in millionths; unbiased and independent.
+# Across all completed rounds 20% NO_MATCH, 80% Color Match.
+# Jackpot tiers are assigned at creation, not at spin #3 and not on client.
+CELEBRATIONS = {
+    1: {'title': 'DRAGON KING JACKPOT', 'theme': 'dragon', 'multiplier': 200, 'weight': 100},
+    2: {'title': 'IMPERIAL FORTUNE', 'theme': 'imperial', 'multiplier': 80, 'weight': 900},
+    3: {'title': 'PHOENIX COLOR BLAST', 'theme': 'phoenix', 'multiplier': 30, 'weight': 4000},
+    4: {'title': 'GOLDEN MATCH', 'theme': 'emerald', 'multiplier': 10, 'weight': 30000},
+    5: {'title': 'LUCKY COLOR WIN', 'theme': 'ruby', 'multiplier': 2, 'weight': 965000},
+}
+WEIGHT_SCALE = 1_000_000
+assert sum(t['weight'] for t in CELEBRATIONS.values()) == WEIGHT_SCALE
+
+
+def choose_tier() -> int:
+    """Cryptographic weighted choice; no daily quota or player-linked adjustment."""
+    roll = secrets.randbelow(WEIGHT_SCALE)
+    for rank in sorted(CELEBRATIONS):
+        roll -= CELEBRATIONS[rank]['weight']
+        if roll < 0:
+            return rank
+    raise RuntimeError('tier probability table invalid')
+
+
+def rank_details(rank: int | None) -> dict | None:
+    if rank not in CELEBRATIONS:
+        return None
+    tier = CELEBRATIONS[rank]
+    return {k: tier[k] for k in ('title', 'theme', 'multiplier')} | {'rank': rank}
+
 
 class PickRequest(BaseModel):
     request_id: str = Field(min_length=12, max_length=80)
@@ -39,6 +69,7 @@ def create_schema(db: sqlite3.Connection) -> None:
             picked INTEGER NOT NULL CHECK(picked BETWEEN 1 AND 3),
             payout INTEGER NOT NULL DEFAULT 0,
             combo TEXT NOT NULL,
+            tier INTEGER CHECK(tier BETWEEN 1 AND 5),
             created_at REAL NOT NULL,
             finished_at REAL,
             UNIQUE(account_id,start_key)
@@ -53,6 +84,11 @@ def create_schema(db: sqlite3.Connection) -> None:
             PRIMARY KEY(account_id,request_id)
         );
     """)
+    # Existing guest rounds survive the upgrade; legacy matching rounds default
+    # to the previous 2x when they are eventually completed.
+    existing = {r['name'] for r in db.execute('PRAGMA table_info(orbit_rounds)').fetchall()}
+    if 'tier' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN tier INTEGER CHECK(tier BETWEEN 1 AND 5)')
 
 
 def open_db() -> sqlite3.Connection:
@@ -93,6 +129,7 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
         'id': round_row['id'], 'picked': picked, 'stake': round_row['stake'],
         'cards': cards, 'complete': complete,
         'combo': round_row['combo'] if complete else None,
+        'tier': rank_details(round_row['tier']) if complete and round_row['combo'] == 'COLOR_MATCH' else None,
         'payout': round_row['payout'] if complete else None,
         'delta': round_row['payout'] - round_row['stake'] if complete else None,
     }
@@ -102,9 +139,14 @@ def public_rules() -> dict:
     return {
         'mode': 'three-pick-orbit', 'virtual_only': True, 'win_probability_percent': WIN_PERCENT,
         'stake_options': spin.COSTS,
-        'payout_multiplier': 2,
+        'base_payout_multiplier': 2, 'payout_multiplier': 2,
+        'celebrations': [rank_details(rank) | {
+            'conditional_win_probability_percent': CELEBRATIONS[rank]['weight'] / 10000,
+            'all_rounds_probability_percent': CELEBRATIONS[rank]['weight'] * WIN_PERCENT / 1000000,
+        } for rank in sorted(CELEBRATIONS)],
+        'coin_cap': spin.COIN_CAP,
         'spin_sequence': ['kiri','tengah','kanan'],
-        'note': 'Satu ronde = tiga SPIN, satu biaya di awal. Warna sama menang 2x. Semua koin virtual tanpa nilai uang. Peluang 80% adalah aturan game demo, bukan pernyataan tentang UNO resmi.',
+        'note': 'Setiap ronde tiga SPIN dan satu biaya. 80% Color Match dengan tier acak independen 2x/10x/30x/80x/200x, 20% tidak cocok. Hadiah dapat dibatasi batas saldo virtual 1.000.000. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
     }
 
 
@@ -115,6 +157,9 @@ def state(request: Request, response: Response):
         account = spin.get_account(request,response,db)
         row = current_round(db, account['id'])
         hist = spin.spin_history(db, account['id'], 8)
+        for item in hist:
+            tier_row = db.execute('SELECT tier FROM orbit_rounds WHERE id=? AND account_id=?', (item['id'], account['id'])).fetchone()
+            item['tier'] = rank_details(tier_row['tier']) if tier_row and item['combo'] == 'COLOR_MATCH' else None
         response.headers['Cache-Control'] = 'no-store'
         return {'account': spin.account_view(account), 'round': view_round(row),
                 'recent': hist, 'rules': public_rules()}
@@ -152,10 +197,11 @@ def pick(request: Request, response: Response, payload: PickRequest):
             if acct['balance'] < payload.stake:
                 raise HTTPException(409,'Koin tidak cukup. Klaim hadiah atau refill gratis.')
             cards=choose_cards()
-            combo,payout=spin.classify(cards,payload.stake)
+            combo,_=spin.classify(cards,payload.stake)
+            tier=choose_tier() if combo=='COLOR_MATCH' else None
             rid=spin.new_id()
-            db.execute('INSERT INTO orbit_rounds(id,account_id,start_key,stake,cards_json,picked,combo,created_at) VALUES(?,?,?,?,?,?,?,?)',
-                       (rid,aid,payload.request_id,payload.stake,json.dumps(cards,separators=(',',':')),1,combo,stamp))
+            db.execute('INSERT INTO orbit_rounds(id,account_id,start_key,stake,cards_json,picked,combo,tier,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
+                       (rid,aid,payload.request_id,payload.stake,json.dumps(cards,separators=(',',':')),1,combo,tier,stamp))
             new_balance=acct['balance']-payload.stake
             db.execute('UPDATE accounts SET balance=? WHERE id=?',(new_balance,aid))
             db.execute('INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)',
@@ -170,7 +216,9 @@ def pick(request: Request, response: Response, payload: PickRequest):
             if picked > 3:
                 raise HTTPException(409,'Ronde ini sudah selesai')
             if picked == 3:
-                payout=2*row['stake'] if row['combo']=='COLOR_MATCH' else 0
+                rank=row['tier'] or 5  # Legacy unfinished Color Match remains 2x.
+                multiplier=CELEBRATIONS[rank]['multiplier'] if row['combo']=='COLOR_MATCH' else 0
+                payout=multiplier * row['stake']
                 new_balance=min(spin.COIN_CAP,acct['balance']+payout)
                 credited=new_balance-acct['balance']
                 db.execute('UPDATE orbit_rounds SET picked=3,payout=?,finished_at=? WHERE id=?',(credited,stamp,rid))
