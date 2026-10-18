@@ -41,6 +41,7 @@ jobs:
           done
           python tests/visual_qa_sound_studio.py
           python tests/visual_qa_jackpot_sfx.py
+          python tests/visual_qa_ios_safari_audio.py
       - name: Upload QA screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -49,4 +50,5 @@ jobs:
           path: |
             artifacts/uno-v11-sound-studio/*.png
             artifacts/uno-v11-jackpot-audio/*.png
+            artifacts/uno-v11-ios-safari-audio/*.png
           if-no-files-found: ignore
