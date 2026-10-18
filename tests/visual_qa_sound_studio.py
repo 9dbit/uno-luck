@@ -23,7 +23,7 @@ def main():
         samples=(int(8000*math.sin(2*math.pi*523.25*n/22050)) for n in range(22050))
         dst.writeframes(b''.join(struct.pack('<h',n) for n in samples))
     with sync_playwright() as playwright:
-        browser=playwright.chromium.launch(headless=True,args=['--autoplay-policy=no-user-gesture-required'])
+        browser=playwright.chromium.launch(headless=True)
         page=browser.new_page(viewport={'width':390,'height':844},device_scale_factor=1)
         errors=[]
         page.on('pageerror',lambda err:errors.append(str(err)))
