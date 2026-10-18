@@ -33,9 +33,9 @@ def test_editing_is_real_and_persistent_without_server_upload():
     assert "function stopLoop()" in A and "function stopPreview()" in A
 
 def test_real_game_events_and_boot_use_studio_cues():
-    assert 'sound-studio.js?v=1116' in H
+    assert 'sound-studio.js?v=1117' in H
     assert 'sound-studio.css?v=1114' in H
-    assert H.index('sound.js?v=1116') < H.index('sound-studio.js?v=1116') < H.index('orbit.js?v=1116')
+    assert H.index('sound.js?v=1117') < H.index('sound-studio.js?v=1117') < H.index('orbit.js?v=1116')
     assert "installStudio,channels,playCue,result" in S
     assert "studio?.isCustomized(cue)" in S
     assert "studio?.isCustomized('background-music')" in S
@@ -89,7 +89,7 @@ def test_music_repeat_off_and_on_end_to_end_wiring():
 def test_jackpot_audio_is_exclusive_cancelable_and_server_confirmed():
     celebration=(P/'art/celebrations.js').read_text()
     assert "if(!preview&&!isWin)return false;" in celebration
-    assert "if(!customized)cinematicImpact(rank)" in S
+    assert "if(!customized&&isActive())cinematicImpact(rank)" in S
     assert "const key='jackpot-'+rank" in S
     assert "if(cue&&studio?.isCustomized(cue))return studio.play(cue)" in S
     assert "window.UNOLuckSound?.stopCelebration?.()" in celebration
