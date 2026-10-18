@@ -110,7 +110,7 @@ async function configure(key,settings){
 async function upload(key,file){
   if(!known.has(key))throw Error('Sound event tidak dikenal');
   if(!file||!file.size||file.size>MAX_BYTES)throw Error('Ukuran audio wajib 1 byte sampai 16 MB');
-  if(!(/\\.(mp3|wav|m4a|aac|ogg|webm)$/i.test(file.name)||file.type.startsWith('audio/')))
+  if(!(/\.(mp3|wav|m4a|aac|ogg|webm)$/i.test(file.name)||file.type.startsWith('audio/')))
     throw Error('Gunakan MP3, WAV, M4A, AAC, OGG atau WebM yang didukung browser');
   const {context}=channel();
   const bytes=await file.arrayBuffer();
