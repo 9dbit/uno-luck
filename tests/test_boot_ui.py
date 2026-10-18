@@ -33,7 +33,9 @@ def test_splash_sequence_and_auto_entry():
 
 
 def test_audio_unlocked_inside_user_gesture_and_no_autoplay_attempt():
-    assert "gate.unlock()" in BOOT
+    assert "const pendingUnlock = window.UNOLuckSound?.unlock()" in BOOT
+    assert "soundStart.addEventListener('click'" in BOOT
+    assert "await window.UNOLuckSound.playCue('soft-tech-splash-screen')" in BOOT
     assert "find('boot-with-audio').addEventListener('click'" in BOOT
     assert 'await audioUnlockPending' in JS
     assert "audio.state==='running'" in JS
