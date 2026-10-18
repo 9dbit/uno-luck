@@ -28,5 +28,7 @@ def test_uploaded_splash_persists_across_reload():
     assert "await writeFile(key,file)" in S
     assert "const file=await readFile(key)" in S
     assert "profiles[key]={custom:true" in S
-    assert "if(!file)throw Error('File audio lokal tidak ditemukan. Upload ulang.')" in S
+    assert "if(!file)throw Error('File audio lokal tidak ditemukan. Upload ulang dari desktop.')" in S
+    assert "const response=await fetch(cfg.url" in S
+    assert "await syncCloud()" in S
     assert "source.start(now,bounds.start,bounds.length)" in S
