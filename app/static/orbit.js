@@ -11,6 +11,7 @@ const MUTE_EFFECTS = 'uno_orbit_sfx';
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let account = null, currentRound=null, last=null, stakeIndex=1, isSpinning=false;
 let isTurbo=false, isAuto=false, cancelAuto=false, motorAngle=0, ringCards=[];
+let cachedRingSize=null; // Avoid reading layout inside each requestAnimationFrame tick.
 let audioContext=null, musicTimer=null, musicEnabled=localStorage.getItem(MUTE_MUSIC)!=='off';
 let sfxEnabled=localStorage.getItem(MUTE_EFFECTS)!=='off', nextMusicAt=0, musicStep=0;
 const wait = ms => new Promise(r=>setTimeout(r,ms));
@@ -37,8 +38,9 @@ function resetRing(){
   layoutRing(0);
 }
 function layoutRing(angle=motorAngle,shake=false){
-  const zone=$('orbit-ring').getBoundingClientRect();
+  const zone=cachedRingSize||$('orbit-ring').getBoundingClientRect();
   if(!zone.width||!zone.height)return;
+  if(!cachedRingSize)cachedRingSize={width:zone.width,height:zone.height};
   const rx=Math.max(16,zone.width*.45-Math.max(12,zone.width*.052));
   const ry=zone.height*.31;
   const nodes=$('orbit-ring').children;
@@ -287,7 +289,7 @@ function listeners(){
   $('profile-btn').addEventListener('click',showProfile);
   $('modal-close').addEventListener('click',closeModal);
   $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
-  addEventListener('resize',()=>layoutRing(motorAngle,false));
+  addEventListener('resize',()=>{cachedRingSize=null;layoutRing(motorAngle,false);});
   const activate=()=>{unlockAudio().then(yes=>{if(yes){document.removeEventListener('pointerdown',activate,true);document.removeEventListener('touchend',activate,true);}});};
   document.addEventListener('pointerdown',activate,{passive:true,capture:true});
   document.addEventListener('touchend',activate,{passive:true,capture:true});
