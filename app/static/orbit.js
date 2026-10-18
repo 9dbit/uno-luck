@@ -174,7 +174,9 @@ async function pickOne(){
     syncAccount(confirmed.account);
     if(confirmed.round.complete){
       last=confirmed.round;
-      if(sfxEnabled)window.UNOLuckSound?.result(last.combo==='COLOR_MATCH');
+      // A winning round is scored by exactly one tier-specific jackpot cue.
+      // Do not overlap RESULT SOUND with the user-selected JACKPOT 1–5 file.
+      if(sfxEnabled && last.combo!=='COLOR_MATCH')window.UNOLuckSound?.result(false);
       window.UNOLuckMotion?.result(last);
       if(last.combo==='COLOR_MATCH'){
         const title=last.tier?.title||'LUCKY COLOR WIN';
