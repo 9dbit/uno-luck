@@ -178,8 +178,13 @@
     }
     const played=await play(`tier-${rank}`);
     if(token!==jackpotSeq)return {played:false,duration:0};
-    const duration=customized?await studio.segmentDuration(key):
-      (await sample(`tier-${rank}`))?.duration||0;
+    let duration=0;
+    if(played){
+      try{duration=customized?await studio.segmentDuration(key):
+        (await sample(`tier-${rank}`))?.duration||0;}
+      catch(error){lastError='Jackpot '+rank+' duration: '+String(error?.message||error);}
+    }
+    if(token!==jackpotSeq)return {played:false,duration:0};
     return {played:Boolean(played),duration:Number(duration)||0,cue:key,customized};
   }
   function setVolume(v){fxLevel=clamp(v);localStorage.setItem('uno_luck_fx_volume',String(fxLevel));if(fxBus&&ctx)fxBus.gain.setTargetAtTime(fxLevel,ctx.currentTime,.04);return fxLevel;}
