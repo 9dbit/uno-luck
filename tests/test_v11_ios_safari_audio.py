@@ -16,7 +16,7 @@ def test_safari_interrupted_context_is_recoverable():
     assert "get webAudioState()" in SOUND
 
 def test_uploaded_splash_is_prepared_before_user_activation():
-    assert "studio.prepareSplashMedia().then(" in BOOT
+    assert "await studio.prepareSplashMedia()" in BOOT
     assert "soundStart.disabled=true" in BOOT
     assert "const pendingMedia = htmlFallback?studio.playSplashGesture():null;" in BOOT
     assert BOOT.index("const pendingMedia = ") < BOOT.index("const pendingUnlock = ")
@@ -32,8 +32,8 @@ def test_uploaded_splash_is_prepared_before_user_activation():
     assert "mediaUnlocked=true" in STUDIO
     assert "media-src 'self' blob:" in HTML
     assert "sound.js?v=1117" in HTML
-    assert "sound-studio.js?v=1117" in HTML
-    assert "boot.js?v=1117" in HTML
+    assert "sound-studio.js?v=1119" in HTML
+    assert "boot.js?v=1119" in HTML
 
 def test_ios_media_fallback_preserves_sound_studio_settings():
     assert "const bounds=limits(key,duration)" in STUDIO
