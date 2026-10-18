@@ -742,9 +742,14 @@ function show(host){
         stop.toFixed(2)+' s   ·   DURATION '+span.toFixed(2)+' s';
     };
     const setStatus=text=>{status.textContent=text;};
+    const setEditorBusy=busy=>{
+      Object.values(values).forEach(input=>{input.disabled=busy;});
+      if(repeatInput)repeatInput.disabled=busy;
+    };
     let paintSeq=0;
     const paint=async()=>{
       const seq=++paintSeq;
+      setEditorBusy(true);
       setStatus('Membaca audio…');
       const p=profile(key);
       const shared=publishedProfile(key);
@@ -757,7 +762,7 @@ function show(host){
           setStatus('Belum ada file default. Upload audio untuk cue ini.');
           return;
         }
-        const r=limits(key,actualDuration);
+        const r=limits(key,actualDuration,{draft:true});
         for(const name of ['start','stop','fadeIn','fadeOut'])values[name].value=String(decimals(r[name]));
         values.duration.value=String(decimals(r.length));
         if(repeatInput)repeatInput.checked=getRepeat(key);
@@ -766,7 +771,8 @@ function show(host){
         setStatus((shared.revision?'☁ SHARED · ':'LOCAL · ')+
           (p.custom||p.source==='custom'?'CUSTOM: '+p.fileName:'DEFAULT: '+(defaultSample||'-'))+
           ' · File '+decimals(actualDuration)+' s');
-      }catch(error){setStatus('Audio tidak bisa dibaca: '+String(error.message));}
+      }catch(error){if(seq===paintSeq)setStatus('Audio tidak bisa dibaca: '+String(error.message));}
+      finally{if(seq===paintSeq)setEditorBusy(false);}
     };
     let updating=false;
     const sync=(changed)=>{
@@ -794,7 +800,7 @@ function show(host){
         await upload(key,fileInput.files[0]);
         await paint();setStatus('Audio tersimpan: '+fileInput.files[0].name+
           (hasAdminKey()?' · CLOUD PUBLISHED':' · LOKAL, belum dipublikasikan'));
-      }catch(error){setStatus('UPLOAD GAGAL: '+error.message);}
+      }catch(error){setEditorBusy(false);setStatus('UPLOAD GAGAL: '+error.message);}
     });
     const buttons=element('div','studio-buttons');
     const button=(label,fn)=>{
