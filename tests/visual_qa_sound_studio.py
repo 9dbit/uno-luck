@@ -88,7 +88,13 @@ def main():
         }""")
         page.screenshot(path=str(OUTPUT/'splash-audio-gate-after-reload.png'),full_page=True)
         page.locator('#boot-start-sound').click()
-        page.wait_for_function('window.__splashStartCount>0',timeout=12000)
+        for _ in range(80):
+            if page.evaluate('window.__splashStartCount || 0') > 0:
+                break
+            page.wait_for_timeout(125)
+        assert page.evaluate('window.__splashStartCount || 0') > 0, (
+            'Uploaded splash file never started AudioBufferSourceNode after tap: '
+            +page.locator('#boot-sound-status').inner_text())
         page.locator('#boot-sound-gate').wait_for(state='hidden')
         page.locator('#game-shell').wait_for(state='visible',timeout=25000)
         assert not errors, 'Uncaught browser errors: '+str(errors)
