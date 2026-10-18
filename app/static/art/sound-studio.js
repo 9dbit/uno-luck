@@ -22,7 +22,12 @@ let cloudFetch=null, adminKey=sessionStorage.getItem('uno-sound-admin-key')||'';
 const liveProfile=key=>cloudProfiles.get(key)||profiles[key]||{};
 const editProfile=key=>profiles[key]||cloudProfiles.get(key)||{};
 async function syncCloud(force=false){
-  if(cloudFetch)return cloudFetch;
+  if(cloudFetch){
+    if(!force)return cloudFetch;
+    // Serialize forced refreshes; older in-flight manifests must never
+    // overwrite a freshly published desktop edit on a different device.
+    await cloudFetch;
+  }
   cloudFetch=(async()=>{
     const response=await fetch('/api/sounds/manifest',{cache:'no-store'});
     if(!response.ok)throw Error('Cloud catalog HTTP '+response.status);
