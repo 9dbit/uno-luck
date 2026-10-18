@@ -252,7 +252,8 @@ function show(host){
     const sliders={};
     const sliderValues={};
     for(const [field,label] of [
-      ['start','START'],['stop','STOP'],['fadeIn','FADE IN'],['fadeOut','FADE OUT']
+      ['start','START'],['stop','STOP'],['duration','DURATION'],
+      ['fadeIn','FADE IN'],['fadeOut','FADE OUT']
     ]){
       const wrap=element('label','studio-slider-row');
       const header=element('span','studio-slider-heading');
@@ -267,7 +268,10 @@ function show(host){
       slider.setAttribute('aria-valuetext','0.00 seconds');
       slider.addEventListener('input',()=>{
         values[field].value=slider.value;
-        if(field==='start'||field==='stop'){
+        if(field==='duration'){
+          const start=Number(values.start.value)||0;
+          values.stop.value=String(decimals(Math.min(actualDuration,start+Number(slider.value))));
+        }else if(field==='start'||field==='stop'){
           values.duration.value=String(decimals(Number(values.stop.value)-Number(values.start.value)));
         }
         updateSliderView();
@@ -303,11 +307,12 @@ function show(host){
       const fadeOut=clamp(read('fadeOut'),0,span);
       const limits={
         start:[0,Math.max(0,stop-.02)],stop:[Math.min(dur,start+.02),dur],
+        duration:[.02,Math.max(.02,dur-start)],
         fadeIn:[0,Math.max(0,span-fadeOut)],fadeOut:[0,Math.max(0,span-fadeIn)]
       };
       for(const field of Object.keys(sliders)){
         const slider=sliders[field],value=field==='start'?start:field==='stop'?stop:
-          field==='fadeIn'?fadeIn:fadeOut;
+          field==='duration'?span:field==='fadeIn'?fadeIn:fadeOut;
         slider.min=String(decimals(limits[field][0]));
         slider.max=String(decimals(Math.max(limits[field][0],limits[field][1])));
         slider.value=String(decimals(value));
