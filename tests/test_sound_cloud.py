@@ -132,3 +132,15 @@ def test_publish_data_separate_from_coin_database(sound_storage, monkeypatch):
         assert client.get("/health").status_code == 200
         assert client.get(API + "/manifest").status_code == 200
     assert not list(Path(sound_storage.parent).glob("*.db"))
+
+
+def test_bounded_staging_sound_history(sound_storage):
+    with TestClient(app) as browser:
+        for i in range(3):
+            result = browser.put(API + "/cues/jackpot-5", content=WAV,
+                                 headers=headers(name=f"jackpot-{i}.wav"))
+            assert result.status_code == 200
+        paths = list((sound_storage / "audio").glob("jackpot-5-*.wav"))
+        assert len(paths) == 2, paths
+        latest = browser.get(API + "/manifest").json()["cues"]["jackpot-5"]
+        assert browser.get(latest["url"]).content == WAV
