@@ -113,7 +113,7 @@ def test_settings_repeat_update_persists_without_reupload(sound_storage):
 
 def test_invalid_duration_and_upload_rejected(sound_storage):
     with TestClient(app) as client:
-        assert client.put(API + "/cues/jackpot-3",content=b"<script>alert(1)</script>",
+        assert client.put(API + "/cues/jackpot-3",content=b"<script>alert(1)</script>"+b"x"*36,
                           headers=headers()).status_code == 415
         assert client.put(API + "/cues/jackpot-3",content=WAV,
                           headers=headers(name="escape.html")).status_code == 415
