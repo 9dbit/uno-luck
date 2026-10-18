@@ -16,6 +16,101 @@ const known=new Map(KEYS.map(x=>[x[0],x]));
 const KEY='uno_sound_studio_profiles_v1',DB='uno-luck-custom-sound-v1',MAX_BYTES=16*1024*1024;
 const profiles=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(_){return {};}})();
 const bufferCache=new Map();
+let cloudProfiles=new Map(), cloudRevision='', cloudReady=false, cloudError='';
+let cloudFetch=null, adminKey=sessionStorage.getItem('uno-sound-admin-key')||'';
+const liveProfile=key=>cloudProfiles.get(key)||profiles[key]||{};
+const editProfile=key=>profiles[key]||cloudProfiles.get(key)||{};
+async function syncCloud(force=false){
+  if(cloudFetch)return cloudFetch;
+  cloudFetch=(async()=>{
+    const response=await fetch('/api/sounds/manifest',{cache:'no-store'});
+    if(!response.ok)throw Error('Cloud catalog HTTP '+response.status);
+    const data=await response.json();
+    if(data.ready!==true){cloudReady=false;cloudError='Cloud storage belum siap';return false;}
+    cloudReady=true;cloudError='';
+    if(data.revision!==cloudRevision){
+      const oldSplash=cloudProfiles.get('soft-tech-splash-screen')?.revision;
+      cloudRevision=data.revision;
+      cloudProfiles=new Map(Object.entries(data.cues||{}).filter(([key])=>known.has(key)));
+      bufferCache.clear();
+      if(oldSplash!==cloudProfiles.get('soft-tech-splash-screen')?.revision){
+        if(splashUrl?.startsWith('blob:'))URL.revokeObjectURL(splashUrl);
+        splashUrl=null;
+      }
+      window.dispatchEvent(new CustomEvent('uno:sound-cloud-synced',
+        {detail:{revision:cloudRevision,cues:cloudProfiles.size}}));
+    }
+    return true;
+  })().catch(error=>{
+    cloudError=String(error?.message||error);
+    console.warn('[UNO SOUND CLOUD]',cloudError);
+    return false;
+  }).finally(()=>{cloudFetch=null;});
+  return cloudFetch;
+}
+function hasAdminKey(){return adminKey.length>=32;}
+async function verifyAdminKey(value){
+  const entered=String(value||'').trim();
+  if(entered.length<32)throw Error('Masukkan kunci admin Sound Studio dari Railway (minimal 32 karakter).');
+  const response=await fetch('/api/sounds/admin/check',
+    {headers:{'X-UNO-Sound-Admin':entered},cache:'no-store'});
+  if(!response.ok)throw Error(response.status===403?
+    'Kunci admin salah. Salin dari Railway → Variables → UNO_SOUND_ADMIN_TOKEN.':
+    'Verifikasi admin gagal: HTTP '+response.status);
+  adminKey=entered;sessionStorage.setItem('uno-sound-admin-key',entered);
+  return true;
+}
+function cloudStatus(){return {ready:cloudReady,revision:cloudRevision,
+  online:cloudProfiles.size,error:cloudError,admin:hasAdminKey()};}
+async function publishCue(key,{remove=false}={}){
+  if(!known.has(key))throw Error('Sound cue tidak dikenal');
+  if(!hasAdminKey())throw Error('Kunci admin diperlukan untuk publish sound ke semua perangkat.');
+  const headers={'X-UNO-Sound-Admin':adminKey};
+  let method='PATCH',body=null;
+  if(remove){method='DELETE';}
+  else{
+    const local=profiles[key]||{};
+    if(!local.custom&&!local.edited)throw Error('Belum ada perubahan lokal untuk '+key);
+    const duration=Number(local.fileDuration)||(await measure(key));
+    const meta={
+      start:Number(local.start??0),stop:Number(local.stop??duration),
+      fadeIn:Number(local.fadeIn??0),fadeOut:Number(local.fadeOut??0),
+      fileDuration:duration,repeat:local.repeat!==false,
+    };
+    if(local.custom){
+      const file=await readFile(key);
+      if(!file)throw Error('File '+key+' tidak ditemukan di desktop. Upload ulang.');
+      method='PUT';body=file;
+      headers['Content-Type']=file.type||mimeFor(file);
+      headers['X-UNO-Sound-Name']=encodeURIComponent(local.fileName||file.name||'sound.mp3');
+      headers['X-UNO-Sound-Settings']=JSON.stringify(meta);
+    }else{
+      headers['Content-Type']='application/json';
+      body=JSON.stringify(meta);
+    }
+  }
+  const res=await fetch('/api/sounds/cues/'+encodeURIComponent(key),
+    {method,headers,body,cache:'no-store'});
+  if(!res.ok){
+    let message='HTTP '+res.status;
+    try{const error=await res.json();message=error.detail||message;}catch(_){}
+    throw Error('Gagal publish '+key+': '+message);
+  }
+  await syncCloud(true);
+  return true;
+}
+async function publishAll(progress=()=>{}){
+  if(!hasAdminKey())throw Error('Masukkan kunci admin sebelum mempublikasikan audio desktop.');
+  const entries=KEYS.map(([key])=>key).filter(key=>{
+    const p=profiles[key];return Boolean(p&&(p.custom||p.edited));
+  });
+  if(!entries.length)throw Error('Tidak ada audio lokal untuk dipublikasikan.');
+  for(let i=0;i<entries.length;i++){
+    progress(i+1,entries.length,entries[i]);
+    await publishCue(entries[i]);
+  }
+  return entries.length;
+}
 let database=null, preview=null, loop=null, loopSerial=0, lastError='';
 let celebrationNode=null, celebrationRequest=0;
 // Keep one media element already activated by the splash tap. Reusing the element
