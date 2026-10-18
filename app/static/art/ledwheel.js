@@ -84,6 +84,7 @@
       this.displays[0]={...card};
       this.updateAll();
       this.host.dataset.ledFrame=String((this.tickNo++)%9);
+      window.UNOLuckSound?.ledTick(this.injected);
     }
     begin({turbo=false}={}) {
       if(this.active)throw Error('LED selection already in progress');
@@ -147,6 +148,7 @@
       this.host.classList.remove('led-running','led-slowing');
       this.host.classList.add('led-locked');
       this.updateAll();
+      window.UNOLuckSound?.play('lock');
       const finish=this.resolve;
       this.resolve=null;
       this.pending=null;
