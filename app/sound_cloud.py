@@ -171,9 +171,31 @@ def manifest():
             clean["url"] = "/api/sounds/files/" + quote(cue) + "?v=" + quote(info["revision"])
         public[cue] = clean
     return Response(
-        content=json.dumps({"ready": True, "revision": data["revision"], "cues": public}),
+        content=json.dumps({"ready": True, "revision": data["revision"], "cues": public,
+                            "mixer": data.get("mixer", None)}),
         media_type="application/json", headers=NO_CACHE,
     )
+
+
+@router.patch("/mixer")
+async def publish_mixer(request: Request):
+    require_admin(request)
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError()
+        levels = {key: float(body[key]) for key in ("master", "music", "sfx")}
+    except (ValueError, KeyError, TypeError, OverflowError):
+        raise HTTPException(422, "Mixer settings tidak valid")
+    if any(not math.isfinite(v) or v < 0 or v > 1 for v in levels.values()):
+        raise HTTPException(422, "Mixer level harus antara 0 dan 1")
+    with LOCK:
+        root = storage()
+        data = _read(root)
+        data["mixer"] = levels
+        data["revision"] = secrets.token_hex(12)
+        _write(root, data)
+    return {"published": True, "mixer": levels}
 
 
 @router.get("/files/{cue}")
