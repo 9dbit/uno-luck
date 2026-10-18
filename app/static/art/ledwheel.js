@@ -127,12 +127,15 @@
       if(!card||!card.color||!card.face)throw Error('Server choice missing');
       if(!Number.isInteger(picked)||picked<1||picked>3)throw Error('Invalid pick phase');
       this.ready={card:{...card},picked};
+      // Capture before complete() clears this.pending. Reduced-motion users must
+      // receive the same acknowledged server pick rather than a false failure.
+      const acknowledged=this.pending;
       if(REDUCED){
         this.displays[PICKS]={...card};
         this.updateAll();
         this.complete();
       }
-      return this.pending;
+      return acknowledged;
     }
     complete() {
       if(!this.active)return;

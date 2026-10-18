@@ -1,5 +1,5 @@
 'use strict';
-/* UNO LUCK v1.0: server-picked three cards, one GPU wheel with independent transparent card assets. */
+/* UNO LUCK v1.1: server-picked three cards, one GPU wheel with independent transparent card assets. */
 const $ = id => document.getElementById(id);
 const idMoney = n => new Intl.NumberFormat('id-ID').format(n);
 const COLORS = ['red','blue','yellow','green'];
@@ -151,6 +151,7 @@ async function pickOne(){
     localStorage.setItem(pendingKey,JSON.stringify(pending));
   }
   isSpinning=true;updateButtons();
+  window.UNOLuckMatch?.clear();
   window.UNOLuckMotion?.beginSpin();
   unlockAudio().then(ok=>{if(ok){sfx('tap');sfx('spin');}});
   say(`SPIN ${expected}/3 · LED kartu bergerak dari kiri ke kanan…`);
@@ -230,6 +231,13 @@ function showCelebrationGallery(){
     });
   }
 }
+async function testSound(){
+  closeModal();
+  const ok=await unlockAudio();
+  if(!ok){say('Audio belum aktif. Sentuh Main dengan Suara lalu coba lagi.');return;}
+  window.UNOLuckSound?.testSound();
+  say('Tes audio: impact, coin, dan fanfare. Gunakan volume media iPhone jika tidak terdengar.');
+}
 function showSoundVolume(){
   const area=modal('Volume Sound Effect');
   paragraph(area,'Gunakan pengaturan 0–100%. Default 85%, dengan limiter supaya efek kuat tanpa clipping digital.');
@@ -241,7 +249,7 @@ function showSoundVolume(){
     });
   }
 }
-function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Volume Efek Suara',showSoundVolume);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');window.UNOLuckSound?.setEnabled(sfxEnabled);if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v1.0 · staging · hadiah virtual tanpa nilai tunai.');}
+function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Volume Efek Suara',showSoundVolume);modalButton(area,'Tes Suara Meriah',testSound);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');window.UNOLuckSound?.setEnabled(sfxEnabled);if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v1.1 · staging · hadiah virtual tanpa nilai tunai.');}
 function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 async function loadState(quiet=false){
   try{const data=await api('/state');syncAccount(data.account);currentRound=data.round;

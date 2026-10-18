@@ -1,0 +1,82 @@
+/* UNO LUCK v1.1 visual lock. No angular rotating gradient masks. */
+.game-shell{
+  background-image:linear-gradient(180deg,rgba(13,0,5,.57) 0%,rgba(25,0,8,.19) 26%,rgba(38,2,7,.27) 55%,rgba(19,0,4,.28) 100%),url('/assets/art/v4/lava-temple.webp')!important;
+  background-color:#130006;background-size:100% 100%,cover;background-position:center,center;background-repeat:no-repeat;
+}
+.game-shell::before{inset:-10%!important;opacity:.18!important;transform:none!important;
+  background:radial-gradient(ellipse at 50% 65%,rgba(255,89,18,.24),transparent 57%)!important;
+  animation:templeAura 8s ease-in-out infinite alternate!important;filter:blur(19px)}
+@keyframes templeAura{to{opacity:.33;transform:scale(1.03)}}
+/* Regular DRAGON SPIN is neutral. Server-confirmed COLOR MATCH! uses its own transparent image. */
+.title-area{position:relative;isolation:isolate;}
+.title-area .color-match-burst{position:absolute;top:47%;left:50%;height:auto;width:min(96%,650px);max-height:105%;
+  object-fit:contain;transform:translate3d(-50%,-50%,0) scale(.12);opacity:0;filter:drop-shadow(0 0 8px #ffc322);
+  z-index:5;pointer-events:none;will-change:transform,opacity}
+.title-area .color-match-burst[hidden]{display:none!important;}
+.title-area.match-active .motion-title,.title-area.match-active p{visibility:hidden!important}
+.title-area.match-active .color-match-burst{opacity:1;animation:matchReveal .88s cubic-bezier(.2,.75,.15,1) both}
+@keyframes matchReveal{
+  0%{opacity:0;transform:translate3d(-50%,-50%,0) scale(.23);filter:brightness(3)}
+  45%{opacity:1;transform:translate3d(-50%,-50%,0) scale(1.13);filter:brightness(1.45) drop-shadow(0 0 16px #fff3a1)}
+  67%{transform:translate3d(-50%,-50%,0) scale(.96)}
+  100%{opacity:1;transform:translate3d(-50%,-50%,0) scale(1);filter:brightness(1) drop-shadow(0 0 9px #ffc12a)}
+}
+.match-sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+/* Existing ornamental bar asset and numeric IDs remain, only the labels are commercial. */
+.game-shell>.result-bar>div{padding-left:clamp(13px,3.2vw,23px)!important;}
+.game-shell>.result-bar small{font-weight:1000;letter-spacing:.04em;text-shadow:0 1px 2px #240001}
+.game-shell>.result-bar strong{font-variant-numeric:tabular-nums}
+/* Bright digital card faces fill each fixed gold socket. */
+.wheel-led-ring .led-screen{inset:0!important;border-radius:8% 8% 14% 14%!important;
+  clip-path:polygon(1% 0,99% 0,98% 100%,2% 100%)!important;
+  background-clip:border-box!important;filter:saturate(1.4) brightness(1.13)}
+.wheel-led-ring .led-slot::before{display:none!important}
+.wheel-led-ring .led-screen::after{opacity:.06!important}
+.wheel-led-ring .led-slot{border:1px solid #f4c55c!important;background:transparent!important}
+/* Buttons raised closer to the wheel rather than below the dragon tail. */
+.wheel-stage #turbo-btn,.wheel-stage #auto-btn{bottom:7%!important;}
+/* Celebration 2–5 lives inside the wheel-area: no full-screen mask / black diagonal wedges. */
+.wheel-area.has-celebration .wheel-stage,
+.wheel-area.has-celebration .spin-caption,
+.wheel-area.has-celebration .win-particles{visibility:hidden!important;pointer-events:none!important}
+.celebration-overlay.scope-wheel{
+  position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:95!important;
+  display:grid!important;grid-template-rows:minmax(0,1fr) auto auto;align-items:center;justify-items:center;
+  gap:clamp(2px,1vw,6px);padding:clamp(3px,1.5vw,9px)!important;
+  background:radial-gradient(ellipse 70% 60% at 50% 52%,rgba(121,11,25,.92),rgba(37,2,12,.92) 67%,rgba(15,0,5,.87) 100%)!important;
+  border-radius:0;isolation:isolate;overflow:hidden;box-sizing:border-box;
+}
+.celebration-overlay.scope-wheel::before{inset:-25%!important;animation:none!important;
+  opacity:.45!important;transform:none!important;filter:blur(19px);
+  background:radial-gradient(ellipse at 50% 50%,rgba(252,171,35,.55),transparent 60%)!important}
+.celebration-overlay.scope-wheel[data-rank='2']::before{background:radial-gradient(ellipse at center,#ab48f78d,transparent 61%)!important}
+.celebration-overlay.scope-wheel[data-rank='3']::before{background:radial-gradient(ellipse at center,#ff39d078,transparent 61%)!important}
+.celebration-overlay.scope-wheel[data-rank='4']::before{background:radial-gradient(ellipse at center,#41fb9b76,transparent 61%)!important}
+.celebration-overlay.scope-wheel .celebration-art{grid-row:1;grid-column:1;width:min(95%,510px)!important;
+  height:100%!important;min-height:0;max-height:100%!important;object-fit:contain;align-self:stretch;
+  filter:drop-shadow(0 0 12px #ffbd5a8c)}
+.celebration-overlay.scope-wheel .celebration-actual{grid-row:2;grid-column:1;max-width:96%;max-height:100%;
+  margin:0!important;gap:0;padding:3px 9px;min-height:0;line-height:1.12}
+.celebration-overlay.scope-wheel .celebration-actual strong{font-size:clamp(10px,2.9vw,15px)}
+.celebration-overlay.scope-wheel .celebration-actual span{font-size:clamp(9px,2.5vw,14px)}
+.celebration-overlay.scope-wheel .celebration-continue{grid-row:3;grid-column:1;margin:0 0 1px;
+  min-height:clamp(34px,5.6dvh,45px);font-size:clamp(12px,3.3vw,16px);padding:4px 22px}
+.celebration-overlay.scope-wheel.shown .celebration-art{animation:matchRevealWheel .95s cubic-bezier(.12,.8,.2,1) both}
+@keyframes matchRevealWheel{0%{opacity:0;transform:translate3d(0,8%,0) scale(.27);filter:brightness(2.6)}55%{opacity:1;transform:translate3d(0,0,0) scale(1.07)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+/* Jackpot 1 stays full-screen; soft bloom replaces angular conic masks. */
+.celebration-overlay.scope-full::before{background:radial-gradient(ellipse at center,#ffb01d75,transparent 68%)!important;
+  animation:templeAura 5s ease-in-out infinite alternate!important;filter:blur(13px)}
+.celebration-overlay.scope-full{background:radial-gradient(ellipse at center,#650618e2,#190109ed 68%,#070003ed 100%)!important}
+@media(orientation:landscape) and (max-height:470px){
+  .celebration-overlay.scope-wheel{gap:1px;padding:3px!important}
+  .celebration-overlay.scope-wheel .celebration-art{max-width:62%!important}
+  .celebration-overlay.scope-wheel .celebration-actual{padding:2px 6px}
+  .celebration-overlay.scope-wheel .celebration-continue{min-height:28px;font-size:11px;padding:2px 12px}
+  .title-area .color-match-burst{width:97%;}
+}
+@media(prefers-reduced-motion:reduce){
+  .game-shell::before,.title-area.match-active .color-match-burst,
+  .celebration-overlay.scope-wheel.shown .celebration-art,
+  .celebration-overlay.scope-full::before{animation:none!important}
+  .title-area.match-active .color-match-burst{transform:translate3d(-50%,-50%,0) scale(1);opacity:1}
+}

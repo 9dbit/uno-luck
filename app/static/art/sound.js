@@ -1,4 +1,4 @@
-/* UNO LUCK Audio v1.0: licensed-original synthesized audio, decoded once. */
+/* UNO LUCK Audio v1.1: licensed-original synthesized audio, decoded once. */
 (() => {
   'use strict';
   const samples = {spin:'spin-impact',tap:'led-click',tick:'led-click',
@@ -67,9 +67,33 @@
     if(!buffer||!isActive()||playingMusic||document.hidden)return;
     const src=ctx.createBufferSource();src.buffer=buffer;src.loop=true;src.connect(musicBus);src.start();playingMusic=src;
   }
+  function cinematicImpact(rank=5){
+    if(!isActive()||!audioEnabled||fxLevel<=0)return false;
+    const now=ctx.currentTime;
+    const intensity=rank===1?1:rank===2?.85:rank===3?.7:rank===4?.6:.49;
+    for(const [freq,shape,amount] of [[180,'sine',.22],[330,'triangle',.075]]){
+      const osc=ctx.createOscillator();const env=ctx.createGain();
+      osc.type=shape;
+      osc.frequency.setValueAtTime(freq*1.4,now);
+      osc.frequency.exponentialRampToValueAtTime(freq*.58,now+.30);
+      env.gain.setValueAtTime(.001,now);
+      env.gain.exponentialRampToValueAtTime(amount*intensity,now+.012);
+      env.gain.exponentialRampToValueAtTime(.001,now+.42);
+      osc.connect(env).connect(fxBus);osc.start(now);osc.stop(now+.46);
+    }
+    return true;
+  }
+  async function testSound(){
+    if(!isActive())return false;
+    cinematicImpact(3);
+    await play('spin');
+    await play('tier-5');
+    return true;
+  }
   async function celebration(rank){
     if(!Number.isInteger(rank)||rank<1||rank>5)return;
-    if(!isActive())return;
+    if(!isActive()||!audioEnabled)return;
+    cinematicImpact(rank);
     if(musicBus){musicBus.gain.cancelScheduledValues(ctx.currentTime);
       musicBus.gain.setTargetAtTime(.035,ctx.currentTime,.09);
       musicBus.gain.setTargetAtTime(.13,ctx.currentTime+({1:5.5,2:4.7,3:3.8,4:2.9,5:1.85}[rank]),.4);
@@ -79,6 +103,6 @@
   function setVolume(v){fxLevel=Math.max(0,Math.min(1,Number(v)||0));localStorage.setItem('uno_luck_fx_volume',String(fxLevel));if(fxBus&&ctx)fxBus.gain.setTargetAtTime(fxLevel,ctx.currentTime,.04);return fxLevel;}
   function setEnabled(v){audioEnabled=Boolean(v);}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)music(false);});
-  window.UNOLuckSound={unlock,play,music,celebration,setVolume,setEnabled,
+  window.UNOLuckSound={unlock,play,music,celebration,testSound,setVolume,setEnabled,
     get volume(){return fxLevel;},get state(){return ctx?.state||'inactive';}};
 })();

@@ -111,3 +111,12 @@ above the bottom edge. See `docs/UNO_LUCK_v091.md`.
 ## v1.0 Five celebrations and sound
 
 See [docs/UNO_LUCK_v10.md](docs/UNO_LUCK_v10.md) for five-tier probabilities, UI, original audio, accessibility, QA and virtual-only economy disclosure.
+
+
+### UNO LUCK v1.1: Conditional COLOR MATCH and scoped celebrations
+
+- `app/static/art/v4/color-match.webp` is the **separate alpha-transparent COLOR MATCH! title asset**, loaded in the title area but hidden by default. `match-announce.js` displays it only when the third server-confirmed card completes a `COLOR_MATCH` and a valid tier is present. The effect is removed when the celebration closes, the next spin begins, or visibility is lost. Reloading a past win never automatically replays the title.
+- Rank 1 Dragon King Jackpot remains full-screen; ranks 2–5 replace **only** the Dragon Spin wheel section and never cover the three result cards or BET/PAYOUT/WIN header. Visual previews do not expose the match asset or mutate coins.
+- `app/static/art/v4/lava-temple.webp` is the optimized version of the approved temple-background reference. Smooth radial effects replace angular conic gradients.
+- `app/static/art/sound.js` adds an audio-safe mid-bass impact and a `Tes Suara Meriah` control. Audio must be unlocked from a user gesture on iOS Safari; muted media/system volume cannot be overridden by the app.
+- Server probability, five rank weights, virtual settlement, caps, and idempotency remain unchanged.
