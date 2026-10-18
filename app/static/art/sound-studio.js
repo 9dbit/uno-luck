@@ -240,7 +240,86 @@ function show(host){
       input.name=key+'-'+field;
       values[field]=input;wrap.append(input);form.append(wrap);
     }
+
+    // Native, accessible sliders complement exact numeric controls on every cue.
+    const timeline=element('div','studio-timeline');
+    const rail=element('div','studio-timeline-rail');
+    const selected=element('div','studio-timeline-selection');
+    rail.append(selected);
+    const timeReadout=element('div','studio-timeline-label','START 0.00 s  ·  STOP 0.00 s');
+    timeline.append(rail,timeReadout);
+    const sliderPanel=element('div','studio-slider-panel');
+    const sliders={};
+    const sliderValues={};
+    for(const [field,label] of [
+      ['start','START'],['stop','STOP'],['fadeIn','FADE IN'],['fadeOut','FADE OUT']
+    ]){
+      const wrap=element('label','studio-slider-row');
+      const header=element('span','studio-slider-heading');
+      header.append(element('strong',null,label));
+      const output=element('output','studio-slider-value','0.00 s');
+      header.append(output);
+      const slider=element('input','studio-range');
+      slider.type='range';slider.step='0.01';slider.min='0';slider.max='1';
+      slider.value='0';slider.disabled=true;slider.dataset.field=field;
+      slider.name=key+'-'+field+'-slider';
+      slider.setAttribute('aria-label',title+' '+label+' slider');
+      slider.setAttribute('aria-valuetext','0.00 seconds');
+      slider.addEventListener('input',()=>{
+        values[field].value=slider.value;
+        if(field==='start'||field==='stop'){
+          values.duration.value=String(decimals(Number(values.stop.value)-Number(values.start.value)));
+        }
+        updateSliderView();
+      });
+      wrap.append(header,slider);
+      sliderPanel.append(wrap);
+      sliders[field]=slider;sliderValues[field]=output;
+    }
+    let repeatInput=null;
+    const repeatRow=element('label','studio-repeat-row');
+    if(key==='background-music'){
+      repeatInput=element('input','studio-repeat-input');
+      repeatInput.type='checkbox';repeatInput.name='background-music-repeat';
+      repeatInput.checked=getRepeat(key);
+      repeatInput.setAttribute('aria-label','REPEAT BACKGROUND MUSIC');
+      const repeatTitle=element('span','studio-repeat-label','REPEAT BACKGROUND MUSIC');
+      const repeatState=element('strong','studio-repeat-state',repeatInput.checked?'ON':'OFF');
+      repeatInput.addEventListener('change',()=>{
+        setRepeat(key,repeatInput.checked);
+        repeatState.textContent=repeatInput.checked?'ON':'OFF';
+        status.textContent=repeatInput.checked?'Repeat ON · Musik mengulang bagian START–STOP.':
+          'Repeat OFF · Musik dimainkan satu kali sesuai durasi START–STOP.';
+      });
+      repeatRow.append(repeatInput,repeatTitle,repeatState);
+    }
     let actualDuration=0;
+    const updateSliderView=()=>{
+      const dur=actualDuration, read=name=>Number(values[name].value)||0;
+      const start=clamp(read('start'),0,dur);
+      const stop=clamp(read('stop'),start,dur);
+      const span=Math.max(0,stop-start);
+      const fadeIn=clamp(read('fadeIn'),0,span);
+      const fadeOut=clamp(read('fadeOut'),0,span);
+      const limits={
+        start:[0,Math.max(0,stop-.02)],stop:[Math.min(dur,start+.02),dur],
+        fadeIn:[0,Math.max(0,span-fadeOut)],fadeOut:[0,Math.max(0,span-fadeIn)]
+      };
+      for(const field of Object.keys(sliders)){
+        const slider=sliders[field],value=field==='start'?start:field==='stop'?stop:
+          field==='fadeIn'?fadeIn:fadeOut;
+        slider.min=String(decimals(limits[field][0]));
+        slider.max=String(decimals(Math.max(limits[field][0],limits[field][1])));
+        slider.value=String(decimals(value));
+        slider.disabled=dur<=0;
+        sliderValues[field].textContent=decimals(value).toFixed(2)+' s';
+        slider.setAttribute('aria-valuetext',decimals(value).toFixed(2)+' seconds');
+      }
+      selected.style.left=(dur?100*start/dur:0)+'%';
+      selected.style.width=(dur?100*span/dur:0)+'%';
+      timeReadout.textContent='START '+start.toFixed(2)+' s   ·   STOP '+
+        stop.toFixed(2)+' s   ·   DURATION '+span.toFixed(2)+' s';
+    };
     const setStatus=text=>{status.textContent=text;};
     const paint=async()=>{
       setStatus('Membaca audio…');
@@ -248,10 +327,17 @@ function show(host){
       try{
         actualDuration=await measure(key);
         if(!details.isConnected)return;
-        if(!actualDuration){setStatus('Belum ada file default. Upload audio untuk cue ini.');return;}
+        if(!actualDuration){
+          updateSliderView();
+          setStatus('Belum ada file default. Upload audio untuk cue ini.');
+          return;
+        }
         const r=limits(key,actualDuration);
         for(const name of ['start','stop','fadeIn','fadeOut'])values[name].value=String(decimals(r[name]));
         values.duration.value=String(decimals(r.length));
+        if(repeatInput)repeatInput.checked=getRepeat(key);
+        if(repeatInput)repeatRow.querySelector('.studio-repeat-state').textContent=repeatInput.checked?'ON':'OFF';
+        updateSliderView();
         setStatus((p.custom?'CUSTOM: '+p.fileName:'DEFAULT: '+(defaultSample||'-'))+' · File '+decimals(actualDuration)+' s');
       }catch(error){setStatus('Audio tidak bisa dibaca: '+String(error.message));}
     };
@@ -262,10 +348,13 @@ function show(host){
       if(changed==='duration')values.stop.value=String(decimals(s+d));
       else values.duration.value=String(decimals(t-s));
       updating=false;
+      updateSliderView();
     };
     values.start.addEventListener('input',()=>sync('start'));
     values.stop.addEventListener('input',()=>sync('stop'));
     values.duration.addEventListener('input',()=>sync('duration'));
+    values.fadeIn.addEventListener('input',updateSliderView);
+    values.fadeOut.addEventListener('input',updateSliderView);
     const fileInput=element('input');
     fileInput.type='file';fileInput.accept='audio/*,.mp3,.wav,.m4a,.aac,.ogg,.webm';
     fileInput.setAttribute('aria-label','Upload '+title);
@@ -296,7 +385,9 @@ function show(host){
     });
     button('■ STOP',()=>{stopPreview();setStatus('Preview dihentikan.');});
     button('RESET',async()=>{await reset(key);await paint();});
-    body.append(status,fileInput,form,buttons);details.append(body);host.append(details);
+    body.append(status,fileInput,timeline,sliderPanel,form);
+    if(repeatInput)body.append(repeatRow);
+    body.append(buttons);details.append(body);host.append(details);
     details.addEventListener('toggle',()=>{if(details.open)paint();});
   }
 }
