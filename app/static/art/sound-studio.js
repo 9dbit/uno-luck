@@ -18,6 +18,156 @@ const profiles=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};
 const bufferCache=new Map();
 let database=null, preview=null, loop=null, loopSerial=0, lastError='';
 let celebrationNode=null, celebrationRequest=0;
+// Keep one media element already activated by the splash tap. Reusing the element
+// permits subsequent custom cues even in iOS WebViews with interrupted Web Audio.
+let fallbackPlayer=null, fallbackKey=null, fallbackPreview=false;
+let fallbackTimer=null, fallbackRaf=null, fallbackSerial=0, mediaUnlocked=false;
+let splashUrl=null, splashPreparation=null, splashError='';
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||
+  (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const mimeFor=file=>{
+  if(file.type&&file.type.startsWith('audio/'))return file.type;
+  const ext=String(file.name||'').split('.').pop().toLowerCase();
+  return ({mp3:'audio/mpeg',m4a:'audio/mp4',aac:'audio/aac',
+    wav:'audio/wav',ogg:'audio/ogg',webm:'audio/webm'})[ext]||'audio/mpeg';
+};
+function mediaPlayer(){
+  if(!fallbackPlayer){
+    fallbackPlayer=document.createElement('audio');
+    fallbackPlayer.preload='auto';
+    fallbackPlayer.playsInline=true;
+    fallbackPlayer.setAttribute('playsinline','');
+    fallbackPlayer.hidden=true;
+    document.body.append(fallbackPlayer);
+  }
+  return fallbackPlayer;
+}
+function clearFallbackTiming(){
+  if(fallbackTimer!==null)clearTimeout(fallbackTimer);
+  if(fallbackRaf!==null)cancelAnimationFrame(fallbackRaf);
+  fallbackTimer=null;fallbackRaf=null;
+}
+function stopFallback(key=null){
+  if(key&&fallbackKey!==key)return;
+  fallbackSerial++;
+  clearFallbackTiming();
+  if(fallbackPlayer){fallbackPlayer.pause();fallbackPlayer.loop=false;}
+  fallbackKey=null;fallbackPreview=false;
+}
+function useFallbackSource(key,url){
+  const player=mediaPlayer();
+  if(player.src!==url){player.pause();player.src=url;player.load();}
+  return player;
+}
+async function prepareSplashMedia(){
+  if(!profiles['soft-tech-splash-screen']?.custom)return false;
+  if(splashUrl)return true;
+  if(splashPreparation)return splashPreparation;
+  splashPreparation=(async()=>{
+    const file=await readFile('soft-tech-splash-screen');
+    if(!file)throw Error('File splash tidak ditemukan di browser ini. Upload ulang.');
+    const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
+    splashUrl=URL.createObjectURL(typed);
+    useFallbackSource('soft-tech-splash-screen',splashUrl);
+    splashError='';
+    return true;
+  })().catch(error=>{
+    splashError=String(error?.message||error);lastError=splashError;
+    console.warn('[UNO iOS AUDIO] splash preload',splashError);
+    throw error;
+  }).finally(()=>{splashPreparation=null;});
+  return splashPreparation;
+}
+function applyMediaBounds(key,player,previewMode=false,looping=false){
+  clearFallbackTiming();
+  const serial=++fallbackSerial;
+  const p=profiles[key]||{};
+  const duration=Math.max(.05,Number(p.fileDuration)||player.duration||5);
+  const bounds=limits(key,duration);
+  const start=Math.max(0,bounds.start);
+  const stop=Math.max(start+.02,bounds.stop);
+  const gain=()=>{
+    const mixer=window.UNOLuckSound;
+    const level=(mixer?.masterVolume??.9) *
+      (key==='background-music'?(mixer?.musicVolume??.22):(mixer?.volume??.85));
+    return clamp(level,0,.95);
+  };
+  const tick=()=>{
+    if(serial!==fallbackSerial||player.paused)return;
+    const t=player.currentTime;
+    if(t>=stop-.025){
+      if(looping&&getRepeat(key)){
+        try{player.currentTime=start;}catch(_){}
+        fallbackRaf=requestAnimationFrame(tick);return;
+      }
+      stopFallback(key);return;
+    }
+    const elapsed=Math.max(0,t-start),remaining=Math.max(0,stop-t);
+    const fadeIn=bounds.fadeIn>0?Math.min(1,elapsed/bounds.fadeIn):1;
+    const fadeOut=bounds.fadeOut>0?Math.min(1,remaining/bounds.fadeOut):1;
+    // iOS may ignore element.volume. The trim still works, and the device
+    // hardware volume remains the authoritative loudness control.
+    try{player.volume=clamp(gain()*Math.min(fadeIn,fadeOut),0,1);}catch(_){}
+    fallbackRaf=requestAnimationFrame(tick);
+  };
+  const seek=()=>{try{player.currentTime=start;}catch(_){}
+    if(fallbackRaf===null)fallbackRaf=requestAnimationFrame(tick);};
+  if(player.readyState>=1)seek();
+  else player.addEventListener('loadedmetadata',seek,{once:true});
+  player.loop=false;
+  fallbackKey=key;
+  fallbackPreview=previewMode;
+  return {player,bounds};
+}
+function playSplashGesture(){
+  // Must be invoked *synchronously* in a real user tap. No await/fetch/IDB
+  // can appear between the click and this HTMLMediaElement.play call.
+  if(!splashUrl)return Promise.resolve(false);
+  stopFallback();
+  const player=useFallbackSource('soft-tech-splash-screen',splashUrl);
+  applyMediaBounds('soft-tech-splash-screen',player);
+  let promise;
+  try{promise=player.play();}catch(error){
+    splashError='HTML5 Audio: '+String(error?.message||error);
+    lastError=splashError;return Promise.resolve(false);
+  }
+  return Promise.resolve(promise).then(()=>{
+    mediaUnlocked=true;lastError='';return true;
+  }).catch(error=>{
+    splashError='HTML5 Audio: '+String(error?.message||error);
+    lastError=splashError;console.warn('[UNO iOS AUDIO]',splashError);
+    return false;
+  });
+}
+async function playFallback(key,{looping=false,forPreview=false}={}){
+  const entry=known.get(key);if(!entry)return false;
+  try{
+    if(key==='soft-tech-splash-screen'&&!splashUrl)await prepareSplashMedia();
+    let url;
+    if(key==='soft-tech-splash-screen')url=splashUrl;
+    else if(profiles[key]?.custom){
+      const file=await readFile(key);
+      if(!file)throw Error('File audio lokal hilang: '+key);
+      const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
+      url=URL.createObjectURL(typed);
+    }else{
+      if(!entry[2])return false;
+      url='/assets/audio/'+entry[2]+'.mp3';
+    }
+    stopFallback();
+    const player=useFallbackSource(key,url);
+    const end=applyMediaBounds(key,player,forPreview,looping);
+    // Release temporary URLs once a subsequent cue replaces the source.
+    // Keeping the current URL intact is required for seeking/repeating.
+    const promise=player.play();
+    await Promise.resolve(promise);
+    mediaUnlocked=true;
+    return Boolean(end.bounds.length>0);
+  }catch(error){
+    lastError='HTML5 '+key+': '+String(error?.message||error);
+    console.warn('[UNO iOS AUDIO]',lastError);return false;
+  }
+}
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number.isFinite(Number(v))?Number(v):min));
 const decimals=n=>Number(n.toFixed(2));
 const save=()=>localStorage.setItem(KEY,JSON.stringify(profiles));
@@ -77,7 +227,11 @@ async function getBuffer(key){
     if(!response.ok)throw Error('Audio tidak tersedia: '+response.status);
     bytes=await response.arrayBuffer();
   }
-  const buffer=await channel().context.decodeAudioData(bytes.slice(0));
+  // Decoding is legal while a Safari AudioContext is suspended/interrupted.
+  // Only source playback (not file editing) needs an active context.
+  const context=window.UNOLuckSound?.channels?.()?.context;
+  if(!context)throw Error('Audio decoder tidak tersedia. Mulai game lalu coba kembali.');
+  const buffer=await context.decodeAudioData(bytes.slice(0));
   bufferCache.set(key,buffer);
   return buffer;
 }
@@ -123,7 +277,8 @@ async function upload(key,file){
   if(!file||!file.size||file.size>MAX_BYTES)throw Error('Ukuran audio wajib 1 byte sampai 16 MB');
   if(!(/\.(mp3|wav|m4a|aac|ogg|webm)$/i.test(file.name)||file.type.startsWith('audio/')))
     throw Error('Gunakan MP3, WAV, M4A, AAC, OGG atau WebM yang didukung browser');
-  const {context}=channel();
+  const context=window.UNOLuckSound?.channels?.()?.context;
+  if(!context)throw Error('Audio decoder belum tersedia. Pilih START WITH SOUND dahulu.');
   const bytes=await file.arrayBuffer();
   const decoded=await context.decodeAudioData(bytes.slice(0));
   if(!decoded.duration||!Number.isFinite(decoded.duration))throw Error('Durasi audio tidak valid');
@@ -133,6 +288,9 @@ async function upload(key,file){
     start:0,stop:decimals(decoded.duration),fadeIn:0,fadeOut:0,
     ...(key==='background-music'?{repeat:getRepeat(key)}:{})};
   save();
+  if(key==='soft-tech-splash-screen'&&splashUrl){
+    URL.revokeObjectURL(splashUrl);splashUrl=null;
+  }
   if(key==='background-music')window.UNOLuckSound?.refreshMusic?.();
   return profile(key);
 }
@@ -146,17 +304,27 @@ function stopNode(item,fade=0){
     item.source.stop(now+fade+.01);
   }catch(_){try{item.source.stop();}catch(_){}}
 }
-function stopPreview(){stopNode(preview,0.04);preview=null;}
+function stopPreview(){
+  stopNode(preview,0.04);preview=null;
+  if(fallbackPreview)stopFallback();
+}
 function stopCelebration(){
   // Invalidate an in-flight IndexedDB/decode request as well as the playing node.
+  if(fallbackKey?.startsWith('jackpot-'))stopFallback();
   celebrationRequest++;
   if(celebrationNode){stopNode(celebrationNode,0.065);celebrationNode=null;}
 }
 async function segmentDuration(key){
-  const buffer=await getBuffer(key);
-  return buffer?limits(key,buffer.duration).length:0;
+  try{
+    const buffer=await getBuffer(key);
+    return buffer?limits(key,buffer.duration).length:0;
+  }catch(error){
+    const duration=Number(profiles[key]?.fileDuration)||0;
+    return duration?limits(key,duration).length:0;
+  }
 }
 function stopLoop(){
+  if(fallbackKey==='background-music')stopFallback();
   loopSerial++;
   if(loop){stopNode(loop,loop.bounds.fadeOut);loop=null;}
 }
@@ -169,6 +337,10 @@ async function play(key,{looping=false,forPreview=false}={}){
   const jackpotToken=celebrationRequest;
   const serial=loopSerial;
   try{
+    if(window.UNOLuckSound?.webAudioState!=='running'){
+      const ok=await playFallback(key,{looping,forPreview});
+      return ok;
+    }
     const {context,fx,music}=channel();
     const buffer=await getBuffer(key);
     if(!buffer)return false;
@@ -213,7 +385,8 @@ async function play(key,{looping=false,forPreview=false}={}){
 }
 async function previewCue(key){
   const ok=await window.UNOLuckSound?.unlock();
-  if(!ok)throw Error('Browser memblokir audio. Sentuh tombol audio terlebih dahulu.');
+  if(!ok&&!mediaUnlocked&&!isIOS())
+    throw Error('Browser memblokir audio. Sentuh tombol audio terlebih dahulu.');
   const played=await play(key,{forPreview:true});
   if(!played)throw Error(lastError||'Audio tidak tersedia. Upload file untuk cue ini.');
   return true;
@@ -222,6 +395,9 @@ async function reset(key){
   stopPreview();if(key==='background-music')stopLoop();
   try{await removeFile(key);}catch(_){/* No DB for bundled-only sound. */}
   delete profiles[key];bufferCache.delete(key);save();
+  if(key==='soft-tech-splash-screen'&&splashUrl){
+    URL.revokeObjectURL(splashUrl);splashUrl=null;
+  }
   if(key==='background-music')window.UNOLuckSound?.refreshMusic?.();
 }
 const element=(tag,cls,text)=>{
@@ -415,9 +591,13 @@ function show(host){
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
+  prepareSplashMedia,playSplashGesture,isIOS,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
-  get lastError(){return lastError;},
-  get activeCelebrationCue(){return celebrationNode?.key||null;}};
+  get lastError(){return lastError;},get splashError(){return splashError;},
+  get mediaUnlocked(){return mediaUnlocked;},
+  get activeCelebrationCue(){
+    return celebrationNode?.key||fallbackKey?.startsWith('jackpot-')&&fallbackKey||null;
+  }};
 window.UNOLuckSoundStudio.install();
 })();
