@@ -8,7 +8,18 @@
   let fxLevel=clamp(localStorage.getItem('uno_luck_fx_volume')??'0.85');
   let masterLevel=clamp(localStorage.getItem('uno_luck_master_volume')??'0.90');
   let musicLevel=clamp(localStorage.getItem('uno_luck_music_volume')??'0.22');
-  let audioEnabled=true, lastError='', lastLedTick=0, fanfareSource=null;
+  let audioEnabled=true, lastError='', lastLedTick=0, fanfareSource=null, studio=null;
+  const cueMap={tap:'push-button',spin:'spinning-sound',lock:'chosen-card',
+    'tier-1':'jackpot-1','tier-2':'jackpot-2','tier-3':'jackpot-3',
+    'tier-4':'jackpot-4','tier-5':'jackpot-5'};
+  function installStudio(adapter){studio=adapter;}
+  function channels(){return {context:ctx,fx:fxBus,music:musicBus};}
+  function playCue(name){return studio?.play(name)??Promise.resolve(false);}
+  function result(winning){
+    if(!audioEnabled||!isActive()||fxLevel===0)return false;
+    if(studio?.isCustomized('result-sound'))return studio.play('result-sound');
+    chime(winning?1080:260);return true;
+  }
   const buffers=new Map();
   const pending=new Map();
   const isActive=()=>ctx?.state==='running';
@@ -75,6 +86,8 @@
   async function play(name){
     if(!audioEnabled||!isActive()||fxLevel===0)return false;
     if(name==='coin'||name==='win'||name==='lose'){chime(name==='lose'?260:name==='coin'?1750:1080);return true;}
+    const cue=cueMap[name];
+    if(cue&&studio?.isCustomized(cue))return studio.play(cue);
     const sound=await sample(name==='lock'?'spin':name);
     if(!sound||!isActive()||!audioEnabled){
       // A decoded MP3 failure must never turn every game action completely silent.
@@ -95,6 +108,12 @@
     src.start();return true;
   }
   async function music(playIt){
+    if(!playIt)studio?.stopLoop();
+    if(playIt&&studio?.isCustomized('background-music')){
+      if(!isActive()||document.hidden)return;
+      if(playingMusic){try{playingMusic.stop();}catch(_){}playingMusic.disconnect();playingMusic=null;}
+      return studio.play('background-music',{looping:true});
+    }
     if(!playIt){if(playingMusic){try{playingMusic.stop();}catch(_){}playingMusic.disconnect();playingMusic=null;}return;}
     if(playingMusic||!isActive()||document.hidden)return;
     const buffer=await sample('music');
@@ -142,6 +161,7 @@
   function setEnabled(v){audioEnabled=Boolean(v);}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)music(false);});
   window.UNOLuckSound={unlock,play,music,celebration,testSound,ledTick,setVolume,setMasterVolume,setMusicVolume,setEnabled,
+    installStudio,channels,playCue,result,
     get volume(){return fxLevel;},get masterVolume(){return masterLevel;},
     get musicVolume(){return musicLevel;},get lastError(){return lastError;},
     get state(){return ctx?.state||'inactive';}};
