@@ -120,7 +120,7 @@ with sync_playwright() as p:
     local=d.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen')")
     from_server=d.request.get(URL+"api/sounds/manifest").json()["cues"]["soft-tech-splash-screen"]
     assert from_server["stop"]==2.1, ("Desktop publish did not reach server",
-        "local":local,"requests":capture,"server":from_server)
+        {"local":local,"requests":capture,"server":from_server})
     assert m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen').stop")==2.4
     assert m.evaluate("window.UNOLuckSoundStudio.syncCloud(true)")
     fresh=m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen')")
