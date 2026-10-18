@@ -7,8 +7,9 @@
   <meta name="description" content="UNO LUCK Color Match: kartu melingkar dan tiga pilihan SPIN, memakai koin virtual gratis.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <link rel="icon" href="/assets/spin-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/orbit.css?v=6">
-  <link rel="stylesheet" href="/assets/art/motion.css?v=7">
+  <link rel="stylesheet" href="/assets/orbit.css?v=8">
+  <link rel="stylesheet" href="/assets/art/motion.css?v=8">
+  <link rel="stylesheet" href="/assets/art/wheel360.css?v=8">
   <title>UNO LUCK | Color Match</title>
 </head>
 <body>
@@ -58,13 +59,12 @@
           <div class="result-cell" id="result-2" data-pos="2" aria-label="Kartu kanan"></div>
         </div>
       </div>
-      <div class="spin-caption" id="spin-caption" role="status" aria-live="polite">SPIN pertama mengisi kartu kiri</div>
+
     </section>
-    <section class="wheel-area" aria-label="Carousel kartu berputar">
-      <img class="dragon-wheel-art" src="/assets/art/v1/dragon-wheel-reference.webp" alt="" aria-hidden="true" decoding="async">
-      <img class="dragon-head-fx" src="/assets/art/v1/dragon-head-fx.webp" alt="" aria-hidden="true" decoding="async">
+    <section class="wheel-area" aria-label="Satu roda kartu 360 derajat">
+      <img class="dragon-wheel-art wheel-static-v08" src="/assets/art/v2/wheel-dragon.webp" alt="" aria-hidden="true" decoding="async">
       <div class="ring-halo" aria-hidden="true"></div>
-      <div id="orbit-ring" class="orbit-ring" aria-label="Lingkaran kartu UNO"></div>
+      <div id="orbit-ring" class="orbit-ring wheel-v08-ring" aria-label="Satu carousel kartu di sekeliling tombol SPIN"></div>
       <div class="pick-point" id="pick-point" aria-hidden="true">▼</div>
       <div class="action-row">
         <button class="side-action" id="turbo-btn" type="button" aria-label="Turbo" aria-pressed="false"><span class="action-icon">ϟ</span><small>TURBO</small></button>
@@ -73,14 +73,15 @@
         </button>
         <button class="side-action" id="auto-btn" type="button" aria-label="Auto tiga spin per ronde" aria-pressed="false"><span class="action-icon">↻</span><small id="auto-label">AUTO</small></button>
       </div>
+      <div class="spin-caption" id="spin-caption" role="status" aria-live="polite">SPIN pertama mengisi kartu kiri</div>
+      <div id="win-particles" class="win-particles" aria-hidden="true"></div>
+    </section>
+    <footer class="game-footer">
       <div class="result-bar" aria-live="polite">
         <div><small>Biaya</small><strong id="last-stake">25</strong></div>
         <div><small>Kembali</small><strong id="last-payout">—</strong></div>
         <div><small>Selisih</small><strong id="last-delta">—</strong></div>
       </div>
-      <div id="win-particles" class="win-particles" aria-hidden="true"></div>
-    </section>
-    <footer class="game-footer">
       <div class="steps" id="steps" aria-label="Urutan spin">
         <div class="step active"><span class="step-number">1</span><div class="step-slots"><i></i><i></i><i></i></div><small>KIRI</small></div>
         <b class="step-arrow" aria-hidden="true">›</b>
@@ -94,8 +95,9 @@
   <dialog id="modal" class="modal" aria-label="Menu UNO LUCK">
     <div class="modal-card"><div class="modal-header"><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" aria-label="Tutup">×</button></div><div class="modal-content" id="modal-content"></div></div>
   </dialog>
-  <script src="/assets/art/motion.js?v=7" defer></script>
-  <script src="/assets/orbit.js?v=7" defer></script>
+  <script src="/assets/art/motion.js?v=8" defer></script>
+  <script src="/assets/art/wheel360.js?v=8" defer></script>
+  <script src="/assets/orbit.js?v=8" defer></script>
   <script src="/assets/boot.js?v=6" defer></script>
 </body>
 </html>

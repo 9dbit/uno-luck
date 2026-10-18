@@ -1,0 +1,83 @@
+/* UNO LUCK v0.8 design lock: single ring of GPU-transformed metal cards. */
+.game-shell { background: radial-gradient(ellipse 70% 46% at 50% 58%,#700b1a60,transparent 85%),linear-gradient(148deg,#070001 2%,#310008 58%,#060001 96%); }
+.game-shell::before { opacity:.22; }
+.result-area {grid-template-rows:minmax(0,1fr);padding:1% 6% 2%}
+.result-area .result-frame { border:0; background:transparent; box-shadow:none; padding:1% 3%; }
+.result-frame::before,.result-point {display:none}
+.result-cell { perspective:650px; }
+.result-cell .card3d { transform:translateZ(0); }
+.result-cell:nth-child(1) .card3d {transform:perspective(650px) rotateY(-11deg) rotateZ(-3deg);}
+.result-cell:nth-child(2) .card3d {transform:perspective(650px) translateZ(6px);}
+.result-cell:nth-child(3) .card3d {transform:perspective(650px) rotateY(11deg) rotateZ(3deg);}
+/* The transparent card sprites provide the metal shell. Numbers and symbols are live DOM nodes. */
+.card3d { background:none!important; border:0!important; box-shadow:none!important; border-radius:8%; overflow:visible; isolation:isolate; }
+.card3d::before,.card3d::after {display:none!important}
+.metal-card-art {position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:0;pointer-events:none;user-select:none;backface-visibility:hidden;}
+.card3d .number {z-index:2;color:#fffdfa;-webkit-text-stroke:clamp(.55px,.18vw,1.5px) #1b1124;text-shadow:2px 3px 0 #141722,0 1px 8px #fff9;font-family:system-ui,Arial,sans-serif;transform:translate3d(-50%,-50%,1px);}
+.card3d .small-num {z-index:2;color:#fff;-webkit-text-stroke:.5px #25212c;text-shadow:1px 1px #12101b;}
+.card3d.placeholder {opacity:.32;filter:grayscale(1)}
+.result-cell .card3d {height:100%;width:auto;max-width:100%;aspect-ratio:2/3;}
+.result-cell .card3d .number {font-size:clamp(35px,8vw,73px);}
+.result-cell .card3d .small-num {font-size:clamp(10px,3vw,18px);}
+.result-cell.fx-metal-flash::after{pointer-events:none}
+/* The wheel illustration and dragon are ONE asset; no duplicate secondary dragon. */
+.wheel-area{isolation:isolate;overflow:hidden;}
+.wheel-area .wheel-static-v08{inset:-3% -1% 0!important;width:102%!important;height:103%!important;object-fit:fill!important;opacity:1!important;z-index:1!important;transform:translate3d(0,0,0);backface-visibility:hidden;}
+.wheel-area .dragon-head-fx,.ring-halo{display:none!important}
+.wheel-v08-ring{position:absolute;inset:0;z-index:12!important;overflow:hidden;pointer-events:none;contain:layout style paint;}
+.orbit-card.wheel-slot{left:50%;top:75%;height:clamp(52px,10.7dvh,94px);aspect-ratio:2/3;width:auto;filter:drop-shadow(0 1px 2px #18000080);backface-visibility:hidden;transform-style:preserve-3d;transition:none!important;will-change:auto;}
+.wheel-v08-ring.wheel-running .orbit-card {will-change:transform,opacity;}
+.orbit-card.wheel-slot .card3d{width:100%;height:100%;max-width:none;border:0!important;}
+.orbit-card.wheel-slot .card3d .number{font-size:clamp(12px,3.0vw,22px);text-shadow:1px 2px #000a;}
+.orbit-card.wheel-slot .card3d .small-num{font-size:clamp(6px,1.3vw,10px);}
+.orbit-card.wheel-slot .card3d::after{display:none}
+.orbit-card.wheel-slot.wheel-chosen{filter:drop-shadow(0 0 7px #ffef91e0) brightness(1.1);}
+.wheel-area .pick-point{top:23%;left:50%;font-size:clamp(19px,5vw,27px);filter:drop-shadow(0 0 7px #ffe736);z-index:35;}
+/* Button sits directly over the one built-in wheel hub. */
+.wheel-area .action-row{position:absolute;inset:0!important;bottom:auto!important;left:0!important;right:0!important;height:100%!important;width:100%;display:block;pointer-events:none;z-index:32!important;}
+.wheel-area .spin-candy{position:absolute;left:50%;top:72.5%;width:clamp(110px,37%,174px);height:auto;aspect-ratio:1;max-height:none;max-width:none;border:0;transform:translate3d(-50%,-50%,0);background:url('/assets/art/v1/spin.webp') center / contain no-repeat;box-shadow:none;filter:drop-shadow(0 0 5px #ffac327e);pointer-events:auto;}
+.wheel-area .spin-candy:disabled{opacity:.82;}
+.wheel-area .spin-candy .spin-top{font-size:1px;color:transparent;text-shadow:none;-webkit-text-stroke:0;position:absolute;}
+.wheel-area .spin-candy small{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);white-space:nowrap;background:#44000aaa;border-radius:999px;border:1px solid #ffd56a;padding:1px 5px;font-size:clamp(8px,1.8vw,11px);}
+.wheel-area .spin-candy.fx-press{animation:spinV08Press .23s cubic-bezier(.18,.79,.22,1.2) both;}
+@keyframes spinV08Press{0%,100%{transform:translate3d(-50%,-50%,0) scale(1)}30%{transform:translate3d(-50%,-47%,0) scale(.92)}65%{transform:translate3d(-50%,-50%,0) scale(1.045)}}
+.wheel-area .side-action{position:absolute;width:clamp(37px,15%,64px)!important;height:clamp(37px,17%,64px)!important;bottom:2%;aspect-ratio:1;border:0;}
+.wheel-area #turbo-btn{left:5%;}
+.wheel-area #auto-btn{right:5%;}
+.wheel-area .spin-caption{top:0;bottom:auto;left:5%;right:5%;height:15px;font-size:clamp(8px,1.7vw,11px);color:#ffeab3;z-index:40;}
+/* Metallic live betting display lives BELOW the SPIN hub, never over the wheel. */
+.game-footer{margin:0 2.3% 1%;display:grid;grid-template-rows:54% 32% 14%;gap:0;padding:0 2%;background:linear-gradient(150deg,#280008,#0b0005);border:1px solid #b46b28;border-radius:clamp(9px,2vw,14px);}
+.game-footer .result-bar{position:relative;inset:auto;width:100%;height:100%;min-height:0;margin:0;background:linear-gradient(#5c040d,#230006 95%);border:0;box-shadow:none;padding:0 5.5%;align-items:center;z-index:1;}
+.game-footer .result-bar::before{content:'';position:absolute;inset:-6% -3%;z-index:-1;background:url('/assets/art/v1/betting-frame-empty.webp') center / 100% 100% no-repeat;pointer-events:none;}
+.game-footer .result-bar>div{position:relative;min-width:0;line-height:1.05;border-right:1px solid #e3b24e66;}
+.game-footer .result-bar>div:last-child{border:0;}
+.game-footer .result-bar small{font-size:clamp(8px,2vw,12px);}
+.game-footer .result-bar strong{font-size:clamp(12px,2.9vw,20px);}
+.game-footer .steps{min-height:0;gap:2px;padding:0 6px;}
+.game-footer .step{gap:1px;}
+.game-footer .step-number{width:clamp(14px,3vw,21px);font-size:clamp(8px,2vw,13px);}
+.game-footer .step-slots i{width:clamp(9px,2vw,16px);height:clamp(11px,2.4vw,17px);}
+.game-footer .footer-aux{font-size:clamp(6px,1.4vw,9px);}
+.wheel-area.fx-color-match .wheel-static-v08{animation:v08DragonJoy 1.18s ease-in-out both!important;}
+@keyframes v08DragonJoy{0%,100%{transform:translate3d(0,0,0) scale(1)}40%{transform:translate3d(2px,-2px,0) scale(1.01)}75%{transform:translate3d(-1px,2px,0) scale(.996)}}
+@media(max-width:350px){.orbit-card.wheel-slot{height:clamp(43px,10dvh,70px)}.wheel-area .spin-candy{width:35%}.game-footer .result-bar strong{font-size:12px}.game-footer .result-bar small{font-size:8px}}
+@media(max-height:610px) and (orientation:portrait){.orbit-card.wheel-slot{height:clamp(38px,10dvh,70px)}.wheel-area .side-action{width:40px!important;height:40px!important;bottom:2%;}.game-footer{grid-template-rows:55% 34% 11%;}}
+@media(orientation:landscape) and (max-height:470px){.wheel-area .wheel-static-v08{inset:0!important;width:100%!important;height:100%!important}.orbit-card.wheel-slot{height:clamp(36px,17dvh,64px)}.wheel-area .spin-candy{width:35%;top:72%}.wheel-area .side-action{bottom:1%;width:25px!important;height:25px!important}.wheel-area .pick-point{top:17%}.game-footer{display:flex;align-items:center;flex-direction:row;gap:5px}.game-footer .result-bar{width:50%;height:100%}.game-footer .steps{flex:1;width:auto}.game-footer .footer-aux{display:none}}
+@media(prefers-reduced-motion:reduce){.wheel-area .spin-candy.fx-press,.wheel-area.fx-color-match .wheel-static-v08{animation:none!important}}
+/* Prevent CSS grid min-content from silently expanding past a phone viewport. */
+.game-shell{grid-template-columns:minmax(0,1fr)!important;min-width:0;}
+.game-header,.title-area,.result-area,.wheel-area,.game-footer{min-width:0;max-width:100%;}
+.result-frame,.result-cards,.result-bar{min-width:0;max-width:100%;}
+.wheel-area .spin-candy{width:clamp(90px,34%,147px);}
+@media(orientation:landscape) and (max-height:470px){.game-shell{grid-template-columns:23% 38% minmax(0,39%)!important;}.result-frame,.result-cards{min-width:0;max-width:100%;}}
+/* Proper double-sided 3D card: the backside is visible during rotation. */
+.card3d{transform-style:preserve-3d;}
+.card3d .card-face{position:absolute;inset:0;display:block;transform-style:preserve-3d;backface-visibility:hidden;-webkit-backface-visibility:hidden;}
+.card3d .card-front{transform:rotateY(0deg);}
+.card3d .card-back{transform:rotateY(180deg);}
+.wheel-slot.card-flip>.card3d{animation:oneCardFullTurn .74s cubic-bezier(.14,.7,.25,1) both;}
+@keyframes oneCardFullTurn{0%{transform:perspective(600px) rotateY(0deg)}51%{transform:perspective(600px) rotateY(190deg)}100%{transform:perspective(600px) rotateY(360deg)}}
+@media(prefers-reduced-motion:reduce){.wheel-slot.card-flip>.card3d{animation:none!important}}
+/* Card tilt must never protrude beyond the 9:16 result stage. */
+.result-area .result-cards{padding:0 4%;gap:2%;box-sizing:border-box;}
+.result-area .result-cell{width:32%;min-width:0;flex:1 1 0;}

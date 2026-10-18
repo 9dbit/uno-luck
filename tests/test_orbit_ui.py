@@ -23,7 +23,7 @@ def test_no_vertical_scroll_design_constraints():
 def test_three_spin_card_binding_and_audio():
     assert "api('/pick','POST'" in JS
     assert "currentRound?.picked" in JS
-    assert 'layoutRing' in JS and 'animateRing' in JS
+    assert 'layoutRing' in JS and 'wheel.settle(card,phase)' in JS
     assert 'AudioContext' in JS and 'unlockAudio' in JS
     assert 'navigator.vibrate' in JS
 
@@ -33,10 +33,26 @@ def test_bundled_visual_assets():
         assert (P/name).is_file()
 
 
-def test_approved_motion_and_metal_panel_placement():
-    assert '/assets/art/motion.css?v=7' in HTML
-    assert '/assets/art/motion.js?v=7' in HTML
+def test_one_gpu_card_wheel_and_metal_assets():
+    motion = (P/'art'/'wheel360.js').read_text()
+    stylesheet = (P/'art'/'wheel360.css').read_text()
+    assert HTML.count('id="orbit-ring"') == 1
+    assert HTML.count('class="wheel-area"') == 1
+    assert HTML.count('id="spin-btn"') == 1
     assert HTML.index('id="last-stake"') > HTML.index('id="spin-btn"')
-    assert '/assets/art/v1/dragon-head-fx.webp' in HTML
-    assert 'window.UNOLuckMotion?.result(last)' in JS
-    assert 'window.UNOLuckMotion?.beginSpin()' in JS
+    assert 'window.UNOLuckWheel360' in motion
+    assert 'requestAnimationFrame(tick)' in motion
+    assert 'Math.cos(theta)' in motion and 'Math.sin(theta)' in motion
+    assert 'wheel-running' in stylesheet
+    assert 'translate3d' in stylesheet
+    assert 'wheel-dragon.webp' in HTML
+    for name in ('wheel-dragon','card-placeholder','card-red','card-blue','card-green','card-yellow','card-wild','card-back'):
+        assert (P/'art'/'v2'/(name+'.webp')).is_file()
+
+def test_auditable_authoritative_payout_only():
+    motion=(P/'art'/'wheel360.js').read_text()
+    assert "api('/pick','POST'" in JS
+    assert 'confirmed.round.cards[phase-1]' in JS
+    assert 'await wheel.settle(card,phase)' in JS
+    assert 'pendingKey' in JS
+    assert 'api(' not in motion and 'request_id' not in motion
