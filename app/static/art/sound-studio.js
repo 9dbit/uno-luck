@@ -534,9 +534,65 @@ function show(host){
   host.replaceChildren();
   host.classList.add('sound-studio');
   host.append(element('p','studio-note',
-    '12 kanal efek. Upload audio pada perangkat ini, atur START / STOP / DURATION / FADE IN / FADE OUT, lalu PREVIEW. Audio tersimpan lokal di browser, bukan di server.'));
+    'SOUND CLOUD: Semua perangkat memainkan audio dan pengaturan yang dipublikasikan dari desktop. Upload/edit lokal tetap tersimpan sampai Anda publish.'));
   host.append(element('p','studio-note',
-    'Safari iPhone hanya mengizinkan suara splash/loading setelah ada interaksi pengguna yang membuka audio.'));
+    'Safari iPhone hanya dapat mengeluarkan suara setelah START WITH SOUND disentuh.'));
+  const cloudBox=element('section','studio-cloud-panel');
+  const cloudHeading=element('strong','studio-cloud-heading','☁ SHARED SOUND CLOUD');
+  const cloudInfo=element('p','studio-cloud-status');
+  const statusText=()=>{
+    const state=cloudStatus();
+    cloudInfo.textContent=state.ready?
+      ('TERHUBUNG · '+state.online+' / 12 kanal dipublikasikan'+
+        (state.admin?' · ADMIN AKTIF':' · READ-ONLY')) :
+      ('BELUM TERHUBUNG · '+(state.error||'sedang memeriksa cloud'));
+  };
+  const syncButton=element('button','studio-cloud-button','↻ REFRESH CLOUD');
+  syncButton.type='button';
+  syncButton.addEventListener('click',async()=>{
+    cloudInfo.textContent='Memperbarui sound semua perangkat…';
+    await syncCloud(true);statusText();
+  });
+  const adminSection=element('details','studio-cloud-admin');
+  const adminTitle=element('summary',null,'PUBLISH SOUND DARI DESKTOP · ADMIN');
+  const adminGuide=element('p','studio-note',
+    'Kunci hanya ada di Railway → uno-luck-web → staging → Variables → UNO_SOUND_ADMIN_TOKEN. Kunci disimpan pada tab ini, tidak dikirim ke perangkat pemain.');
+  const keyInput=element('input','studio-admin-key');
+  keyInput.type='password';keyInput.autocomplete='off';
+  keyInput.placeholder='Masukkan kunci admin (32+ karakter)';
+  keyInput.setAttribute('aria-label','Kunci admin Sound Cloud');
+  const login=element('button','studio-cloud-button','VERIFIKASI KUNCI');
+  login.type='button';
+  const publish=element('button','studio-cloud-button','☁ PUBLISH ALL 12 SOUND LIST');
+  publish.type='button';
+  const publishStatus=element('p','studio-cloud-status');
+  login.addEventListener('click',async()=>{
+    publishStatus.textContent='Memverifikasi admin…';
+    try{await verifyAdminKey(keyInput.value);
+      keyInput.value='';publishStatus.textContent='Admin terverifikasi · upload & SAVE akan otomatis publish.';
+      statusText();
+    }catch(error){publishStatus.textContent='GAGAL: '+error.message;}
+  });
+  publish.addEventListener('click',async()=>{
+    publish.disabled=true;publishStatus.textContent='Menyiapkan file desktop…';
+    try{
+      const count=await publishAll((n,total,key)=>{
+        publishStatus.textContent='Mengirim '+n+' / '+total+' · '+key;
+      });
+      publishStatus.textContent=count+' sound desktop berhasil dipublikasikan. iPhone memakai versi yang sama setelah refresh.';
+      statusText();
+    }catch(error){
+      publishStatus.textContent='PUBLISH TERHENTI: '+error.message;
+    }finally{publish.disabled=false;}
+  });
+  adminSection.append(adminTitle,adminGuide,keyInput,login,publish,publishStatus);
+  cloudBox.append(cloudHeading,cloudInfo,syncButton,adminSection);
+  host.append(cloudBox);
+  statusText();
+  void syncCloud().then(()=>{if(cloudBox.isConnected)statusText();});
+  window.addEventListener('uno:sound-cloud-synced',()=>{
+    if(cloudBox.isConnected)statusText();
+  });
   for(const [key,title,defaultSample] of KEYS){
     const details=element('details','studio-cue');
     const summary=element('summary','studio-title',title);
@@ -602,7 +658,7 @@ function show(host){
     if(key==='background-music'){
       repeatInput=element('input','studio-repeat-input');
       repeatInput.type='checkbox';repeatInput.name='background-music-repeat';
-      repeatInput.checked=getRepeat(key);
+      repeatInput.checked=getDraftRepeat(key);
       repeatInput.setAttribute('aria-label','REPEAT BACKGROUND MUSIC');
       const repeatTitle=element('span','studio-repeat-label','REPEAT BACKGROUND MUSIC');
       const repeatState=element('strong','studio-repeat-state',repeatInput.checked?'ON':'OFF');
@@ -646,6 +702,7 @@ function show(host){
     const paint=async()=>{
       setStatus('Membaca audio…');
       const p=profile(key);
+      const shared=publishedProfile(key);
       try{
         actualDuration=await measure(key);
         if(!details.isConnected)return;
@@ -660,7 +717,9 @@ function show(host){
         if(repeatInput)repeatInput.checked=getRepeat(key);
         if(repeatInput)repeatRow.querySelector('.studio-repeat-state').textContent=repeatInput.checked?'ON':'OFF';
         updateSliderView();
-        setStatus((p.custom?'CUSTOM: '+p.fileName:'DEFAULT: '+(defaultSample||'-'))+' · File '+decimals(actualDuration)+' s');
+        setStatus((shared.revision?'☁ SHARED · ':'LOCAL · ')+
+          (p.custom||p.source==='custom'?'CUSTOM: '+p.fileName:'DEFAULT: '+(defaultSample||'-'))+
+          ' · File '+decimals(actualDuration)+' s');
       }catch(error){setStatus('Audio tidak bisa dibaca: '+String(error.message));}
     };
     let updating=false;
@@ -686,7 +745,8 @@ function show(host){
       try{
         await window.UNOLuckSound?.unlock();
         await upload(key,fileInput.files[0]);
-        await paint();setStatus('Audio tersimpan: '+fileInput.files[0].name);
+        await paint();setStatus('Audio tersimpan: '+fileInput.files[0].name+
+          (hasAdminKey()?' · CLOUD PUBLISHED':' · LOKAL, belum dipublikasikan'));
       }catch(error){setStatus('UPLOAD GAGAL: '+error.message);}
     });
     const buttons=element('div','studio-buttons');
@@ -697,7 +757,9 @@ function show(host){
     button('SAVE',async()=>{
       try{
         const args=Object.fromEntries(['start','stop','fadeIn','fadeOut'].map(k=>[k,values[k].value]));
-        await configure(key,args);setStatus('Setting disimpan pada perangkat ini.');
+        await configure(key,args);setStatus(hasAdminKey()?
+          'Setting tersimpan di CLOUD · otomatis untuk semua perangkat.':
+          'Setting tersimpan LOKAL · masukkan kunci admin dan PUBLISH untuk sinkronisasi.');
       }catch(error){setStatus('GAGAL: '+error.message);}
     });
     button('▶ PREVIEW',async()=>{
@@ -706,7 +768,11 @@ function show(host){
       catch(error){setStatus('PREVIEW GAGAL: '+error.message);}
     });
     button('■ STOP',()=>{stopPreview();setStatus('Preview dihentikan.');});
-    button('RESET',async()=>{await reset(key);await paint();});
+    button('RESET',async()=>{
+      try{await reset(key);await paint();
+        setStatus(hasAdminKey()?'RESET di CLOUD selesai.':'Reset lokal saja · sound cloud tetap aktif.');
+      }catch(error){setStatus('RESET GAGAL: '+error.message);}
+    });
     body.append(status,fileInput,timeline,sliderPanel,form);
     if(repeatInput)body.append(repeatRow);
     body.append(buttons);details.append(body);host.append(details);
@@ -716,6 +782,7 @@ function show(host){
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
   prepareSplashMedia,playSplashGesture,isIOS,
+  syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
   get lastError(){return lastError;},get splashError(){return splashError;},
@@ -724,4 +791,9 @@ window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(t
     return celebrationNode?.key||fallbackKey?.startsWith('jackpot-')&&fallbackKey||null;
   }};
 window.UNOLuckSoundStudio.install();
+void syncCloud();
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden)void syncCloud(true);
+});
+setInterval(()=>{if(!document.hidden)void syncCloud(true);},45000);
 })();
