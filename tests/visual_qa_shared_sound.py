@@ -110,9 +110,12 @@ with sync_playwright() as p:
     splash.locator('input[name="soft-tech-splash-screen-stop"]').fill("2.10")
     splash.locator("button",has_text="SAVE").click()
     splash.locator(".studio-status").get_by_text("Setting disimpan di CLOUD",exact=False).wait_for(timeout=16000)
+    from_server=d.request.get(URL+"api/sounds/manifest").json()["cues"]["soft-tech-splash-screen"]
+    assert from_server["stop"]==2.1, ("Desktop publish did not reach server",from_server)
     assert m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen').stop")==2.4
     assert m.evaluate("window.UNOLuckSoundStudio.syncCloud(true)")
-    assert m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen').stop")==2.1
+    fresh=m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen')")
+    assert fresh["stop"]==2.1, ("Mobile failed to refresh shared sound",fresh,from_server)
     assert m.evaluate("window.UNOLuckSoundStudio.profile('jackpot-3').fadeOut")==.4
     assert m.evaluate("window.UNOLuckSoundStudio.cloudStatus().online")==3
     m.screenshot(path=str(ARTIFACTS/"iphone-shared-audio-after-update.png"),full_page=True)
