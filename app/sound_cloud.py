@@ -13,7 +13,7 @@ import re
 import secrets
 import threading
 from pathlib import Path
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse
@@ -81,8 +81,10 @@ def require_admin(request: Request) -> None:
     if not secrets.compare_digest(supplied, expected):
         raise HTTPException(403, "Admin Sound Studio authorization diperlukan")
     origin = request.headers.get("origin")
-    if origin and origin not in {f"{request.url.scheme}://{request.headers.get('host', '')}"}:
-        raise HTTPException(403, "Origin tidak diizinkan")
+    if origin:
+        parts = urlsplit(origin)
+        if parts.scheme not in ("https", "http") or parts.netloc != request.headers.get("host", ""):
+            raise HTTPException(403, "Origin tidak diizinkan")
 
 
 def check_cue(key: str) -> None:
@@ -138,6 +140,12 @@ def _audio_mime(filename: str, data: bytes) -> tuple[str, str]:
     if not valid:
         raise HTTPException(415, "File tidak dikenali sebagai audio " + ext)
     return mime, ext
+
+
+@router.get("/admin/check")
+def check_admin(request: Request):
+    require_admin(request)
+    return Response(content='{"ok":true}', media_type="application/json", headers=NO_CACHE)
 
 
 @router.get("/manifest")
