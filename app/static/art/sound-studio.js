@@ -22,7 +22,7 @@ let celebrationNode=null, celebrationRequest=0;
 // permits subsequent custom cues even in iOS WebViews with interrupted Web Audio.
 let fallbackPlayer=null, fallbackKey=null, fallbackPreview=false;
 let fallbackTimer=null, fallbackRaf=null, fallbackSerial=0, mediaUnlocked=false;
-let splashUrl=null, splashPreparation=null, splashError='';
+let splashUrl=null, splashPreparation=null, splashError='',activeTemporaryUrl=null;
 const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||
   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const mimeFor=file=>{
@@ -52,11 +52,13 @@ function stopFallback(key=null){
   fallbackSerial++;
   clearFallbackTiming();
   if(fallbackPlayer){fallbackPlayer.pause();fallbackPlayer.loop=false;}
+  if(activeTemporaryUrl){URL.revokeObjectURL(activeTemporaryUrl);activeTemporaryUrl=null;}
   fallbackKey=null;fallbackPreview=false;
 }
 function useFallbackSource(key,url){
   const player=mediaPlayer();
   if(player.src!==url){player.pause();player.src=url;player.load();}
+  if(url.startsWith('blob:')&&url!==splashUrl)activeTemporaryUrl=url;
   return player;
 }
 async function prepareSplashMedia(){
@@ -139,7 +141,7 @@ function playSplashGesture(){
     return false;
   });
 }
-async function playFallback(key,{looping=false,forPreview=false}={}){
+async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
   const entry=known.get(key);if(!entry)return false;
   try{
     if(key==='soft-tech-splash-screen'&&!splashUrl)await prepareSplashMedia();
@@ -153,6 +155,10 @@ async function playFallback(key,{looping=false,forPreview=false}={}){
     }else{
       if(!entry[2])return false;
       url='/assets/audio/'+entry[2]+'.mp3';
+    }
+    if(token!==null&&token!==celebrationRequest){
+      if(url?.startsWith('blob:')&&url!==splashUrl)URL.revokeObjectURL(url);
+      return false;
     }
     stopFallback();
     const player=useFallbackSource(key,url);
@@ -338,7 +344,8 @@ async function play(key,{looping=false,forPreview=false}={}){
   const serial=loopSerial;
   try{
     if(window.UNOLuckSound?.webAudioState!=='running'){
-      const ok=await playFallback(key,{looping,forPreview});
+      const ok=await playFallback(key,{looping,forPreview,
+        token:isJackpot?jackpotToken:null});
       return ok;
     }
     const {context,fx,music}=channel();
