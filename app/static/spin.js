@@ -1,5 +1,5 @@
 'use strict';
-/* UNO LUCK SPIN v0.4 | free, non-redeemable virtual coins; all outcomes server-authoritative. */
+/* UNO LUCK SPIN v0.5 | free, non-redeemable virtual coins; all outcomes server-authoritative. */
 const $ = id => document.getElementById(id);
 const money = value => new Intl.NumberFormat('id-ID').format(value);
 const costOptions = [10,25,50,100,250];
@@ -13,6 +13,7 @@ let toastTimer=null, balanceAnimation=null;
 let musicEnabled=localStorage.getItem('ul_spin_music')!=='off';
 let sfxEnabled=localStorage.getItem('ul_spin_sfx')!=='off';
 let audio=null, musicTimer=null, musicStep=0, nextMusicAt=0;
+let audioMaster=null, musicBus=null, sfxBus=null, audioUnlockPending=null;
 let reelAnimations=[];
 function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 function toast(text){
@@ -23,31 +24,52 @@ function toast(text){
   toastTimer=setTimeout(()=>{if(el.textContent===text){el.textContent=previous;el.title='';}},2800);
 }
 function note(text){$('connection-status').textContent=text;}
-function audioReady(){
+async function audioReady(){
   try {
-    if(!audio)audio=new (window.AudioContext||window.webkitAudioContext)();
-    if(audio.state==='suspended')audio.resume().catch(()=>{});
-    startMusic();
-  }catch(_){audio=null;}
+    if(!audio){
+      const Constructor=window.AudioContext||window.webkitAudioContext;
+      if(!Constructor)return false;
+      audio=new Constructor({latencyHint:'interactive'});
+      const limiter=audio.createDynamicsCompressor();
+      limiter.threshold.value=-16;limiter.knee.value=14;limiter.ratio.value=7;
+      limiter.attack.value=.004;limiter.release.value=.23;
+      audioMaster=audio.createGain();audioMaster.gain.value=.88;
+      musicBus=audio.createGain();musicBus.gain.value=.63;
+      sfxBus=audio.createGain();sfxBus.gain.value=1;
+      musicBus.connect(audioMaster);sfxBus.connect(audioMaster);
+      audioMaster.connect(limiter);limiter.connect(audio.destination);
+    }
+    if(audio.state!=='running'){
+      if(!audioUnlockPending){
+        // Called inside the click/pointer handler, not an autoplay timer.
+        audioUnlockPending=Promise.resolve(audio.resume()).finally(()=>{audioUnlockPending=null;});
+      }
+      await audioUnlockPending;
+    }
+    const ok=audio.state==='running';
+    if(ok)startMusic();
+    return ok;
+  }catch(_){return false;}
 }
-function tone(freq,when,length=0.12,volume=0.035,wave='triangle'){
-  if(!audio||audio.state==='closed')return;
+function tone(freq,when,length=0.12,volume=0.035,wave='triangle',channel='sfx'){
+  if(!audio||audio.state!=='running')return;
   const osc=audio.createOscillator(),gain=audio.createGain();
   osc.type=wave;osc.frequency.setValueAtTime(Math.max(25,freq),when);
   gain.gain.setValueAtTime(0.0001,when);
   gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume),when+0.006);
   gain.gain.exponentialRampToValueAtTime(0.0001,when+length);
-  osc.connect(gain).connect(audio.destination);osc.start(when);osc.stop(when+length+.012);
+  osc.connect(gain).connect(channel==='music'?musicBus:sfxBus);osc.start(when);osc.stop(when+length+.012);
 }
+function melody(freq,when,length,volume,wave){tone(freq,when,length,volume*3.2,wave,'music');}
 function musicStepSchedule(step,when){
   const scale=[523.25,587.33,659.26,783.99,880,783.99,659.26,587.33,659.26,783.99,987.77,880,783.99,659.26,587.33,523.25];
-  if(step%2===0)tone(scale[step],when,.155,.017,'triangle');
-  if(step%4===0)tone([130.81,164.81,196,164.81][Math.floor(step/4)],when,.29,.023,'sine');
-  if(step%4===2)tone(940,when,.035,.008,'square');
-  if(step===7||step===15)tone(scale[step]/2,when,.12,.012,'sine');
+  if(step%2===0)melody(scale[step],when,.155,.017,'triangle');
+  if(step%4===0)melody([130.81,164.81,196,164.81][Math.floor(step/4)],when,.29,.023,'sine');
+  if(step%4===2)melody(940,when,.035,.008,'square');
+  if(step===7||step===15)melody(scale[step]/2,when,.12,.012,'sine');
 }
 function startMusic(){
-  if(!musicEnabled||!audio||document.hidden||musicTimer)return;
+  if(!musicEnabled||!audio||audio.state!=='running'||document.hidden||musicTimer)return;
   nextMusicAt=audio.currentTime+.05;musicStep=0;
   musicTimer=setInterval(()=>{
     if(!audio||!musicEnabled||document.hidden)return;
@@ -76,8 +98,20 @@ function syncAudioControls(){
   sfx.setAttribute('aria-pressed',String(sfxEnabled));
   sfx.querySelector('small').textContent=sfxEnabled?'EFEK':'MUTE';
 }
-function toggleMusic(){musicEnabled=!musicEnabled;localStorage.setItem('ul_spin_music',musicEnabled?'on':'off');audioReady();if(musicEnabled)startMusic();else stopMusic();syncAudioControls();}
-function toggleSfx(){sfxEnabled=!sfxEnabled;localStorage.setItem('ul_spin_sfx',sfxEnabled?'on':'off');audioReady();syncAudioControls();if(sfxEnabled)sound('tap');}
+function toggleMusic(){
+  musicEnabled=!musicEnabled;
+  localStorage.setItem('ul_spin_music',musicEnabled?'on':'off');
+  if(!musicEnabled)stopMusic();
+  syncAudioControls();
+  if(musicEnabled)audioReady().then(ok=>{if(!ok)toast('Suara belum aktif. Sentuh layar sekali lagi atau periksa volume.');});
+}
+function toggleSfx(){
+  sfxEnabled=!sfxEnabled;
+  localStorage.setItem('ul_spin_sfx',sfxEnabled?'on':'off');
+  syncAudioControls();
+  if(sfxEnabled)audioReady().then(ok=>{if(ok)sound('tap');else toast('Efek suara membutuhkan izin audio dari sentuhan.');});
+}
+window.UNOLuckAudio={unlock:audioReady,preview:()=>sound('tap'),get state(){return audio?.state||'inactive';}};
 async function api(path,method='GET',payload){
   const cfg={method,credentials:'same-origin',headers:{}};
   if(method!=='GET'){
@@ -231,13 +265,13 @@ async function spin(){
   if(spinning||!account)return false;
   const stake=costOptions[stakeIndex];
   if(account.balance<stake){toast('Saldo demo tidak cukup. Klaim hadiah/refill.');stopAuto();return false;}
-  audioReady();sound('tap');setBusy(true);startReels();
+  const audioPromise=audioReady();setBusy(true);startReels();
+  audioPromise.then(ok=>{if(ok){sound('tap');sound('start');}}).catch(()=>{});
   $('spin-announcement').textContent='REELS BERPUTAR…';$('spin-announcement').className='spin-announcement';
   let ok=false;
   try{
     const id=crypto.randomUUID?crypto.randomUUID():Date.now()+'_'+Math.random().toString(36).slice(2);
     const started=performance.now();
-    sound('start');
     const result=await api('/place','POST',{stake,request_id:id});
     await sleep(Math.max(0,(turbo?320:650)-(performance.now()-started)));
     const matched=result.combo==='COLOR_MATCH';
@@ -259,7 +293,8 @@ async function place(){if(spinning||auto)return;await spin();}
 async function autoLoop(){
   if(auto){stopAuto(true);return;}
   if(spinning||!account)return;
-  audioReady();sound('tap');auto=true;abortAuto=false;autoRemaining=10;
+  const audioPromise=audioReady();auto=true;abortAuto=false;autoRemaining=10;
+  audioPromise.then(ok=>{if(ok)sound('tap');}).catch(()=>{});
   $('auto-btn').setAttribute('aria-pressed','true');$('auto-btn').querySelector('small').textContent='STOP';renderCost();
   toast('AUTO maksimal 10 putaran. Tap STOP kapan saja.');
   while(autoRemaining>0&&!abortAuto&&!document.hidden){
@@ -292,7 +327,7 @@ function openMenu(){
   for(const [label,fn] of [['✦ Koin Virtual',openWallet],['▤ Riwayat PLACE',openHistory],['🎯 Aturan & Peluang',openRules],['👤 Profil Pemain',openProfile]]){
     const b=node('button','',label);b.addEventListener('click',fn);actions.append(b);
   }
-  block('UNO LUCK Spin v0.4 · Demo tanpa nilai uang.');
+  block('UNO LUCK Spin v0.5 · Demo tanpa nilai uang.');
 }
 function openProfile(){
   showModal('Profil Pemain');block('Ganti nama akun tamu di staging.');const input=node('input');
@@ -319,16 +354,18 @@ function openRules(){
 }
 function listeners(){
   $('place-btn').addEventListener('click',place);
-  $('turbo-btn').addEventListener('click',()=>{if(spinning)return;turbo=!turbo;$('turbo-btn').setAttribute('aria-pressed',String(turbo));audioReady();sound('tap');toast(turbo?'Turbo aktif, peluang tidak berubah.':'Turbo nonaktif.');});
+  $('turbo-btn').addEventListener('click',()=>{if(spinning)return;turbo=!turbo;$('turbo-btn').setAttribute('aria-pressed',String(turbo));audioReady().then(ok=>{if(ok)sound('tap');});toast(turbo?'Turbo aktif, peluang tidak berubah.':'Turbo nonaktif.');});
   $('auto-btn').addEventListener('click',autoLoop);
-  $('stake-minus').addEventListener('click',()=>{if(spinning||auto)return;stakeIndex=Math.max(0,stakeIndex-1);audioReady();sound('tap');renderCost();});
-  $('stake-plus').addEventListener('click',()=>{if(spinning||auto)return;stakeIndex=Math.min(costOptions.length-1,stakeIndex+1);audioReady();sound('tap');renderCost();});
+  $('stake-minus').addEventListener('click',()=>{if(spinning||auto)return;stakeIndex=Math.max(0,stakeIndex-1);audioReady().then(ok=>{if(ok)sound('tap');});renderCost();});
+  $('stake-plus').addEventListener('click',()=>{if(spinning||auto)return;stakeIndex=Math.min(costOptions.length-1,stakeIndex+1);audioReady().then(ok=>{if(ok)sound('tap');});renderCost();});
   $('wallet-open').addEventListener('click',openWallet);$('menu-open').addEventListener('click',openMenu);$('profile-btn').addEventListener('click',openProfile);
   $('gift-btn').addEventListener('click',daily);$('history-btn').addEventListener('click',openHistory);
   $('music-btn').addEventListener('click',toggleMusic);$('sfx-btn').addEventListener('click',toggleSfx);
   $('modal-close').addEventListener('click',closeModal);$('modal').addEventListener('click',event=>{if(event.target===$('modal'))closeModal();});
-  document.addEventListener('pointerdown',()=>audioReady(),{once:true,passive:true});
-  document.addEventListener('keydown',()=>audioReady(),{once:true});
+  const unlockOnGesture=()=>{audioReady().then(ok=>{if(ok){document.removeEventListener('pointerdown',unlockOnGesture,true);document.removeEventListener('touchend',unlockOnGesture,true);document.removeEventListener('keydown',unlockOnGesture,true);}});};
+  document.addEventListener('pointerdown',unlockOnGesture,{passive:true,capture:true});
+  document.addEventListener('touchend',unlockOnGesture,{passive:true,capture:true});
+  document.addEventListener('keydown',unlockOnGesture,{capture:true});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){stopMusic();if(auto)stopAuto();}else startMusic();});
   window.addEventListener('pagehide',()=>{stopMusic();if(auto)stopAuto();});
   window.addEventListener('resize',()=>{if(!spinning){layoutReels();if(last?.cards)paintCards(last.cards,last.combo==='COLOR_MATCH');else paintCards(null,false);}});

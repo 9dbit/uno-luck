@@ -21,7 +21,7 @@ from .engine import COLORS, RuleError, UnoGame
 from .spin import router as spin_router
 
 APP_ROOT = Path(__file__).resolve().parent
-app = FastAPI(title="UNO LUCK Spin Staging", version="0.4.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="UNO LUCK Spin Staging", version="0.5.0", docs_url=None, redoc_url=None)
 app.include_router(spin_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")
 
@@ -39,7 +39,7 @@ async def classic_home():
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "version": "0.4.0", "game": "UNO LUCK SPIN", "money_enabled": False, "main_mode": "spin"}
+    return {"ok": True, "version": "0.5.0", "game": "UNO LUCK SPIN", "money_enabled": False, "main_mode": "spin"}
 
 
 @dataclass

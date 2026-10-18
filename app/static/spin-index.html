@@ -8,11 +8,32 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <link rel="manifest" href="/assets/spin-manifest.webmanifest">
   <link rel="icon" href="/assets/spin-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/spin.css?v=4">
+  <link rel="stylesheet" href="/assets/spin.css?v=5">
   <title>UNO LUCK | Color Match Spin</title>
 </head>
 <body>
-  <main class="game-shell" id="game-shell">
+  <!-- Product boot: Soft Tech fades to black, then branded loading, then game. -->
+  <div class="boot-overlay" id="boot-overlay" aria-label="Memulai UNO LUCK">
+    <section class="boot-stage boot-softtech" id="boot-softtech" aria-label="Soft Tech">
+      <img class="boot-softtech-logo" id="boot-softtech-img" src="/assets/boot-softtech.webp" alt="Soft Tech" decoding="async" fetchpriority="high">
+    </section>
+    <section class="boot-stage boot-banner" id="boot-banner" aria-label="Memuat UNO LUCK" hidden>
+      <img id="boot-banner-img" class="boot-banner-img" src="/assets/boot-uno-banner.webp" alt="UNO LUCK: perempuan dan naga merah emas dengan kartu warna-warni" decoding="async">
+      <div class="boot-banner-vignette" aria-hidden="true"></div>
+      <div class="boot-loading-panel" id="boot-loading-panel">
+        <p id="boot-loading-label" class="boot-loading-label">Menyiapkan permainan…</p>
+        <div class="boot-loading-track" id="boot-loading-track" role="progressbar" aria-label="Persiapan permainan" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="boot-loading-fill" class="boot-loading-fill"></div>
+        </div>
+        <strong id="boot-loading-percent" class="boot-loading-percent">0%</strong>
+        <div class="boot-ready-actions" id="boot-ready-actions" hidden>
+          <button type="button" class="boot-sound-start" id="boot-with-audio"><span aria-hidden="true">♫</span> MAIN DENGAN SUARA</button>
+          <button type="button" class="boot-continue" id="boot-continue">LANJUT</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <main class="game-shell is-booting" id="game-shell" aria-hidden="true">
     <div class="ambient-rays" aria-hidden="true"></div>
     <header class="hud" aria-label="Informasi permainan">
       <div class="level-wrap"><div class="level-star" aria-label="Level pemain"><span id="level-number">1</span></div><span class="micro-label">LEVEL</span></div>
@@ -73,6 +94,7 @@
   </main>
   <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
   <dialog class="modal" id="modal"><div class="modal-card"><div class="modal-heading"><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" class="modal-x" aria-label="Tutup">×</button></div><div id="modal-content" class="modal-content"></div></div></dialog>
-  <script src="/assets/spin.js?v=4" defer></script>
+  <script src="/assets/spin.js?v=5" defer></script>
+  <script src="/assets/boot.js?v=5" defer></script>
 </body>
 </html>

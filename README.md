@@ -43,3 +43,15 @@ Keep domain target port and `PORT` at **8080**. For persistence across redeploys
 - Winner animation plays only when server returns COLOR_MATCH. Current server rules do not include Wild cards or UNO Classic hand-play effects.
 - Soundtrack is original synthetic Web Audio, not a copyrighted recording. Separate music and SFX preference toggles live in this browser.
 - Do not deploy multiple Railway replicas before moving session and balance state to a shared datastore.
+
+
+## v0.5 Boot Splash and iPhone Audio
+
+- The user-supplied **Soft Tech** neon mark first appears on solid black, fades fully to black, then the original **UNO LUCK** red-dragon banner appears with a loading bar.
+- Bundled local WebP art is served at `/assets/boot-softtech.webp` and `/assets/boot-uno-banner.webp`. No external image dependencies or third-party tracking.
+- The loading bar never reports **100%** before artwork and the `/health` readiness check settle (with bounded timeouts). A timed fallback prevents a stranded loading screen. After the bar reaches 100%, the player can tap **MAIN DENGAN SUARA**, tap **LANJUT**, or let the intro finish automatically.
+- Safari/iOS browsers disallow first-load audio autoplay. **MAIN DENGAN SUARA** resumes `AudioContext` during the tap gesture; on automatic entry, the first real touch or PLACE click attempts to unlock music and SFX. The app must not claim that music starts by itself without user interaction.
+- Audio uses separate music and effects buses, a shared volume limiter, and stronger level-balanced synthesizer effects. Both toggles retain the player's preferences.
+- All boot layers are fixed at `100dvh`; the underlying game remains hidden until the overlay fully closes. The splash CTA, panel, and progress bar stay within the safe viewport; full page scrolling is disabled.
+- Quality checks: `python -m pytest -q`, then execute `tests/visual_boot_v05.py` locally when Chromium Playwright is present (uses a simulated API, browser gesture checks and responsive screenshots).
+- The wallet is **demo virtual coins only**, not redeemable or withdrawable. State is currently SQLite-backed without a persistent Railway volume.
