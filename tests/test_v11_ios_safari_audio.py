@@ -36,7 +36,7 @@ def test_uploaded_splash_is_prepared_before_user_activation():
     assert "boot.js?v=1119" in HTML
 
 def test_ios_media_fallback_preserves_sound_studio_settings():
-    assert "const bounds=limits(key,duration)" in STUDIO
+    assert "const bounds=limits(key,duration,{draft:previewMode})" in STUDIO
     assert "const fadeIn=bounds.fadeIn" in STUDIO
     assert "const fadeOut=bounds.fadeOut" in STUDIO
     assert "if(t>=stop-.025)" in STUDIO
