@@ -80,7 +80,7 @@ async function publishCue(key,{remove=false}={}){
   if(!known.has(key))throw Error('Sound cue tidak dikenal');
   if(!hasAdminKey())throw Error('Kunci admin diperlukan untuk publish sound ke semua perangkat.');
   const headers={'X-UNO-Sound-Admin':adminKey};
-  let method='PATCH',body=null;
+  let method='PATCH',body=null,expected=null;
   if(remove){method='DELETE';}
   else{
     const local=profiles[key]||{};
@@ -91,6 +91,7 @@ async function publishCue(key,{remove=false}={}){
       fadeIn:Number(local.fadeIn??0),fadeOut:Number(local.fadeOut??0),
       fileDuration:duration,repeat:local.repeat!==false,
     };
+    expected=meta;
     if(local.custom){
       const file=await readFile(key);
       if(!file)throw Error('File '+key+' tidak ditemukan di desktop. Upload ulang.');
@@ -110,7 +111,19 @@ async function publishCue(key,{remove=false}={}){
     try{const error=await res.json();message=error.detail||message;}catch(_){}
     throw Error('Gagal publish '+key+': '+message);
   }
-  await syncCloud(true);
+  if(!(await syncCloud(true)))throw Error('Sound tersimpan tetapi cloud belum bisa diverifikasi: '+cloudError);
+  const published=cloudProfiles.get(key);
+  if(remove){
+    if(published)throw Error('Sound reset belum terkonfirmasi oleh server');
+  }else{
+    if(!published)throw Error('Sound tidak ditemukan pada manifest setelah publish');
+    for(const field of ['start','stop','fadeIn','fadeOut','fileDuration']){
+      if(Math.abs(Number(published[field])-expected[field])>.011)
+        throw Error('Cloud belum memakai '+field+' terbaru. Refresh dan ulangi SAVE.');
+    }
+    if(Boolean(published.repeat)!==expected.repeat)
+      throw Error('Repeat di cloud belum sesuai dengan setting desktop');
+  }
   return true;
 }
 async function publishMixer(){
