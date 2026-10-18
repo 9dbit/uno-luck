@@ -11,6 +11,13 @@
   const percent = find('boot-loading-percent');
   const actions = find('boot-ready-actions');
   const game = find('game-shell');
+  const soundGate = find('boot-sound-gate');
+  const soundStatus = find('boot-sound-status');
+  const soundStart = find('boot-start-sound');
+  const silentStart = find('boot-start-muted');
+  let introStarted = false;
+  let introStarting = false;
+  let requestedSound = false;
   let released = false;
   let finishTimer = null;
   let current = 0;
@@ -23,7 +30,7 @@
     fill.style.width = `${safe}%`;
     track.setAttribute('aria-valuenow', String(safe));
     percent.textContent = `${safe}%`;
-    if(message) loadingText.textContent = 'loading game system';
+    if(message) loadingText.textContent = message;
   }
   function preloadImage(element){
     if(element.complete && element.naturalWidth) return Promise.resolve(true);
@@ -38,16 +45,11 @@
     if(released) return;
     released = true;
     clearTimeout(finishTimer);
-    if(activateSound){
-      // Must be invoked synchronously during the user's click. Safari will
-      // otherwise keep its AudioContext suspended.
-      const gate = window.UNOLuckAudio;
-      if(gate) {
-        const ready = gate.unlock();
-        Promise.resolve(ready).then(ok => {
-          if(ok) gate.preview();
-        }).catch(()=>{});
-      }
+    // Start music only when the intro finishes; it must not mask the splash cue.
+    if(activateSound || requestedSound) {
+      window.UNOLuckAudio?.unlock()?.catch?.(error => {
+        console.warn('[UNO BOOT] music unlock failed', error);
+      });
     }
     banner.classList.add('is-fading');
     cover.classList.add('is-dismissing');
@@ -60,9 +62,52 @@
   find('boot-with-audio').addEventListener('click', () => release(true));
   find('boot-continue').addEventListener('click', () => release(false));
 
+  async function startIntro(withSound) {
+    if (introStarted || introStarting) return;
+    introStarting = true;
+    requestedSound = withSound;
+    soundStart.disabled = true;
+    silentStart.disabled = true;
+    if (withSound) {
+      soundStatus.textContent = 'Mengaktifkan suara dan membaca file splash…';
+      // AudioContext.resume must be invoked inside the user click.
+      const pendingUnlock = window.UNOLuckSound?.unlock();
+      try {
+        const unlocked = await pendingUnlock;
+        if (!unlocked) throw Error(window.UNOLuckSound?.lastError || 'AudioContext belum aktif');
+        const studio = window.UNOLuckSoundStudio;
+        const custom = studio?.isCustomized('soft-tech-splash-screen');
+        const played = await window.UNOLuckSound.playCue('soft-tech-splash-screen');
+        if (custom && !played) {
+          throw Error(studio?.lastError || 'File splash tidak bisa diputar. Upload ulang di Sound Studio.');
+        }
+        soundStatus.textContent = played ? 'Suara Soft Tech aktif.' : 'Belum ada audio splash custom.';
+      } catch (error) {
+        soundStatus.textContent = 'AUDIO GAGAL: ' + String(error?.message || error) +
+          ' · Coba lagi atau pilih TANPA SUARA.';
+        introStarting = false;
+        requestedSound = false;
+        soundStart.disabled = false;
+        silentStart.disabled = false;
+        return;
+      }
+    }
+    introStarted = true;
+    soundGate.hidden = true;
+    runBoot().catch(error => {
+      console.warn('[UNO BOOT] intro failed', error);
+      release(false);
+    });
+  }
+  // Safari iPhone needs a gesture on each new page load, including reload.
+  soundStart.addEventListener('click', () => { void startIntro(true); });
+  silentStart.addEventListener('click', () => { void startIntro(false); });
+  const splashProfile = window.UNOLuckSoundStudio?.profile('soft-tech-splash-screen');
+  if (splashProfile?.custom) {
+    soundStatus.textContent = 'Custom splash siap: ' + (splashProfile.fileName || 'audio tersimpan');
+  }
+
   async function runBoot(){
-    // Browser policy may keep the intro silent until the first user gesture.
-    window.UNOLuckSound?.playCue('soft-tech-splash-screen');
     const imgs = [find('boot-softtech-img'), find('boot-banner-img')];
     // Start downloading both brand assets immediately; do not start the intro
     // clock until the Soft Tech logo can be painted.
@@ -73,7 +118,7 @@
     logo.hidden = true;
     await wait(reducedMotion ? 100 : 230); // true black transition frame
     banner.hidden = false;
-    window.UNOLuckSound?.playCue('loading-scene');
+    if (requestedSound) window.UNOLuckSound?.playCue('loading-scene');
     requestAnimationFrame(() => banner.classList.add('is-visible'));
     progress(7, 'Memuat aset game…');
 
@@ -104,5 +149,5 @@
     // on iPhone the first real gesture (e.g. PLACE) will unlock the audio.
     finishTimer = setTimeout(() => release(false), reducedMotion ? 1200 : 2900);
   }
-  runBoot().catch(() => release(false));
+  // The user selects sound ON or mute before the intro starts.
 })();
