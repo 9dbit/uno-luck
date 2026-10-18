@@ -792,8 +792,8 @@ function show(host){
       try{
         const args=Object.fromEntries(['start','stop','fadeIn','fadeOut'].map(k=>[k,values[k].value]));
         await configure(key,args);setStatus(hasAdminKey()?
-          'Setting tersimpan di CLOUD · otomatis untuk semua perangkat.':
-          'Setting tersimpan LOKAL · masukkan kunci admin dan PUBLISH untuk sinkronisasi.');
+          'Setting disimpan di CLOUD · otomatis untuk semua perangkat.':
+          'Setting disimpan LOKAL · masukkan kunci admin dan PUBLISH untuk sinkronisasi.');
       }catch(error){setStatus('GAGAL: '+error.message);}
     });
     button('▶ PREVIEW',async()=>{
