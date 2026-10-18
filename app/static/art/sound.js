@@ -3,7 +3,7 @@
   'use strict';
   const samples = {spin:'spin-impact',tap:'led-click',tick:'led-click',
     'tier-1':'tier-1','tier-2':'tier-2','tier-3':'tier-3','tier-4':'tier-4','tier-5':'tier-5',music:'music-loop'};
-  let ctx=null, master=null, compressor=null, fxBus=null, musicBus=null, playingMusic=null;
+  let ctx=null, master=null, compressor=null, fxBus=null, musicBus=null, playingMusic=null, musicRequested=false;
   const clamp=v=>Math.min(1,Math.max(0,Number.isFinite(Number(v))?Number(v):0));
   let fxLevel=clamp(localStorage.getItem('uno_luck_fx_volume')??'0.85');
   let masterLevel=clamp(localStorage.getItem('uno_luck_master_volume')??'0.90');
@@ -108,6 +108,7 @@
     src.start();return true;
   }
   async function music(playIt){
+    musicRequested=Boolean(playIt);
     if(!playIt)studio?.stopLoop();
     if(playIt&&studio?.isCustomized('background-music')){
       if(!isActive()||document.hidden)return;
@@ -119,6 +120,11 @@
     const buffer=await sample('music');
     if(!buffer||!isActive()||playingMusic||document.hidden)return;
     const src=ctx.createBufferSource();src.buffer=buffer;src.loop=true;src.connect(musicBus);src.start();playingMusic=src;
+  }
+  async function refreshMusic(){
+    if(!musicRequested || !isActive() || document.hidden)return false;
+    await music(false);
+    return music(true);
   }
   function cinematicImpact(rank=5){
     if(!isActive()||!audioEnabled||fxLevel<=0)return false;
@@ -161,7 +167,7 @@
   function setEnabled(v){audioEnabled=Boolean(v);}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)music(false);});
   window.UNOLuckSound={unlock,play,music,celebration,testSound,ledTick,setVolume,setMasterVolume,setMusicVolume,setEnabled,
-    installStudio,channels,playCue,result,
+    installStudio,channels,playCue,result,refreshMusic,
     get volume(){return fxLevel;},get masterVolume(){return masterLevel;},
     get musicVolume(){return musicLevel;},get lastError(){return lastError;},
     get state(){return ctx?.state||'inactive';}};
