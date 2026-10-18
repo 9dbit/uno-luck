@@ -94,6 +94,14 @@ function isCustomized(key){
   return Boolean(p&&(p.custom||p.edited));
 }
 function profile(key){return {...(profiles[key]||{})};}
+function getRepeat(key){return key==='background-music' && profiles[key]?.repeat!==false;}
+function setRepeat(key,enabled){
+  if(key!=='background-music')throw Error('Repeat hanya untuk BACKGROUND MUSIC');
+  profiles[key]={...profiles[key],repeat:Boolean(enabled),edited:true};
+  save();
+  window.UNOLuckSound?.refreshMusic?.();
+  return getRepeat(key);
+}
 async function measure(key){const b=await getBuffer(key);return b?.duration||0;}
 async function configure(key,settings){
   if(!known.has(key))throw Error('Sound event tidak dikenal');
@@ -105,7 +113,9 @@ async function configure(key,settings){
       fi<0||fo<0||fi+fo>stop-start+.001)throw Error('Rentang start/stop atau fade tidak valid');
   profiles[key]={...profiles[key],start:decimals(start),stop:decimals(Math.min(stop,length)),
     fadeIn:decimals(fi),fadeOut:decimals(fo),edited:true};
-  save();return limits(key,length);
+  save();
+  if(key==='background-music')window.UNOLuckSound?.refreshMusic?.();
+  return limits(key,length);
 }
 async function upload(key,file){
   if(!known.has(key))throw Error('Sound event tidak dikenal');
@@ -119,8 +129,11 @@ async function upload(key,file){
   await writeFile(key,file);
   bufferCache.set(key,decoded);
   profiles[key]={custom:true,edited:true,fileName:file.name,fileDuration:decimals(decoded.duration),
-    start:0,stop:decimals(decoded.duration),fadeIn:0,fadeOut:0};
-  save();return profile(key);
+    start:0,stop:decimals(decoded.duration),fadeIn:0,fadeOut:0,
+    ...(key==='background-music'?{repeat:getRepeat(key)}:{})};
+  save();
+  if(key==='background-music')window.UNOLuckSound?.refreshMusic?.();
+  return profile(key);
 }
 function stopNode(item,fade=0){
   if(!item)return;
@@ -150,21 +163,23 @@ async function play(key,{looping=false,forPreview=false}={}){
     const bounds=limits(key,buffer.duration);
     const source=context.createBufferSource(),envelope=context.createGain();
     const now=context.currentTime+.012;
+    const repeat=looping && getRepeat(key);
     source.buffer=buffer;
-    source.loop=looping;
-    if(looping){source.loopStart=bounds.start;source.loopEnd=bounds.stop;}
-    source.connect(envelope).connect(looping?music:fx);
+    source.loop=repeat;
+    if(repeat){source.loopStart=bounds.start;source.loopEnd=bounds.stop;}
+    source.connect(envelope).connect(looping||key==='background-music'?music:fx);
     const fadeIn=Math.min(bounds.fadeIn,bounds.length/2);
     envelope.gain.setValueAtTime(fadeIn>0?.0001:1,now);
     if(fadeIn>0)envelope.gain.linearRampToValueAtTime(1,now+fadeIn);
-    if(!looping && bounds.fadeOut>0){
+    if(!repeat && bounds.fadeOut>0){
       const startOut=now+bounds.length-bounds.fadeOut;
       envelope.gain.setValueAtTime(1,startOut);
       envelope.gain.linearRampToValueAtTime(.0001,now+bounds.length);
     }
     const item={source,envelope,bounds};
     if(looping){
-      source.start(now,bounds.start);
+      if(repeat)source.start(now,bounds.start);
+      else source.start(now,bounds.start,bounds.length);
       loop=item;
       source.onended=()=>{if(loop===item)loop=null;};
     }else{
@@ -190,6 +205,7 @@ async function reset(key){
   stopPreview();if(key==='background-music')stopLoop();
   try{await removeFile(key);}catch(_){/* No DB for bundled-only sound. */}
   delete profiles[key];bufferCache.delete(key);save();
+  if(key==='background-music')window.UNOLuckSound?.refreshMusic?.();
 }
 const element=(tag,cls,text)=>{
   const node=document.createElement(tag);
@@ -285,7 +301,7 @@ function show(host){
   }
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
-  isCustomized,play,stopLoop,stopPreview,profile,measure,configure,upload,reset,previewCue,
+  isCustomized,play,stopLoop,stopPreview,profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
   get lastError(){return lastError;}};
 window.UNOLuckSoundStudio.install();
