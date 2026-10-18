@@ -62,7 +62,7 @@ with sync_playwright() as p:
 
     admin=studio.locator(".studio-cloud-admin")
     admin.locator("summary").click()
-    admin.get_by_role("textbox",name="Kunci admin Sound Cloud").fill(ADMIN)
+    admin.locator('input[type="password"]').fill(ADMIN)
     admin.get_by_role("button",name="VERIFIKASI KUNCI").click()
     admin.locator(".studio-cloud-status").get_by_text("Admin terverifikasi",exact=False).wait_for(timeout=15000)
     admin.get_by_role("button",name="☁ PUBLISH ALL 12 SOUND LIST").click()
