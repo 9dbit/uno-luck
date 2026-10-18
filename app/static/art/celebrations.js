@@ -28,6 +28,7 @@
     generation++;
     const previous=running;running=null;
     if(previous)clearTimeout(previous.timer);
+    window.UNOLuckSound?.stopCelebration?.();
     restore();
     if(previous)previous.finish();
   }
@@ -81,11 +82,18 @@
     overlay.hidden=false;
     overlay.classList.remove('shown');
     sparks(selected);
-    window.UNOLuckSound?.celebration(selected);
     requestAnimationFrame(()=>{if(token===generation)overlay.classList.add('shown');});
-    return new Promise(resolve=>{
-      running={finish:()=>resolve(true),timer:setTimeout(close,reduced?1400:cfg.auto)};
-    });
+    const done=new Promise(resolve=>{running={finish:()=>resolve(true),timer:null};});
+    // Await the actual configured audio clip, so its START/STOP span drives the
+    // celebration lifetime rather than a fixed tier timer.
+    let audio={played:false,duration:0};
+    try{audio=await window.UNOLuckSound?.celebration(selected)||audio;}
+    catch(error){console.warn('[UNO JACKPOT] audio failed',selected,error);}
+    if(token!==generation)return done; // CONTINUE or visibility change cancelled pending audio
+    const configuredMs=Math.ceil(Math.max(0,Number(audio?.duration)||0)*1000)+100;
+    const minimumMs=reduced?1400:cfg.auto;
+    running.timer=setTimeout(close,Math.max(minimumMs,configuredMs));
+    return done;
   }
   $('celebration-continue')?.addEventListener('click',close);
   overlay?.addEventListener('click',e=>{if(e.target===overlay)close();});
