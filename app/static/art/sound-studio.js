@@ -357,6 +357,7 @@ function channel(){
 }
 async function getBuffer(key,{draft=false}={}){
   const cacheKey=(draft?'draft:':'live:')+key;
+  const requestedRevision=cloudRevision;
   if(bufferCache.has(cacheKey))return bufferCache.get(cacheKey);
   const entry=known.get(key);if(!entry)throw Error('Sound event tidak dikenal');
   const cfg=draft?editProfile(key):liveProfile(key);
@@ -380,8 +381,11 @@ async function getBuffer(key,{draft=false}={}){
   const context=window.UNOLuckSound?.channels?.()?.context;
   if(!context)throw Error('Audio decoder tidak tersedia. Mulai game lalu coba kembali.');
   const buffer=await context.decodeAudioData(bytes.slice(0));
-  bufferCache.set(cacheKey,buffer);
-  return buffer;
+  // In-flight default decoding must never overwrite a newer uploaded draft;
+  // likewise an old cloud response must not repopulate a refreshed catalog.
+  if(!draft&&requestedRevision!==cloudRevision)return buffer;
+  if(!bufferCache.has(cacheKey))bufferCache.set(cacheKey,buffer);
+  return bufferCache.get(cacheKey);
 }
 function limits(key,duration,{draft=false}={}){
   const current=draft?editProfile(key):liveProfile(key);
@@ -733,13 +737,16 @@ function show(host){
         stop.toFixed(2)+' s   ·   DURATION '+span.toFixed(2)+' s';
     };
     const setStatus=text=>{status.textContent=text;};
+    let paintSeq=0;
     const paint=async()=>{
+      const seq=++paintSeq;
       setStatus('Membaca audio…');
       const p=profile(key);
       const shared=publishedProfile(key);
       try{
-        actualDuration=await measure(key);
-        if(!details.isConnected)return;
+        const measured=await measure(key);
+        if(seq!==paintSeq||!details.isConnected)return;
+        actualDuration=measured;
         if(!actualDuration){
           updateSliderView();
           setStatus('Belum ada file default. Upload audio untuk cue ini.');
@@ -775,6 +782,7 @@ function show(host){
     fileInput.setAttribute('aria-label','Upload '+title);
     fileInput.addEventListener('change',async()=>{
       if(!fileInput.files?.[0])return;
+      ++paintSeq; // cancel stale audio measurements from the open-details event
       setStatus('Memeriksa dan menyimpan audio…');
       try{
         await window.UNOLuckSound?.unlock();
