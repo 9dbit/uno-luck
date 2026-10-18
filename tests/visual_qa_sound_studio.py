@@ -50,7 +50,7 @@ def main():
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         editor=page.locator('.sound-studio')
         assert editor.locator('details.studio-cue').count()==12
-        assert editor.locator('input[type="range"].studio-range').count()==48
+        assert editor.locator('input[type="range"].studio-range').count()==60
         fourth=editor.locator('details.studio-cue').nth(3)
         fourth.locator('summary').click()
         fourth.locator('input[type=file]').set_input_files(str(tone))
@@ -58,6 +58,9 @@ def main():
         slider=fourth.locator('input[name="push-button-start-slider"]')
         slider.evaluate("""el => {el.value='0.10';el.dispatchEvent(new Event('input',{bubbles:true}));}""")
         assert fourth.locator('input[name="push-button-start"]').input_value()=='0.1'
+        fourth.locator('input[name="push-button-duration-slider"]').evaluate(
+            """el => {el.value='0.65';el.dispatchEvent(new Event('input',{bubbles:true}));}""")
+        assert fourth.locator('input[name="push-button-stop"]').input_value()=='0.75'
         assert 'START' in fourth.locator('.studio-timeline-label').inner_text()
         fourth.locator('input[name="push-button-stop"]').fill('0.75')
         fourth.locator('input[name="push-button-fadeIn"]').fill('0.05')
@@ -135,7 +138,7 @@ def main():
         page.locator('#game-shell').wait_for(state='visible',timeout=25000)
         assert not errors, 'Uncaught browser errors: '+str(errors)
         browser.close()
-    print('PASS: 48 sliders, trim/fades, BGM repeat OFF/ON real source looping, persistence and splash reload')
+    print('PASS: 60 sliders, trim/fades, BGM repeat OFF/ON real source looping, persistence and splash reload')
 
 if __name__=='__main__':
     main()
