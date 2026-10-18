@@ -108,10 +108,19 @@ with sync_playwright() as p:
     splash=studio.locator("details.studio-cue").first
     splash.locator("summary").click()
     splash.locator('input[name="soft-tech-splash-screen-stop"]').fill("2.10")
+    capture=[]
+    d.on("request",lambda req: capture.append({
+      "method":req.method,
+      "settings":req.headers.get("x-uno-sound-settings"),
+      "url":req.url.split("/")[-1],
+    }) if "/api/sounds/cues/soft-tech-splash-screen" in req.url else None)
+    assert splash.locator('input[name="soft-tech-splash-screen-stop"]').input_value()=="2.10"
     splash.locator("button",has_text="SAVE").click()
     splash.locator(".studio-status").get_by_text("Setting disimpan di CLOUD",exact=False).wait_for(timeout=16000)
+    local=d.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen')")
     from_server=d.request.get(URL+"api/sounds/manifest").json()["cues"]["soft-tech-splash-screen"]
-    assert from_server["stop"]==2.1, ("Desktop publish did not reach server",from_server)
+    assert from_server["stop"]==2.1, ("Desktop publish did not reach server",
+        "local":local,"requests":capture,"server":from_server)
     assert m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen').stop")==2.4
     assert m.evaluate("window.UNOLuckSoundStudio.syncCloud(true)")
     fresh=m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen')")
