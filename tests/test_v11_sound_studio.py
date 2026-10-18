@@ -33,9 +33,9 @@ def test_editing_is_real_and_persistent_without_server_upload():
     assert "function stopLoop()" in A and "function stopPreview()" in A
 
 def test_real_game_events_and_boot_use_studio_cues():
-    assert 'sound-studio.js?v=1114' in H
+    assert 'sound-studio.js?v=1115' in H
     assert 'sound-studio.css?v=1114' in H
-    assert H.index('sound.js?v=1114') < H.index('sound-studio.js?v=1114') < H.index('orbit.js?v=1112')
+    assert H.index('sound.js?v=1114') < H.index('sound-studio.js?v=1115') < H.index('orbit.js?v=1112')
     assert "installStudio,channels,playCue,result" in S
     assert "studio?.isCustomized(cue)" in S
     assert "studio?.isCustomized('background-music')" in S
