@@ -50,11 +50,15 @@ def main():
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         editor=page.locator('.sound-studio')
         assert editor.locator('details.studio-cue').count()==12
+        assert editor.locator('input[type="range"].studio-range').count()==48
         fourth=editor.locator('details.studio-cue').nth(3)
         fourth.locator('summary').click()
         fourth.locator('input[type=file]').set_input_files(str(tone))
         fourth.locator('.studio-status').get_by_text('Audio tersimpan:',exact=False).wait_for(timeout=10000)
-        fourth.locator('input[name="push-button-start"]').fill('0.10')
+        slider=fourth.locator('input[name="push-button-start-slider"]')
+        slider.evaluate("""el => {el.value='0.10';el.dispatchEvent(new Event('input',{bubbles:true}));}""")
+        assert fourth.locator('input[name="push-button-start"]').input_value()=='0.1'
+        assert 'START' in fourth.locator('.studio-timeline-label').inner_text()
         fourth.locator('input[name="push-button-stop"]').fill('0.75')
         fourth.locator('input[name="push-button-fadeIn"]').fill('0.05')
         fourth.locator('input[name="push-button-fadeOut"]').fill('0.15')
@@ -66,6 +70,36 @@ def main():
         fourth.locator('button',has_text='PREVIEW').click()
         fourth.locator('.studio-status').get_by_text('Preview aktif',exact=False).wait_for(timeout=10000)
         fourth.locator('button',has_text='STOP').click()
+        music=editor.locator('details.studio-cue').nth(2)
+        music.locator('summary').click()
+        music.locator('input[type=file]').set_input_files(str(tone))
+        music.locator('.studio-status').get_by_text('Audio tersimpan:',exact=False).wait_for(timeout=10000)
+        repeat=music.locator('input[name="background-music-repeat"]')
+        assert repeat.is_checked(), 'Repeat default must be ON'
+        repeat.uncheck()
+        assert page.evaluate("window.UNOLuckSoundStudio.profile('background-music').repeat") is False
+        music.locator('input[name="background-music-stop-slider"]').evaluate(
+            """el => {el.value='0.45';el.dispatchEvent(new Event('input',{bubbles:true}));}""")
+        assert music.locator('input[name="background-music-stop"]').input_value()=='0.45'
+        music.locator('button',has_text='SAVE').click()
+        music.locator('.studio-status').get_by_text('Setting disimpan',exact=False).wait_for()
+        page.evaluate("""() => {
+            window.__bgmSources=[];
+            const old=AudioBufferSourceNode.prototype.start;
+            AudioBufferSourceNode.prototype.start=function(...args){
+                window.__bgmSources.push({loop:this.loop,startArgs:args});
+                return old.apply(this,args);
+            };
+        }""")
+        assert page.evaluate("window.UNOLuckSoundStudio.play('background-music',{looping:true})")
+        off=page.evaluate('window.__bgmSources[window.__bgmSources.length-1]')
+        assert not off['loop'] and abs(off['startArgs'][2]-.45)<.02, off
+        repeat.check()
+        assert page.evaluate("window.UNOLuckSoundStudio.profile('background-music').repeat") is True
+        assert page.evaluate("window.UNOLuckSoundStudio.play('background-music',{looping:true})")
+        on=page.evaluate('window.__bgmSources[window.__bgmSources.length-1]')
+        assert on['loop'] and len(on['startArgs'])==2, on
+        page.evaluate('window.UNOLuckSoundStudio.stopLoop()')
         page.screenshot(path=str(OUTPUT/'settings-390x844.png'),full_page=True)
         # Regression: custom splash must persist in IndexedDB and actually
         # call AudioBufferSourceNode.start after a new user gesture on reload.
@@ -76,6 +110,8 @@ def main():
         page.reload(wait_until='domcontentloaded')
         stored=page.evaluate("window.UNOLuckSoundStudio.profile('push-button')")
         assert stored['start']==0.1 and stored['fileName']=='qa-tone.wav'
+        bgm=page.evaluate("window.UNOLuckSoundStudio.profile('background-music')")
+        assert bgm['repeat'] is True and abs(bgm['stop']-.45)<.02, bgm
         assert page.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').custom")
         assert page.locator('#boot-sound-status').inner_text().find('qa-tone.wav')!=-1
         page.evaluate("""() => {
@@ -99,7 +135,7 @@ def main():
         page.locator('#game-shell').wait_for(state='visible',timeout=25000)
         assert not errors, 'Uncaught browser errors: '+str(errors)
         browser.close()
-    print('PASS: responsive QA; upload/trim/fades; splash audio source START after reload + explicit gesture')
+    print('PASS: 48 sliders, trim/fades, BGM repeat OFF/ON real source looping, persistence and splash reload')
 
 if __name__=='__main__':
     main()
