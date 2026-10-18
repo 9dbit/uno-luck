@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#b7efe0">
+  <meta name="description" content="UNO LUCK: permainan Color Match tiga kartu dengan koin virtual gratis. Versi staging.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <link rel="manifest" href="/assets/spin-manifest.webmanifest">
+  <link rel="icon" href="/assets/spin-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/spin.css?v=3">
+  <title>UNO LUCK | Spin Your Cards</title>
+</head>
+<body>
+  <main class="game-shell" id="game-shell">
+    <div class="ambient-orb orb-one" aria-hidden="true"></div>
+    <div class="ambient-orb orb-two" aria-hidden="true"></div>
+    <header class="hud" aria-label="Informasi permainan">
+      <div class="level-wrap"><div class="level-star" aria-label="Level pemain"><span id="level-number">1</span></div><span class="micro-label">LEVEL</span></div>
+      <button class="wallet" id="wallet-open" type="button" aria-label="Buka koin virtual">
+        <span class="wallet-coin" aria-hidden="true">✦</span>
+        <span class="wallet-content"><small>KOIN VIRTUAL</small><strong id="wallet-balance">1.000</strong></span>
+        <span class="wallet-plus" aria-hidden="true">+</span>
+      </button>
+      <button class="menu-btn" id="menu-open" type="button" aria-label="Buka menu permainan"><span></span><span></span><span></span></button>
+    </header>
+
+    <section class="brand-zone" aria-label="UNO LUCK">
+      <div class="brand-aura" aria-hidden="true"></div>
+      <div class="brand-lockup"><span class="brand-wings wing-left" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div class="brand-words"><div class="brand-stars" aria-hidden="true">✦ ✦ ✦</div><div class="brand-uno">UNO</div><div class="brand-luck">LUCK</div></div>
+        <span class="brand-wings wing-right" aria-hidden="true"><i></i><i></i><i></i></span></div>
+      <p>SPIN YOUR CARDS</p>
+      <button type="button" class="profile-chip" id="profile-btn" aria-label="Profil pemain"><img src="/assets/spin-avatar.svg" alt="Avatar karakter UNO LUCK"><strong id="profile-label">PLAYER</strong></button>
+    </section>
+
+    <section class="reel-area" aria-labelledby="match-title">
+      <div class="top-caption"><span class="mini-star" aria-hidden="true">✧</span><h1 id="match-title">COLOR MATCH!</h1><span class="mini-star" aria-hidden="true">✧</span></div>
+      <p class="win-conditions" id="win-conditions">Tiga warna sama <b>2×</b> biaya PLACE</p>
+      <div class="reel-stage" id="reel-stage">
+        <span class="stage-sheen" aria-hidden="true"></span>
+        <div id="card-reels" class="card-reels" aria-live="polite" aria-label="Tiga kartu spin">
+          <div class="metal-card card-back"><div class="card-inner"><span class="card-back-mark">UNO<small>LUCK</small></span></div></div>
+          <div class="metal-card card-back"><div class="card-inner"><span class="card-back-mark">UNO<small>LUCK</small></span></div></div>
+          <div class="metal-card card-back"><div class="card-inner"><span class="card-back-mark">UNO<small>LUCK</small></span></div></div>
+        </div>
+      </div>
+      <div class="spin-summary" id="spin-summary" aria-live="polite">
+        <div><span>Biaya</span><strong id="last-stake">25</strong></div>
+        <div><span>Kembali</span><strong id="last-payout">—</strong></div>
+        <div><span>Selisih</span><strong id="last-delta">—</strong></div>
+      </div>
+      <p class="spin-announcement" id="spin-announcement" role="status">Tekan PLACE untuk membuka tiga kartu</p>
+    </section>
+
+    <section class="controls" aria-label="Kontrol permainan">
+      <div class="fan-deck" aria-hidden="true"><span class="fan-card fan-a">✚²</span><span class="fan-card fan-b">↔</span><span class="fan-card fan-c">7</span><span class="fan-card fan-d">↻</span><span class="fan-card fan-e">⊘</span></div>
+      <div class="main-actions">
+        <button id="turbo-btn" type="button" class="round-action turbo" aria-pressed="false" aria-label="Turbo spin"><span class="round-icon">ϟ</span><small>TURBO</small></button>
+        <div class="place-plinth"><button id="place-btn" class="place-button" type="button"><span>PLACE</span><small>TAP TO SPIN</small></button></div>
+        <button id="auto-btn" type="button" class="round-action auto" aria-pressed="false" aria-label="Auto Spin maksimal 10 putaran"><span class="round-icon">⇄</span><small>AUTO</small></button>
+      </div>
+      <div class="stake-bar" aria-label="Pengaturan biaya PLACE">
+        <span>BIAYA / PLACE</span>
+        <div class="stake-controls"><button id="stake-minus" type="button" aria-label="Turunkan biaya PLACE">−</button><strong id="stake-value">✦ 25</strong><button id="stake-plus" type="button" aria-label="Naikkan biaya PLACE">+</button></div>
+      </div>
+      <div class="utility-row">
+        <button id="gift-btn" type="button"><span aria-hidden="true">🎁</span> Hadiah +250</button>
+        <button id="history-btn" type="button"><span aria-hidden="true">▤</span> Riwayat</button>
+        <button id="sound-btn" type="button" aria-pressed="true"><span aria-hidden="true">♫</span> Suara</button>
+      </div>
+    </section>
+
+    <div class="notice-line"><span class="dot"></span> <span id="connection-status">Memuat permainan…</span> <span class="notice-separator">·</span> <span>Koin virtual, tidak dapat diuangkan</span></div>
+  </main>
+
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+  <dialog class="modal" id="modal"><div class="modal-card"><div class="modal-heading"><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" class="modal-x" aria-label="Tutup">×</button></div><div id="modal-content" class="modal-content"></div></div></dialog>
+  <script src="/assets/spin.js?v=3" defer></script>
+</body>
+</html>

@@ -18,20 +18,28 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .engine import COLORS, RuleError, UnoGame
+from .spin import router as spin_router
 
 APP_ROOT = Path(__file__).resolve().parent
-app = FastAPI(title="UNO LUCK Staging", version="0.2.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="UNO LUCK Spin Staging", version="0.3.0", docs_url=None, redoc_url=None)
+app.include_router(spin_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")
 
 
 @app.get("/")
 async def homepage():
+    return FileResponse(APP_ROOT / "static" / "spin-index.html")
+
+
+@app.get("/classic")
+async def classic_home():
+    """Preserve Classic implementation for regression checks, not the main game."""
     return FileResponse(APP_ROOT / "static" / "index.html")
 
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "version": "0.2.0", "game": "UNO LUCK", "money_enabled": False}
+    return {"ok": True, "version": "0.3.0", "game": "UNO LUCK SPIN", "money_enabled": False, "main_mode": "spin"}
 
 
 @dataclass
