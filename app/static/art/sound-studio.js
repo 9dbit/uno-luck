@@ -17,6 +17,7 @@ const KEY='uno_sound_studio_profiles_v1',DB='uno-luck-custom-sound-v1',MAX_BYTES
 const profiles=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(_){return {};}})();
 const bufferCache=new Map();
 let cloudProfiles=new Map(), cloudRevision='', cloudReady=false, cloudError='';
+let cloudMixer=null, mixerPublishTimer=null;
 let cloudFetch=null, adminKey=sessionStorage.getItem('uno-sound-admin-key')||'';
 const liveProfile=key=>cloudProfiles.get(key)||profiles[key]||{};
 const editProfile=key=>profiles[key]||cloudProfiles.get(key)||{};
@@ -32,7 +33,15 @@ async function syncCloud(force=false){
       const oldSplash=cloudProfiles.get('soft-tech-splash-screen')?.revision;
       cloudRevision=data.revision;
       cloudProfiles=new Map(Object.entries(data.cues||{}).filter(([key])=>known.has(key)));
+      cloudMixer=data.mixer&&typeof data.mixer==='object'?data.mixer:null;
+      if(cloudMixer&&window.UNOLuckSound){
+        window.UNOLuckSound.setMasterVolume(cloudMixer.master);
+        window.UNOLuckSound.setMusicVolume(cloudMixer.music);
+        window.UNOLuckSound.setVolume(cloudMixer.sfx);
+      }
       bufferCache.clear();
+      if(document.visibilityState==='visible'&&cloudProfiles.has('background-music'))
+        void window.UNOLuckSound?.refreshMusic?.();
       if(oldSplash!==cloudProfiles.get('soft-tech-splash-screen')?.revision){
         if(splashUrl?.startsWith('blob:'))URL.revokeObjectURL(splashUrl);
         splashUrl=null;
@@ -99,6 +108,30 @@ async function publishCue(key,{remove=false}={}){
   await syncCloud(true);
   return true;
 }
+async function publishMixer(){
+  if(!hasAdminKey())throw Error('Kunci admin diperlukan untuk publish mixer.');
+  const sound=window.UNOLuckSound;
+  if(!sound)throw Error('Audio mixer belum aktif');
+  const levels={master:sound.masterVolume,music:sound.musicVolume,sfx:sound.volume};
+  const response=await fetch('/api/sounds/mixer',{
+    method:'PATCH',cache:'no-store',
+    headers:{'Content-Type':'application/json','X-UNO-Sound-Admin':adminKey},
+    body:JSON.stringify(levels)
+  });
+  if(!response.ok)throw Error('Gagal publish mixer: HTTP '+response.status);
+  await syncCloud(true);
+  return true;
+}
+function schedulePublishMixer(){
+  if(!hasAdminKey())return false;
+  if(mixerPublishTimer)clearTimeout(mixerPublishTimer);
+  mixerPublishTimer=setTimeout(()=>{
+    mixerPublishTimer=null;void publishMixer().catch(error=>{
+      cloudError=error.message;console.warn('[UNO SOUND CLOUD]',cloudError);
+    });
+  },650);
+  return true;
+}
 async function publishAll(progress=()=>{}){
   if(!hasAdminKey())throw Error('Masukkan kunci admin sebelum mempublikasikan audio desktop.');
   const entries=KEYS.map(([key])=>key).filter(key=>{
@@ -109,6 +142,7 @@ async function publishAll(progress=()=>{}){
     progress(i+1,entries.length,entries[i]);
     await publishCue(entries[i]);
   }
+  await publishMixer();
   return entries.length;
 }
 let database=null, preview=null, loop=null, loopSerial=0, lastError='';
@@ -783,6 +817,7 @@ window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(t
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
   prepareSplashMedia,playSplashGesture,isIOS,
   syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
+  publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
   get lastError(){return lastError;},get splashError(){return splashError;},
