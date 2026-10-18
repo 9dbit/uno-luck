@@ -270,7 +270,7 @@ async def publish_file(cue: str, request: Request):
             # Prevent repeated uploads from filling the 512 MB staging volume.
             versions = sorted(
                 (old for old in (root / "audio").glob(cue + "-*")
-                 if re.fullmatch(re.escape(cue) + r"-[a-f0-9]{24}\\.(mp3|wav|m4a|aac|ogg|webm)", old.name)),
+                 if re.fullmatch(re.escape(cue) + r"-[a-f0-9]{24}\.(mp3|wav|m4a|aac|ogg|webm)", old.name)),
                 key=lambda old: old.stat().st_mtime_ns, reverse=True,
             )
             for old in versions[2:]:
