@@ -266,6 +266,15 @@ async def publish_file(cue: str, request: Request):
             }
             current["revision"] = secrets.token_hex(12)
             _write(root, current)
+            # Keep the active file and one previous version for in-flight clients.
+            # Prevent repeated uploads from filling the 512 MB staging volume.
+            versions = sorted(
+                (old for old in (root / "audio").glob(cue + "-*")
+                 if re.fullmatch(re.escape(cue) + r"-[a-f0-9]{24}\\.(mp3|wav|m4a|aac|ogg|webm)", old.name)),
+                key=lambda old: old.stat().st_mtime_ns, reverse=True,
+            )
+            for old in versions[2:]:
+                old.unlink(missing_ok=True)
         except Exception:
             dest.unlink(missing_ok=True)
             raise
