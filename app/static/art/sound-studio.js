@@ -157,14 +157,20 @@ function useFallbackSource(key,url){
   return player;
 }
 async function prepareSplashMedia(){
-  if(!profiles['soft-tech-splash-screen']?.custom)return false;
+  await syncCloud();
+  const cfg=liveProfile('soft-tech-splash-screen');
+  if(!cfg.custom&&cfg.source!=='custom')return false;
   if(splashUrl)return true;
   if(splashPreparation)return splashPreparation;
   splashPreparation=(async()=>{
-    const file=await readFile('soft-tech-splash-screen');
-    if(!file)throw Error('File splash tidak ditemukan di browser ini. Upload ulang.');
-    const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
-    splashUrl=URL.createObjectURL(typed);
+    if(cfg.source==='custom'&&cfg.url){
+      splashUrl=cfg.url;
+    }else{
+      const file=await readFile('soft-tech-splash-screen');
+      if(!file)throw Error('File splash lokal tidak ditemukan. Publikasikan dari desktop.');
+      const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
+      splashUrl=URL.createObjectURL(typed);
+    }
     useFallbackSource('soft-tech-splash-screen',splashUrl);
     splashError='';
     return true;
@@ -178,9 +184,9 @@ async function prepareSplashMedia(){
 function applyMediaBounds(key,player,previewMode=false,looping=false){
   clearFallbackTiming();
   const serial=++fallbackSerial;
-  const p=profiles[key]||{};
+  const p=previewMode?editProfile(key):liveProfile(key);
   const duration=Math.max(.05,Number(p.fileDuration)||player.duration||5);
-  const bounds=limits(key,duration);
+  const bounds=limits(key,duration,{draft:previewMode});
   const start=Math.max(0,bounds.start);
   const stop=Math.max(start+.02,bounds.stop);
   const gain=()=>{
@@ -239,10 +245,12 @@ function playSplashGesture(){
 async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
   const entry=known.get(key);if(!entry)return false;
   try{
-    if(key==='soft-tech-splash-screen'&&!splashUrl)await prepareSplashMedia();
+    if(key==='soft-tech-splash-screen'&&!splashUrl&&!forPreview)await prepareSplashMedia();
+    const cfg=forPreview?editProfile(key):liveProfile(key);
     let url;
-    if(key==='soft-tech-splash-screen')url=splashUrl;
-    else if(profiles[key]?.custom){
+    if(key==='soft-tech-splash-screen'&&!forPreview)url=splashUrl;
+    else if(cfg.source==='custom'&&cfg.url)url=cfg.url;
+    else if(cfg.custom){
       const file=await readFile(key);
       if(!file)throw Error('File audio lokal hilang: '+key);
       const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
@@ -313,17 +321,22 @@ function channel(){
   if(!r?.context||r.context.state!=='running')throw Error('Aktifkan audio melalui tombol game terlebih dahulu');
   return r;
 }
-async function getBuffer(key){
-  if(bufferCache.has(key))return bufferCache.get(key);
+async function getBuffer(key,{draft=false}={}){
+  const cacheKey=(draft?'draft:':'live:')+key;
+  if(bufferCache.has(cacheKey))return bufferCache.get(cacheKey);
   const entry=known.get(key);if(!entry)throw Error('Sound event tidak dikenal');
-  const cfg=profiles[key]||{};
+  const cfg=draft?editProfile(key):liveProfile(key);
   let bytes;
-  if(cfg.custom){
+  if(cfg.source==='custom'&&cfg.url){
+    const response=await fetch(cfg.url,{cache:'force-cache'});
+    if(!response.ok)throw Error('Cloud audio '+key+' HTTP '+response.status);
+    bytes=await response.arrayBuffer();
+  }else if(cfg.custom){
     const file=await readFile(key);
-    if(!file)throw Error('File audio lokal tidak ditemukan. Upload ulang.');
+    if(!file)throw Error('File audio lokal tidak ditemukan. Upload ulang dari desktop.');
     bytes=await file.arrayBuffer();
   }else{
-    if(!entry[2])return null; // Two opening scenes intentionally have no default sample.
+    if(!entry[2])return null;
     const response=await fetch('/assets/audio/'+entry[2]+'.mp3',{cache:'force-cache'});
     if(!response.ok)throw Error('Audio tidak tersedia: '+response.status);
     bytes=await response.arrayBuffer();
@@ -333,11 +346,11 @@ async function getBuffer(key){
   const context=window.UNOLuckSound?.channels?.()?.context;
   if(!context)throw Error('Audio decoder tidak tersedia. Mulai game lalu coba kembali.');
   const buffer=await context.decodeAudioData(bytes.slice(0));
-  bufferCache.set(key,buffer);
+  bufferCache.set(cacheKey,buffer);
   return buffer;
 }
-function limits(key,duration){
-  const current=profiles[key]||{};
+function limits(key,duration,{draft=false}={}){
+  const current=draft?editProfile(key):liveProfile(key);
   const start=clamp(current.start??0,0,Math.max(0,duration-.02));
   const stop=clamp(current.stop??duration,start+.01,duration);
   const length=stop-start;
@@ -346,11 +359,13 @@ function limits(key,duration){
   return {start,stop,length,fadeIn,fadeOut};
 }
 function isCustomized(key){
-  const p=profiles[key];
-  return Boolean(p&&(p.custom||p.edited));
+  const p=liveProfile(key);
+  return Boolean(p&&(p.custom||p.edited||p.source==='custom'));
 }
-function profile(key){return {...(profiles[key]||{})};}
-function getRepeat(key){return key==='background-music' && profiles[key]?.repeat!==false;}
+function profile(key){return {...editProfile(key)};}
+function publishedProfile(key){return {...(cloudProfiles.get(key)||{})};}
+function getRepeat(key){return key==='background-music' && liveProfile(key)?.repeat!==false;}
+function getDraftRepeat(key){return key==='background-music' && editProfile(key)?.repeat!==false;}
 function setRepeat(key,enabled){
   if(key!=='background-music')throw Error('Repeat hanya untuk BACKGROUND MUSIC');
   profiles[key]={...profiles[key],repeat:Boolean(enabled),edited:true};
