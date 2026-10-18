@@ -1,0 +1,72 @@
+/* UNO LUCK 3D art layering and GPU-friendly interactions, v0.7. */
+.uno-logo { mix-blend-mode:normal; filter:drop-shadow(0 2px 6px #ff9b1680); }
+.title-area .crown { display:none; }
+.title-area .motion-title { display:grid; place-items:center; height:61%; width:100%; margin:0; overflow:visible; }
+.title-area .motion-title img { display:block; width:min(100%,530px); height:100%; object-fit:contain; pointer-events:none; transform:translateZ(0); }
+.title-area p { margin-top:-1.2%; }
+.result-area { padding:0 6% 1%; grid-template-rows:minmax(0,91%) minmax(0,9%); gap:0; }
+.result-area .spin-caption { position:relative; bottom:auto; left:auto; right:auto; height:auto; width:100%; z-index:5; text-align:center; align-self:center; }
+.result-frame { border-color:#ffcb60; box-shadow:0 0 8px #ff90216c,inset 0 0 14px #af260b7c,0 0 0 2px #6d1103; }
+.result-cell { perspective:600px; }
+.result-cell .card3d { border-color:#ffe7a3; box-shadow:inset 0 1px 0 #fff6c6, inset 0 0 0 2px #dd982a, inset -5px -7px 12px #0008, 3px 4px 0 #a65d08, 5px 8px 10px #000c; backface-visibility:hidden; }
+.result-cell:nth-child(1)>.card3d { transform:perspective(600px) rotateY(-9deg) rotateZ(-2deg) translateZ(0); }
+.result-cell:nth-child(2)>.card3d { transform:perspective(600px) translateZ(7px); }
+.result-cell:nth-child(3)>.card3d { transform:perspective(600px) rotateY(9deg) rotateZ(2deg) translateZ(0); }
+.result-cell.fx-metal-flash::after { content:''; position:absolute; inset:0; z-index:7; pointer-events:none; border-radius:12px; background:linear-gradient(110deg,transparent 20%,#fff8ceaa 48%,transparent 70%); animation:metalSweep .62s ease-out forwards; }
+@keyframes metalSweep { from { transform:translate3d(-120%,0,0); opacity:.8 } to { transform:translate3d(120%,0,0); opacity:0 } }
+/* Red dragon and its head are separate layers. Only transforms animate; source pixels remain static. */
+.wheel-area .dragon-wheel-art { position:absolute; inset:-1% 0 9%; width:100%; height:90%; object-fit:contain; object-position:center; z-index:1; opacity:.70; pointer-events:none; transform:translate3d(0,0,0); backface-visibility:hidden; }
+.wheel-area .dragon-head-fx { position:absolute; z-index:10; top:3%; right:-4%; width:30%; max-height:55%; object-fit:contain; object-position:right top; pointer-events:none; opacity:.92; transform-origin:36% 66%; transform:translate3d(0,0,0) rotate(0deg); backface-visibility:hidden; }
+.ring-halo { border-color:#d68018a9; box-shadow:0 0 8px #f947044a,inset 0 0 10px #fc501b38; background:none; }
+.orbit-ring { z-index:9; }
+.orbit-card { will-change:auto; }
+.wheel-area.fx-spinning .orbit-card { will-change:transform,opacity; }
+.pick-point { z-index:12; }
+.action-row { bottom:20%; height:35%; z-index:30; align-items:end; }
+.spin-candy { width: min(100%,150px); max-width:150px; height:100%; aspect-ratio:1/1; max-height:150px; border:0; border-radius:50%; background: url('/assets/art/v1/spin.webp') center / contain no-repeat; box-shadow:none; filter:drop-shadow(0 4px 6px #0009); animation:none; transition:none; transform:translate3d(0,0,0); transform-origin:center 60%; }
+.spin-candy::after { content:''; position:absolute; inset:14%; border-radius:50%; background:linear-gradient(150deg,#ffffff66,transparent 42%); opacity:0; pointer-events:none; }
+.spin-candy .spin-top { color:transparent; -webkit-text-stroke:0; text-shadow:none; font-size:1px; position:absolute; }
+.spin-candy small { position:absolute; bottom:5%; left:50%; transform:translateX(-50%); font-size:clamp(8px,1.8vw,11px); background:#3c0007b0; border:1px solid #ffd879aa; border-radius:999px; padding:1px 5px; color:#fff2b1; white-space:nowrap; letter-spacing:.3px; }
+.spin-candy.fx-press { animation:candyPress .23s cubic-bezier(.16,.87,.33,1.24) both; }
+@keyframes candyPress { 0% { transform:translate3d(0,0,0) scale(1) } 32% { transform:translate3d(0,5px,0) scale(.91) } 68% { transform:translate3d(0,3px,0) scale(1.035) } 100% { transform:translate3d(0,0,0) scale(1) } }
+.side-action { border:0!important; border-radius:50%; background-color:transparent!important; box-shadow:none!important; background-size:contain!important; background-position:center!important; background-repeat:no-repeat!important; width:100%!important; height:64%!important; transform:translate3d(0,0,0); }
+#turbo-btn { background-image:url('/assets/art/v1/turbo.webp')!important; }
+#auto-btn { background-image:url('/assets/art/v1/auto.webp')!important; }
+.side-action .action-icon,.side-action small { opacity:0; }
+.side-action:active { transform:translate3d(0,3px,0) scale(.96); }
+/* Approved gold arrowhead skin, with an empty interior over live DOM numbers. */
+.wheel-area .result-bar { position:absolute; bottom:0.5%; left:2%; right:2%; width:96%; height:clamp(39px,6.4dvh,57px); min-height:0; z-index:31; border:0; border-radius:50px; padding:3px 6%; background:linear-gradient(180deg,#6c030b,#1b0004 80%); box-shadow:none; overflow:visible; }
+.wheel-area .result-bar::before { content:''; position:absolute; inset:-5% -4%; z-index:0; background:url('/assets/art/v1/betting-frame-empty.webp') center / 100% 100% no-repeat; pointer-events:none; }
+.wheel-area .result-bar>div { position:relative; z-index:1; min-width:0; height:100%; border-right:1px solid #ffdf7b9c; }
+.wheel-area .result-bar>div:last-child { border:0; }
+.wheel-area .result-bar small { font-size:clamp(8px,2.3vw,12px); }
+.wheel-area .result-bar strong { font-size:clamp(12px,3vw,20px); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.wheel-area .result-bar .positive { color:#28ff7a; }
+.wheel-area .result-bar .negative { color:#ff5273; }
+.number-pop { animation:numberBump .35s ease-out; }
+@keyframes numberBump { from { transform:translate3d(0,5px,0) scale(.9) } to { transform:translate3d(0,0,0) scale(1) } }
+.title-area.fx-color-match .motion-title img { animation:matchTitle .95s cubic-bezier(.18,.84,.24,1) both; }
+@keyframes matchTitle { 0% { transform:scale(.90) translate3d(0,8px,0); opacity:.65 } 45% { transform:scale(1.095) translate3d(0,-2px,0); opacity:1 } 100% { transform:scale(1) translate3d(0,0,0); opacity:1 } }
+.wheel-area.fx-color-match .dragon-wheel-art { animation:dragonBreath 1.2s ease-in-out both; }
+.wheel-area.fx-color-match .dragon-head-fx { animation:dragonNod 1.2s ease-in-out both; }
+@keyframes dragonBreath { 0%,100% { transform:translate3d(0,0,0) scale(1) } 35% { transform:translate3d(0,-3px,0) scale(1.018,1.012) } 72% { transform:translate3d(1px,2px,0) scale(.994,1.006) } }
+@keyframes dragonNod { 0%,100% { transform:rotate(0deg) translate3d(0,0,0) } 32% { transform:rotate(-7deg) translate3d(-4px,-4px,0) } 65% { transform:rotate(6deg) translate3d(3px,3px,0) } }
+/* Jackpot is reserved for future server-defined jackpot outcome. */
+.wheel-area.fx-jackpot .dragon-wheel-art { animation:dragonJackpot 1.9s cubic-bezier(.25,.7,.32,1) both; }
+.wheel-area.fx-jackpot .dragon-head-fx { animation:dragonRoar 1.9s cubic-bezier(.25,.7,.32,1) both; }
+.title-area.fx-jackpot .motion-title img { animation:matchTitle 1.4s ease-in-out both; }
+@keyframes dragonJackpot { 0%,100% { transform:scale(1) translate3d(0,0,0) } 15% { transform:scale(1.025, .97) translate3d(2px,-8px,0) } 38% { transform:scale(.98,1.035) translate3d(-7px,1px,0) } 65% { transform:scale(1.04,.97) translate3d(7px,-3px,0) } 82% { transform:scale(1.01,1.015) translate3d(-2px,-4px,0) } }
+@keyframes dragonRoar { 0%,100% { transform:rotate(0deg) translate3d(0,0,0) } 19% { transform:rotate(-12deg) translate3d(-12px,-9px,0) } 40% { transform:rotate(11deg) translate3d(5px,11px,0) } 60% { transform:rotate(-8deg) translate3d(-7px,-4px,0) } 76% { transform:rotate(5deg) translate3d(2px,2px,0) } }
+.result-bar.fx-color-match { animation:winBar .8s ease-out; }
+@keyframes winBar { 0%,100% { transform:scale(1) } 42% { transform:scale(1.015) } }
+@media(max-width:350px) { .action-row { left:3%;right:3%; } .wheel-area .result-bar { height:clamp(35px,6dvh,46px); } .wheel-area .dragon-head-fx { right:-5%; width:31%; } }
+@media(max-height:610px) and (orientation:portrait) { .action-row { height:35%;bottom:20%; } .wheel-area .result-bar{height:clamp(31px,7.2dvh,43px)} .result-area { grid-template-rows:minmax(0,90%) 10%; } }
+@media(orientation:landscape) and (max-height:470px) { .result-area { grid-template-rows:minmax(0,90%) 10%; } .action-row{bottom:23%;height:34%;} .wheel-area .result-bar{height:clamp(25px,10dvh,37px)} .wheel-area .dragon-head-fx{width:25%;top:8%;} }
+@media(prefers-reduced-motion:reduce) { .spin-candy.fx-press,.result-cell.fx-metal-flash::after,.number-pop,.title-area.fx-color-match .motion-title img,.wheel-area.fx-color-match .dragon-wheel-art,.wheel-area.fx-color-match .dragon-head-fx,.wheel-area.fx-jackpot .dragon-wheel-art,.wheel-area.fx-jackpot .dragon-head-fx { animation:none!important; } }
+/* The three independently cropped HUD assets remain independent buttons. */
+#gift-btn, #menu-open { background-color:transparent; background-size:contain; background-repeat:no-repeat; background-position:center; border:0; box-shadow:none; }
+#gift-btn { background-image:url('/assets/art/v1/gift.webp'); }
+#menu-open { background-image:url('/assets/art/v1/menu.webp'); }
+#gift-btn span, #menu-open span { opacity:0; }
+.avatar-btn { border:0; background:none; box-shadow:none; overflow:visible; padding:0; }
+.avatar-btn img { width:100%; height:100%; object-fit:contain; border-radius:50%; }

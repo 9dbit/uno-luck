@@ -91,3 +91,7 @@ Railway without mounting a persistent volume and setting `UNO_SPIN_DB_PATH`.
 To test: `python -m pytest -q`. UI QA uses an isolated Chromium snapshot test
 with mocked APIs because HTTP localhost is blocked in the test environment;
 backend state transitions are independently tested with FastAPI TestClient.
+
+### v0.7 Approved UI motion
+
+Approved 3D WebP assets live in `app/static/art/v1/`; the compositor motions and animated values are in `app/static/art/motion.css` and `motion.js`. The price/return/delta panel now lives below the SPIN button, and amounts always come from server-confirmed responses. The default round's 80% Color Match chance and 2× virtual payout are unchanged. `JACKPOT` animation is reserved for a future server-defined result.
