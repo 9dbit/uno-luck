@@ -13,13 +13,20 @@
   <link rel="stylesheet" href="/assets/art/fidelity.css?v=91">
   <link rel="stylesheet" href="/assets/art/celebrations.css?v=100">
   <link rel="stylesheet" href="/assets/art/v11.css?v=110">
-  <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1112">
+  <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1113">
   <title>UNO LUCK | Dragon Spin v1.1</title>
 </head>
 <body>
   <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
     <section class="boot-stage boot-softtech" id="boot-softtech" aria-label="Soft Tech">
       <img class="boot-softtech-logo" id="boot-softtech-img" src="/assets/boot-softtech.webp" alt="Soft Tech" fetchpriority="high">
+      <div id="boot-sound-gate" class="boot-sound-gate" role="group" aria-label="Pilih mode audio untuk intro">
+        <p id="boot-sound-status" class="boot-sound-status" role="status" aria-live="polite">Ketuk START WITH SOUND untuk mengaktifkan suara intro.</p>
+        <div class="boot-sound-controls">
+          <button id="boot-start-sound" type="button" class="boot-gate-start">♫ START WITH SOUND</button>
+          <button id="boot-start-muted" type="button" class="boot-gate-muted">TANPA SUARA</button>
+        </div>
+      </div>
     </section>
     <section class="boot-stage boot-banner" id="boot-banner" aria-label="Memuat UNO LUCK" hidden>
       <img id="boot-banner-img" class="boot-banner-img" src="/assets/boot-uno-banner.webp" alt="UNO LUCK" decoding="async">
@@ -120,6 +127,6 @@
   <script src="/assets/art/match-announce.js?v=110" defer></script>
   <script src="/assets/art/celebrations.js?v=110" defer></script>
   <script src="/assets/orbit.js?v=1112" defer></script>
-  <script src="/assets/boot.js?v=1112" defer></script>
+  <script src="/assets/boot.js?v=1113" defer></script>
 </body>
 </html>

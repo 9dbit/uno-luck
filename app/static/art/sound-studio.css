@@ -105,3 +105,35 @@
   .wheel-stage .side-action small{font-size:clamp(9px,2vw,13px)!important}
   .modal:has(.sound-studio),.modal:has(.sound-studio) .modal-card{max-height:94dvh}
 }
+
+/* Reliable user-gesture audio entry on iOS: keep the Soft Tech logo visible
+   until the visitor chooses sound or silent playback after each reload. */
+.boot-softtech{position:absolute;isolation:isolate;}
+.boot-sound-gate{
+  position:absolute;z-index:9;left:50%;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 5dvh);
+  transform:translateX(-50%);
+  width:min(calc(100% - 24px),470px);padding:10px 12px 14px;
+  display:flex;align-items:center;flex-direction:column;gap:12px;
+  border:1px solid #ffbd735e;border-radius:20px;
+  background:linear-gradient(180deg,#0a0a16d9,#07070de8);
+  box-shadow:0 7px 26px #000a;
+}
+.boot-sound-gate[hidden]{display:none!important}
+.boot-sound-status{
+  margin:0;color:#f5eedf;font:600 clamp(11px,2.9vw,14px)/1.4 system-ui,sans-serif;
+  text-align:center;overflow-wrap:anywhere;max-width:100%;
+}
+.boot-sound-controls{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:8px;width:100%}
+.boot-sound-controls button{
+  min-width:0;min-height:clamp(40px,7dvh,54px);border:2px solid #ffdb78;
+  border-radius:999px;padding:8px 6px;font:900 clamp(11px,2.8vw,15px)/1.1 system-ui,sans-serif;
+  cursor:pointer;touch-action:manipulation;
+}
+.boot-gate-start{background:linear-gradient(#fff0a6,#e98e1b);color:#421008;box-shadow:0 0 13px #fac0447a}
+.boot-gate-muted{background:#220a13;color:#fff0d8;border-color:#a9685a!important}
+.boot-sound-controls button:disabled{opacity:.64;cursor:progress}
+.boot-sound-controls button:focus-visible{outline:3px solid #63bfff;outline-offset:3px}
+@media(orientation:landscape) and (max-height:470px){
+  .boot-sound-gate{bottom:max(5px,env(safe-area-inset-bottom));padding:5px 10px;gap:4px}
+  .boot-sound-controls button{min-height:32px;font-size:11px;padding:4px 8px}
+}
