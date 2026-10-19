@@ -230,6 +230,7 @@ function useFallbackSource(key,url){
 // to pause background music and could discard an in-flight splash attempt.
 let bgmPlayer=null,bgmPrepared=false,bgmPreparation=null,bgmRevision='';
 let bgmObjectUrl=null,bgmMirrorDuration=0,bgmRaf=null,bgmSerial=0,bgmStarting=false;
+let bgmHeldForGameplay=false,bgmGameplayReleased=false;
 function bgmElement(){
   if(!bgmPlayer){
     bgmPlayer=document.createElement('audio');
@@ -243,6 +244,7 @@ function bgmElement(){
   return bgmPlayer;
 }
 function stopMusicMedia({invalidate=false}={}){
+  bgmHeldForGameplay=false;bgmGameplayReleased=false;
   ++bgmSerial;
   bgmStarting=false;
   if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
@@ -360,6 +362,7 @@ function playMusicMedia(){
   return Promise.resolve(pending).then(()=>{
     if(serial!==bgmSerial)return false;
     bgmStarting=false;
+    if(bgmGameplayReleased)player.muted=false;
     mediaUnlocked=true;lastError='';
     if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
     bgmRaf=requestAnimationFrame(monitor);
@@ -373,6 +376,35 @@ function playMusicMedia(){
 function playMusicGesture(){
   if(!bgmPrepared||document.hidden)return false;
   return playMusicMedia(); // synchronously invokes player.play() on first tap
+}
+// Reserve the iPhone music channel on the same native PLAY button gesture.
+// Keep it silent until the game is visible, then unmute without invoking
+// autoplay from an asynchronous handler. This does not change cloud settings.
+function armMusicOnSplashGesture(){
+  if(!bgmPrepared||bgmRevision!==cloudRevision||document.hidden)return false;
+  bgmHeldForGameplay=true;
+  bgmGameplayReleased=false;
+  bgmElement().muted=true;
+  return playMusicMedia(); // player.play() is invoked within the trusted click
+}
+function activateMusicAtGameplay(){
+  if(!bgmHeldForGameplay)return false;
+  bgmGameplayReleased=true;
+  const player=bgmElement();
+  if(player.paused&&!bgmStarting){
+    bgmHeldForGameplay=false;
+    return false;
+  }
+  const p=liveProfile('background-music');
+  const bounds=bgmMirrorDuration?{start:0}:
+    limits('background-music',bgmMirrorDuration||
+      Math.max(.05,Number(p.fileDuration)||player.duration||5));
+  try{player.currentTime=bounds.start;}catch(_){}
+  const volume=(window.UNOLuckSound?.masterVolume??.9)*
+    (window.UNOLuckSound?.musicVolume??.22);
+  try{player.volume=clamp(volume,0,1);}catch(_){}
+  player.muted=false;
+  return true;
 }
 function isMusicMediaPlaying(){
   return bgmStarting||Boolean(bgmPlayer&&!bgmPlayer.paused&&!bgmPlayer.ended);
@@ -1128,7 +1160,9 @@ function show(host){
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
-  prepareSplashMedia,playSplashGesture,stopSplashAudio,prepareMusicMedia,playMusicGesture,isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
+  prepareSplashMedia,playSplashGesture,stopSplashAudio,
+  prepareMusicMedia,playMusicGesture,armMusicOnSplashGesture,
+  activateMusicAtGameplay,isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
   syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
