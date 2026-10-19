@@ -124,7 +124,8 @@
   soundStatus.textContent='Sinkronisasi audio desktop → mobile…';
   // Fetch the server-published catalog BEFORE the first iOS sound gesture.
   // Do not block the silent path if network or storage is temporarily down.
-  Promise.resolve(studio?.syncCloud?.()).then(async()=>{
+  Promise.resolve(studio?.syncCloud?.()).then(async(online)=>{
+    if(online!==true)throw Error(studio?.cloudStatus?.()?.error||'Sound Cloud belum siap');
     const published=studio?.publishedProfile?.('soft-tech-splash-screen');
     const local=studio?.profile?.('soft-tech-splash-screen');
     const profile=published?.source==='custom'?published:local;
