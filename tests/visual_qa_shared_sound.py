@@ -89,11 +89,16 @@ with sync_playwright() as p:
     # but a trusted tap anywhere on the splash must retry the published cue.
     m.add_init_script("""(() => {
       window.__splashAttempts=[];
+      window.__splashGesture=false;
+      document.addEventListener('pointerdown',()=>{
+        window.__splashGesture=true;
+        setTimeout(()=>{window.__splashGesture=false;},0);
+      },true);
       const play=HTMLMediaElement.prototype.play;
       HTMLMediaElement.prototype.play=function(...args){
         const source=this.getAttribute('src')||'';
         if(source.includes('soft-tech-splash-screen')){
-          const trusted=Boolean(navigator.userActivation?.isActive);
+          const trusted=Boolean(window.__splashGesture);
           window.__splashAttempts.push({trusted,source});
           if(!trusted)return Promise.reject(new DOMException('Safari autoplay blocked','NotAllowedError'));
         }
