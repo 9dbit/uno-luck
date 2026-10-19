@@ -41,10 +41,11 @@ with sync_playwright() as p:
     errors=[]
     page.on('pageerror',lambda error:errors.append(str(error)))
     page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
-    page.locator('#game-shell').wait_for(state='visible',timeout=25000)
-    # Auto-boot must not create an AudioContext. The menu tap below activates
-    # our deliberately interrupted WebAudio shim on iOS.
+    # A fresh splash never autoplays. The one visible PLAY button is the
+    # only required touch to unlock the custom sound and enter gameplay.
     assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
+    page.locator('#boot-play').click(timeout=17000)
+    page.locator('#game-shell').wait_for(state='visible',timeout=25000)
 
     # The WAV is decoded and saved even when WebAudio is interrupted.
     page.locator('#menu-open').click()
@@ -66,7 +67,6 @@ with sync_playwright() as p:
     # iOS autoplay is intentionally disabled. Custom file is still available
     # in IndexedDB after a reload and can be previewed after the user's tap.
     page.reload(wait_until='domcontentloaded')
-    page.locator('#game-shell').wait_for(state='visible',timeout=25000)
     assert page.locator('#boot-start-sound').count()==0
     assert page.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').custom")
     assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
@@ -78,8 +78,13 @@ with sync_playwright() as p:
             return original.apply(this,args);
         };
     }""")
-    page.screenshot(path=str(OUT/'iphone-auto-splash.png'),full_page=True)
-    assert page.evaluate("window.__iosMediaPlays")==0
+    page.locator('#boot-play').wait_for(state='visible',timeout=15000)
+    page.screenshot(path=str(OUT/'iphone-play-button-ready.png'),full_page=True)
+    assert page.evaluate("window.__iosMediaPlays")==0, 'No unwanted splash autoplay'
+    page.locator('#boot-play').click(timeout=17000)
+    page.wait_for_function("() => window.__iosMediaPlays>0",timeout=7000)
+    page.locator('#game-shell').wait_for(state='visible',timeout=25000)
+    page.screenshot(path=str(OUT/'iphone-splash-play-activated.png'),full_page=True)
     # HTML5 media remains usable after the introductory gesture. Preview
     # must not reject merely because AudioContext.state is interrupted.
     page.locator('#menu-open').click()
@@ -95,7 +100,7 @@ with sync_playwright() as p:
     assert not errors,errors
     context.close()
     browser.close()
-print('PASS: iPhone interrupted WebAudio, hands-free silent splash, saved custom preview on gesture')
+print('PASS: iPhone explicit PLAY starts custom splash under interrupted WebAudio; preview persists after reload')
 
 # Keep the dedicated first-tap BGM regression in the existing visual QA job.
 # This intentionally uses an isolated iPhone context and Safari policy shim.
