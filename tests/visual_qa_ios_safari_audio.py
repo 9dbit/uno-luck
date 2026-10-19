@@ -96,3 +96,8 @@ with sync_playwright() as p:
     context.close()
     browser.close()
 print('PASS: iPhone interrupted WebAudio, hands-free silent splash, saved custom preview on gesture')
+
+# Keep the dedicated first-tap BGM regression in the existing visual QA job.
+# This intentionally uses an isolated iPhone context and Safari policy shim.
+from runpy import run_path
+run_path('tests/visual_qa_gameplay_music.py',run_name='__main__')
