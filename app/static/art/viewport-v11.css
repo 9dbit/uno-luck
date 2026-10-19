@@ -1,0 +1,79 @@
+/* UNO LUCK v1.1 PWA viewport and ambient motion. Loaded last so these
+   constraints win over the original golden-master desktop sizing rules. */
+:root{--uno-viewport-height:100dvh}
+html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+.game-shell{
+  height:var(--uno-viewport-height,100dvh)!important;
+  max-height:var(--uno-viewport-height,100dvh)!important;
+  min-height:0!important;
+  padding-top:calc(env(safe-area-inset-top,0px) + 9px)!important;
+  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 8px)!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+.game-header{min-height:0!important}
+.game-header .uno-logo{
+  transform-origin:50% 50%;
+  animation:unoLuckLogoBreathe 3.5s ease-in-out infinite!important;
+  backface-visibility:hidden;
+}
+@keyframes unoLuckLogoBreathe{
+  0%,100%{transform:translateZ(0) scale(1);filter:brightness(1) drop-shadow(0 0 5px #ff8d3a88)}
+  48%{transform:translateZ(0) scale(1.055);filter:brightness(1.14) drop-shadow(0 0 11px #ffbf4a9c)}
+}
+.wheel-area{overflow:hidden!important;min-height:0!important}
+.wheel-area .wheel-stage{
+  width:var(--uno-wheel-size,min(100%,45dvh))!important;
+  top:0!important;
+  max-width:100%!important;
+  height:auto!important;
+  aspect-ratio:1!important;
+}
+/* Only LED face graphics drift. The 9 metal placeholders and pointer stay fixed. */
+.wheel-led-ring.led-ambient .led-symbol{
+  animation:unoLedIdleGlide 480ms linear infinite;
+}
+@keyframes unoLedIdleGlide{
+  0%{transform:translate3d(-8px,-5%,0) scaleX(1.08);opacity:.72}
+  40%{transform:translate3d(0,-5%,0) scaleX(1.08);opacity:1}
+  100%{transform:translate3d(7px,-5%,0) scaleX(1.08);opacity:.82}
+}
+.boot-overlay{
+  height:var(--uno-viewport-height,100dvh)!important;
+  max-height:var(--uno-viewport-height,100dvh)!important;
+}
+.boot-softtech-logo{
+  width:min(80vw,630px)!important;
+  max-height:52dvh!important;
+  transform-origin:50% 50%;
+  animation:unoSoftTechZoom 1.7s cubic-bezier(.19,.67,.32,1) both!important;
+  will-change:transform,opacity;
+}
+@keyframes unoSoftTechZoom{
+  0%{transform:translateZ(0) scale(.70);opacity:.25;filter:brightness(.7) drop-shadow(0 0 6px #00bfff)}
+  55%{transform:translateZ(0) scale(1.09);opacity:1;filter:brightness(1.45) drop-shadow(0 0 22px #fa31fc)}
+  100%{transform:translateZ(0) scale(1.21);opacity:1;filter:brightness(1.16) drop-shadow(0 0 14px #08caff)}
+}
+/* Original 48–74 px bar reduced to 70% at equal viewport height. */
+.boot-loading-panel{min-height:0!important;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)!important}
+.boot-loading-track{
+  height:clamp(34px,5.6dvh,52px)!important;
+  min-height:0!important;
+}
+.boot-loading-percent{right:12px!important}
+.boot-ready-actions,.boot-sound-gate{display:none!important}
+@media(max-width:350px){
+  .game-shell{padding-top:calc(env(safe-area-inset-top,0px) + 7px)!important}
+}
+@media(orientation:landscape) and (max-height:470px){
+  .game-shell{
+    padding-top:max(env(safe-area-inset-top,0px),3px)!important;
+    padding-bottom:max(env(safe-area-inset-bottom,0px),3px)!important;
+  }
+  .wheel-area .wheel-stage{top:50%!important;transform:translate3d(-50%,-50%,0)!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .game-header .uno-logo,.boot-softtech-logo,
+  .wheel-led-ring.led-ambient .led-symbol{animation:none!important}
+  .boot-softtech-logo{opacity:1!important;transform:none!important}
+}
