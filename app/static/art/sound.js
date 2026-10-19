@@ -153,6 +153,10 @@
   async function music(playIt){
     musicRequested=Boolean(playIt);
     if(!playIt)studio?.stopLoop();
+    // A separately pre-activated HTML5 lane must remain the sole BGM source.
+    // Its trim/repeat/mixer follow the published Sound Cloud profile; WebAudio
+    // running does NOT mean we should stop and replace music at game entry.
+    if(playIt&&studio?.isMusicMediaPlaying?.())return true;
     if(!isActive()){
       if(!playIt)return false;
       // Music has its own mute preference. SFX OFF must not mute music.
