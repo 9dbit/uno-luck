@@ -7,6 +7,7 @@ No coupling to accounts, ledger, RNG, or virtual-coin tables.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -32,6 +33,7 @@ EXT_MIMES = {
 MAX_FILE = 16 * 1024 * 1024
 LOCK = threading.RLock()
 NO_CACHE = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+log = logging.getLogger("uno.sound_cloud")
 
 
 def storage() -> Path:
@@ -43,7 +45,9 @@ def storage() -> Path:
     try:
         path.mkdir(parents=True, exist_ok=True)
         (path / "audio").mkdir(exist_ok=True)
-    except OSError:
+    except OSError as exc:
+        log.error("Sound storage setup failed (%s, errno=%s) path=%s",
+                  type(exc).__name__, getattr(exc, "errno", None), path)
         raise HTTPException(503, "Persistent sound storage tidak tersedia")
     return path
 
@@ -146,6 +150,37 @@ def _audio_mime(filename: str, data: bytes) -> tuple[str, str]:
 def check_admin(request: Request):
     require_admin(request)
     return Response(content='{"ok":true}', media_type="application/json", headers=NO_CACHE)
+
+
+@router.get("/health")
+def sound_health():
+    """Railway startup/readiness probe: verify the mounted volume is actually
+    writable by the application UID, not just attached in service config.
+
+    This is intentionally separate from the virtual-coin gameplay endpoint.
+    """
+    root = storage()
+    with LOCK:
+        data = _read(root)
+        for folder in (root, root / "audio"):
+            probe = folder / (".uno-sound-health-" + secrets.token_hex(8))
+            try:
+                with probe.open("xb") as file:
+                    file.write(b"ok")
+                    file.flush()
+                probe.unlink()
+            except OSError as exc:
+                log.error("Sound volume is not writable (%s, errno=%s) folder=%s",
+                          type(exc).__name__, getattr(exc, "errno", None), folder)
+                raise HTTPException(503, "Sound storage belum dapat ditulis")
+    return Response(
+        content=json.dumps({
+            "ready": True,
+            "published_cues": len(data["cues"]),
+            "revision": data["revision"],
+        }),
+        media_type="application/json", headers=NO_CACHE,
+    )
 
 
 @router.get("/manifest")
