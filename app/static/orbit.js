@@ -107,7 +107,10 @@ async function legacyBonus(endpoint){
   return data;
 }
 function sfx(name){if(sfxEnabled)window.UNOLuckSound?.play(name);}
-function startMusic(){if(musicEnabled)window.UNOLuckSound?.music(true);}
+function startMusic(){
+  if(!musicEnabled||document.hidden)return false;
+  return window.UNOLuckSound?.music(true);
+}
 function stopMusic(){window.UNOLuckSound?.music(false);}
 async function unlockAudio(){
   const ok=await window.UNOLuckSound?.unlock();
@@ -304,7 +307,26 @@ function listeners(){
   $('modal-close').addEventListener('click',closeModal);
   $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
   addEventListener('resize',layoutRing);
-  const activate=()=>{unlockAudio().then(yes=>{if(yes){document.removeEventListener('pointerdown',activate,true);document.removeEventListener('touchend',activate,true);}});};
+  // The intro is hands-free. Background Music is requested immediately on
+  // entering gameplay, not only on a later touch or visibilitychange.
+  document.addEventListener('uno:boot-finished',()=>{
+    if(musicEnabled)void startMusic();
+  });
+  const activate=()=>{
+    if($('game-shell').classList.contains('is-booting'))return;
+    // HTMLMediaElement.play() MUST run in the trusted iOS event before any
+    // awaited AudioContext.resume(), otherwise WebKit may reject the request.
+    if(musicEnabled)void window.UNOLuckSoundStudio?.playMusicGesture?.();
+    void unlockAudio().then(yes=>{
+      const musicReady=!musicEnabled ||
+        window.UNOLuckSound?.webAudioState==='running' ||
+        window.UNOLuckSoundStudio?.isMusicMediaPlaying?.();
+      if(yes&&musicReady){
+        document.removeEventListener('pointerdown',activate,true);
+        document.removeEventListener('touchend',activate,true);
+      }
+    });
+  };
   document.addEventListener('pointerdown',activate,{passive:true,capture:true});
   document.addEventListener('touchend',activate,{passive:true,capture:true});
   document.addEventListener('visibilitychange',()=>{
@@ -314,7 +336,7 @@ function listeners(){
       if(isAuto)cancelAuto=true;
     }else{
       if(!isSpinning)wheel?.startIdle();
-      startMusic();
+      if(!$('game-shell').classList.contains('is-booting'))void startMusic();
     }
   });
 }
