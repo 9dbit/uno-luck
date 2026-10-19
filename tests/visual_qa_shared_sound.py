@@ -41,6 +41,7 @@ with sync_playwright() as p:
     errors=[]
     d.on("pageerror",lambda err:errors.append(str(err)))
     d.goto(URL,wait_until="domcontentloaded")
+    d.locator("#boot-play-sound").click(timeout=15000)
     d.locator("#game-shell").wait_for(state="visible",timeout=26000)
 
     studio=open_studio(d)
@@ -111,7 +112,7 @@ with sync_playwright() as p:
         .some(x=>(x.getAttribute('src')||'').includes('soft-tech-splash-screen'));
       return preloaded && !document.getElementById('boot-overlay').hidden;
     }""",timeout=6500)
-    m.locator('#boot-overlay').tap(position={"x":140,"y":240})
+    m.locator('#boot-play-sound').click(timeout=15000)
     m.wait_for_function("""() => window.__splashAttempts.some(x=>x.trusted)""",timeout=4000)
     m.locator("#game-shell").wait_for(state="visible",timeout=26000)
     assert m.locator("#boot-start-sound").count()==0
