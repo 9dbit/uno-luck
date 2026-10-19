@@ -78,7 +78,7 @@ def test_music_repeat_off_and_on_end_to_end_wiring():
     assert "repeatInput.type='checkbox'" in A
     assert "repeatInput.checked=getDraftRepeat(key)" in A
     assert "setRepeat(key,repeatInput.checked)" in A
-    assert "repeat: getRepeat(key)" in A or "repeat:getRepeat(key)" in A
+    assert "repeat:getDraftRepeat(key)" in A
     assert "const repeat=looping && getRepeat(key)" in A
     assert "source.loop=repeat" in A
     assert "if(repeat)source.start(now,bounds.start)" in A
