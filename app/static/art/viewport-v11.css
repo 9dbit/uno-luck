@@ -1,13 +1,20 @@
 /* UNO LUCK v1.1 PWA viewport and ambient motion. Loaded last so these
    constraints win over the original golden-master desktop sizing rules. */
-:root{--uno-viewport-height:100dvh}
+:root{--uno-viewport-height:100dvh;--uno-wheel-drop:11px}
+/* Standalone iOS PWA has no Safari browser chrome: use full large viewport,
+   including the area underneath the home indicator (controls use padding). */
+@supports (height:100lvh){
+  @media (display-mode:standalone){
+    :root{--uno-viewport-height:100lvh}
+  }
+}
 html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
 .game-shell{
   height:var(--uno-viewport-height,100dvh)!important;
   max-height:var(--uno-viewport-height,100dvh)!important;
   min-height:0!important;
   padding-top:calc(env(safe-area-inset-top,0px) + 9px)!important;
-  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 8px)!important;
+  padding-bottom:max(env(safe-area-inset-bottom,0px),5px)!important;
   box-sizing:border-box!important;
   overflow:hidden!important;
 }
@@ -39,7 +46,7 @@ html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behav
 .wheel-area{overflow:hidden!important;min-height:0!important}
 .wheel-area .wheel-stage{
   width:var(--uno-wheel-size,min(100%,45dvh))!important;
-  top:0!important;
+  top:var(--uno-wheel-drop,11px)!important;
   max-width:100%!important;
   height:auto!important;
   aspect-ratio:1!important;
@@ -145,28 +152,41 @@ html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behav
 /* Full-bleed from the physical screen top through the iOS home-indicator.
    Separate the background from .game-shell's content height/safe area.
    The controls remain inside their existing safe-area bounded grid. */
-html,body{background-color:#120004!important}
+/* Paint a real image on the HTML canvas as well as the fixed visual layer.
+   If iOS WebKit shortens/clips the pseudo-element during safe-area or toolbar
+   transitions, the last pixels show the same lava-temple image, not body black. */
+html{
+  min-height:100%!important;
+  background-color:#120004!important;
+  background-image:linear-gradient(180deg,rgba(13,0,5,.52),rgba(19,0,4,.14)),
+    url('/assets/art/v4/lava-temple.webp')!important;
+  background-repeat:no-repeat!important;
+  background-position:center bottom,center bottom!important;
+  background-size:100% 100%,cover!important;
+}
 body{
   position:relative;
   isolation:isolate;
-  background-color:#120004!important;
-  background-image:none!important;
+  background:transparent!important;
 }
 body::before{
   content:'';
   position:fixed;
   pointer-events:none;
   z-index:0;
-  left:0;right:0;
-  top:calc(-1 * env(safe-area-inset-top,0px));
-  bottom:calc(-1 * env(safe-area-inset-bottom,0px));
-  height:calc(100dvh + env(safe-area-inset-top,0px) + env(safe-area-inset-bottom,0px));
+  inset:0 0 auto;
+  width:100%;
+  height:100vh;
+  height:100lvh;  /* maximum visible iPhone height, below home indicator */
   background-image:linear-gradient(180deg,rgba(13,0,5,.52),rgba(19,0,4,.14)),
     url('/assets/art/v4/lava-temple.webp');
   background-repeat:no-repeat;
-  background-position:center,center;
+  background-position:center bottom;
   background-size:100% 100%,cover;
   transform:translateZ(0);
+}
+@supports not (height:100lvh){
+  body::before{height:100vh}
 }
 .game-shell{
   z-index:1;
