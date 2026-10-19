@@ -39,7 +39,7 @@ def test_ios_media_fallback_preserves_sound_studio_settings():
     assert "limits(key,duration,{draft:previewMode})" in STUDIO
     assert "const fadeIn=bounds.fadeIn" in STUDIO
     assert "const fadeOut=bounds.fadeOut" in STUDIO
-    assert "if(t>=stop-.025)" in STUDIO
+    assert "if(t>=stop-.025&&!mirrorDuration)" in STUDIO
     assert "stopFallback(key)" in STUDIO
     assert "get mediaUnlocked()" in STUDIO
     assert "if(window.UNOLuckSound?.webAudioState!=='running')" in STUDIO
