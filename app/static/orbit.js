@@ -311,13 +311,16 @@ function listeners(){
   // entering gameplay, not only on a later touch or visibilitychange.
   window.addEventListener('uno:boot-finished',()=>{
     if(!musicEnabled)return;
-    // A simultaneous Cloud manifest fetch and HTML5 preload previously
-    // canceled the first background-music start with no retry. Ensure the
-    // exact published clip is ready before requesting autoplay.
+    // Splash PLAY activated a separate music lane inside the user's native
+    // gesture. Unmute it immediately here, without Safari-blocked autoplay.
+    const reserved=window.UNOLuckSoundStudio?.activateMusicAtGameplay?.();
+    if(reserved){
+      void startMusic(); // records requested state; never restarts active media
+      return;
+    }
     void Promise.resolve(window.UNOLuckSoundStudio?.prepareMusicMedia?.())
-      .then(()=>{
-        if(musicEnabled&&!document.hidden)void startMusic();
-      }).catch(error=>console.warn('[UNO GAMEPLAY BGM] preload',error));
+      .then(()=>{if(musicEnabled&&!document.hidden)void startMusic();})
+      .catch(error=>console.warn('[UNO GAMEPLAY BGM] preload',error));
   });
   const activate=()=>{
     if($('game-shell').classList.contains('is-booting'))return;
