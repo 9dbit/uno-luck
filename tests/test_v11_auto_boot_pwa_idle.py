@@ -82,7 +82,7 @@ def test_led_previews_show_random_uno_cards_not_nine_ones():
     assert "const ACTIONS = ['SKIP','REVERSE','+2'];" in WHEEL
     assert "this.displays=previewPack()" in WHEEL
     assert "this.advanceFaces(index)" in WHEEL
-    assert "node.dataset.face=String(card.face)" in WHEEL
+    assert "if(node.dataset.face!==face)node.dataset.face=face" in WHEEL
     assert "this.displays[PICKS]={...this.lastSelected}" in WHEEL
     assert "this.displays[PICKS]={...this.ready.card}" in WHEEL
     assert "textContent='1'" not in WHEEL
