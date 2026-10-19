@@ -85,7 +85,29 @@ with sync_playwright() as p:
         is_mobile=True,has_touch=True,user_agent=IOS_UA)
     m=mobile.new_page()
     m.on("pageerror",lambda err:errors.append(str(err)))
+    # Safari policy simulation: automatic HTML5 splash playback is refused,
+    # but a trusted tap anywhere on the splash must retry the published cue.
+    m.add_init_script("""(() => {
+      window.__splashAttempts=[];
+      const play=HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play=function(...args){
+        const source=this.getAttribute('src')||'';
+        if(source.includes('soft-tech-splash-screen')){
+          const trusted=Boolean(navigator.userActivation?.isActive);
+          window.__splashAttempts.push({trusted,source});
+          if(!trusted)return Promise.reject(new DOMException('Safari autoplay blocked','NotAllowedError'));
+        }
+        return play.apply(this,args);
+      };
+    })();""")
     m.goto(URL,wait_until="domcontentloaded")
+    m.wait_for_function("""() => {
+      const preloaded=[...document.querySelectorAll('audio')]
+        .some(x=>(x.getAttribute('src')||'').includes('soft-tech-splash-screen'));
+      return preloaded && !document.getElementById('boot-overlay').hidden;
+    }""",timeout=6500)
+    m.locator('#boot-overlay').tap(position={"x":140,"y":240})
+    m.wait_for_function("""() => window.__splashAttempts.some(x=>x.trusted)""",timeout=4000)
     m.locator("#game-shell").wait_for(state="visible",timeout=26000)
     assert m.locator("#boot-start-sound").count()==0
     assert m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen').source")=="custom"
