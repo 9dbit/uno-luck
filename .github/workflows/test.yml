@@ -46,7 +46,7 @@ jobs:
             if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
             sleep 1
           done
-          python -m py_compile tests/visual_qa_shared_sound.py
+          python -m py_compile tests/visual_qa_shared_sound.py tests/visual_qa_smooth_hud_splash.py
           python tests/visual_qa_led_chase.py
           python tests/visual_qa_smooth_hud_splash.py
           python tests/visual_qa_sound_studio.py
