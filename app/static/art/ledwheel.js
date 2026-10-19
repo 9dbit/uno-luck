@@ -144,24 +144,44 @@
       this.host.classList.add('led-running');
       this.chaseFace();
       this.illuminate(0);
+      this.deceleration=null;
+      this.nextChaseAt=this.startedAt;
+      this.host.dataset.spinPhase='accelerate';
       this.pending=new Promise(resolve=>{this.resolve=resolve;});
       if(REDUCED)return;
       const tick=now=>{
         if(!this.active)return;
-        const dt=now-this.startedAt;
-        const slowed=Boolean(this.ready&&now>=this.minimum);
-        const interval=slowed?(this.turbo?115:205):
-          (this.turbo?50:Math.min(120,64+Math.floor(dt/230)*9));
-        if(now-this.lastTick>=interval){
+        // Do not plan an endpoint until the server has acknowledged the card.
+        // Once acknowledged, choose a whole number of remaining steps that
+        // ends EXACTLY at the fixed fifth LED under the golden pointer.
+        if(this.ready&&now>=this.minimum&&!this.deceleration){
+          const minimumSteps=10;
+          const extra=(PICKS-this.chaseIndex-minimumSteps+this.count*4)%this.count;
+          this.deceleration={total:minimumSteps+extra,remaining:minimumSteps+extra};
+          this.host.classList.add('led-slowing');
+          this.host.dataset.spinPhase='decelerate';
+        }
+        if(now>=this.nextChaseAt){
           this.lastTick=now;
           this.illuminate((this.chaseIndex+1)%this.count);
-          if(slowed)this.host.classList.add('led-slowing');
-          window.UNOLuckSound?.ledTick(slowed);
-          // The central pointer can lock ONLY after a real acknowledged
-          // server card. The illumination is cosmetic and cannot pick a win.
-          if(slowed&&this.chaseIndex===PICKS){
-            this.complete();return;
+          if(this.deceleration){
+            const ramp=this.deceleration;
+            ramp.remaining--;
+            if(ramp.remaining===0){
+              // The geometry calculation guarantees the center index.
+              if(this.chaseIndex!==PICKS)throw Error('LED end-stop alignment failed');
+              this.complete();return;
+            }
+            const progress=(ramp.total-ramp.remaining)/ramp.total;
+            const smooth=progress*progress*(3-2*progress);
+            // A continuous ease-out: 48ms -> ~300ms (normal), or
+            // 34ms -> ~225ms (turbo). No sudden speed jump at server ACK.
+            const quick=this.turbo?34:48,braking=this.turbo?191:252;
+            this.nextChaseAt=now+quick+braking*smooth;
+          }else{
+            this.nextChaseAt=now+(this.turbo?34:48);
           }
+          window.UNOLuckSound?.ledTick(Boolean(this.deceleration));
         }
         this.raf=requestAnimationFrame(tick);
       };
@@ -186,6 +206,8 @@
       cancelAnimationFrame(this.raf);
       this.raf=0;
       this.active=false;
+      this.host.dataset.spinPhase='locked';
+      this.deceleration=null;
       this.cardConfirmed=true;
       if(!this.ready?.card)throw Error('LED cannot finish without server-selected card');
       this.lastSelected={...this.ready.card};
@@ -240,6 +262,8 @@
       this.clearIllumination();
       cancelAnimationFrame(this.raf);this.raf=0;
       this.active=false;this.ready=null;this.injected=false;
+      this.deceleration=null;
+      this.host.dataset.spinPhase='idle';
       this.host.classList.remove('led-running','led-slowing');
       if(this.resolve)this.resolve(false);
       this.resolve=null;this.pending=null;
