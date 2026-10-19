@@ -352,7 +352,7 @@ body::before{
   text-shadow:0 2px 2px #000b!important;
   filter:none!important;
 }
-.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-dimmed .led-screen{
+.wheel-led-ring:is(.led-ambient,.led-running,.led-locked,.led-idle) .led-slot.led-dimmed .led-screen{
   opacity:1!important;
   filter:brightness(.37) saturate(.72)!important;
   box-shadow:inset 0 0 0 2px #ffffff4a,inset 0 0 15px #000a!important;
@@ -361,7 +361,7 @@ body::before{
   opacity:1!important;
   color:#c8cbd4!important;
 }
-.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-illuminated .led-screen,
+.wheel-led-ring:is(.led-ambient,.led-running,.led-idle) .led-slot.led-illuminated .led-screen,
 .wheel-led-ring.led-locked .led-slot:nth-child(5) .led-screen{
   opacity:1!important;
   filter:brightness(1.35) saturate(1.25)!important;

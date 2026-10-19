@@ -9,6 +9,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 BASE=os.environ.get("UNO_QA_URL","http://127.0.0.1:8080/")
+ENGINE=os.environ.get('UNO_QA_ENGINE','webkit')
 OUT=Path("artifacts/uno-v12-iphone15pro-fullbleed")
 OUT.mkdir(parents=True,exist_ok=True)
 
@@ -18,8 +19,10 @@ MODES=[
     ("pwa-physical-safe-area",393,852),
     ("portrait-small",320,700),
     ("portrait-short",320,568),
+    ("portrait-390",390,844),
     ("portrait-large",430,932),
     ("landscape",852,393),
+    ("desktop",1440,1000),
 ]
 
 def inspect(page):
@@ -58,7 +61,7 @@ def inspect(page):
     }""")
 
 with sync_playwright() as p:
-    engine=p.webkit
+    engine=getattr(p,ENGINE)
     browser=engine.launch(headless=True)
     device={k:v for k,v in p.devices['iPhone 15 Pro'].items()
             if k!='default_browser_type'}
@@ -113,7 +116,7 @@ with sync_playwright() as p:
             assert item['left']>=-2 and item['right']<=width+2,(name,item)
             assert item['top']>=-2 and item['bottom']<=data['innerHeight']+2,(name,item)
         assert not errors,(name,errors)
-        page.screenshot(path=str(OUT/f"iphone15pro-{name}.png"),full_page=True)
+        page.screenshot(path=str(OUT/f"{ENGINE}-iphone15pro-{name}.png"),full_page=True)
         context.close()
     browser.close()
-print("PASS: WebKit iPhone15Pro portrait/Safari/PWA-size/landscape: lava background to bottom, full game viewport, safe action controls")
+print(f"PASS: {ENGINE} iPhone15Pro portrait/PWA-size/landscape/desktop: lava background to bottom, full game viewport, safe action controls")
