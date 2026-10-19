@@ -33,8 +33,7 @@ def test_probability_thresholds_and_server_independence(monkeypatch):
 
 @pytest.mark.parametrize('rank,multiplier',[(1,200),(2,80),(3,30),(4,10),(5,2)])
 def test_each_rank_exactly_settled_once(client,monkeypatch,rank,multiplier):
-    monkeypatch.setattr(orbit,'choose_cards',matched)
-    monkeypatch.setattr(orbit,'choose_tier',lambda:rank)
+    monkeypatch.setattr(orbit,'choose_cards',lambda:orbit.cards_for_tier(rank))
     prefix=f'celebrate_rank_{rank}'
     first=pick(client,prefix+'_phase_one').json()
     assert first['round']['tier'] is None and first['account']['balance']==975
@@ -68,8 +67,7 @@ def test_no_match_never_has_tier_or_payout(client,monkeypatch):
     assert last['round']['payout']==0
 
 def test_max_wallet_cap_is_actual_credited_not_fake_advertised_payout(client,monkeypatch):
-    monkeypatch.setattr(orbit,'choose_cards',matched)
-    monkeypatch.setattr(orbit,'choose_tier',lambda:1)
+    monkeypatch.setattr(orbit,'choose_cards',lambda:orbit.cards_for_tier(1))
     db=spin.connection();db.execute('UPDATE accounts SET balance=999990');db.close()
     for i in range(1,4):response=pick(client,f'coin_cap_phase_{i}',250)
     round_=response.json()['round'];acct=response.json()['account']
@@ -89,7 +87,8 @@ def test_existing_v09_table_migrates_without_losing_guest(client):
     db.commit()
     orbit._initialized.clear()
     orbit.create_schema(db)
-    assert 'tier' in {r['name'] for r in db.execute('PRAGMA table_info(orbit_rounds)')}
+    columns = {r['name'] for r in db.execute('PRAGMA table_info(orbit_rounds)')}
+    assert 'tier' in columns and 'rules_version' in columns
     db.close()
     assert client.get('/api/orbit/state').status_code==200
 
