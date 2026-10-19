@@ -57,7 +57,8 @@
     const cfg=lookup[selected];
     if(!Number.isInteger(selected)||!cfg)return false;
     if(!preview && (result.tier.title!==cfg.name || result.tier.multiplier!==cfg.multiplier ||
-      !result.cards?.every(card=>card.color===result.cards[0].color)))return false;
+      !result.cards?.every(card=>card.color===result.cards[0].color) ||
+      (result.rules_version>=2 && result.tier.pattern!==result.pattern)))return false;
     const token=++generation;
     if(!preview){
       const announced=await window.UNOLuckMatch?.reveal(result);
@@ -75,6 +76,11 @@
     overlay.setAttribute('aria-label',`${cfg.name} peringkat ${selected}${preview?' preview':''}`);
     $('celebration-art').src=`/assets/art/v3/tier-${selected}.webp`;
     $('celebration-title').textContent=cfg.name;
+    const matchedPattern=$('celebration-pattern');
+    if(matchedPattern){
+      matchedPattern.textContent=preview?'':String(result.tier?.rule||'');
+      matchedPattern.hidden=preview||!matchedPattern.textContent;
+    }
     const fmt=n=>new Intl.NumberFormat('id-ID').format(n);
     $('celebration-amount').textContent=preview?`${cfg.multiplier}× · PREVIEW TANPA HADIAH`:
       `PAYOUT ${fmt(result.payout)} koin · WIN ${result.delta>=0?'+':''}${fmt(result.delta)}`;

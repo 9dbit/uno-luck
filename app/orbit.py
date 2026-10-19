@@ -1,9 +1,10 @@
 """Three-click UNO LUCK circular card spin. Koin are virtual and non-redeemable.
 
 The three selected cards are chosen server-side at round creation and revealed
-one by one. 80% of newly generated rounds have three cards of one color; the
-remaining 20% never have a complete color match. One round costs one stake,
-and awards one of five disclosed virtual multipliers on a color match.
+one by one. Exactly 80% of the outcome generator's base gate qualifies for one
+of five UNO-inspired card patterns (20% NO_MATCH). Rank is derived from the
+actual three-card hand, never drawn independently after the cards exist.
+One round costs one stake; all coins remain non-redeemable virtual credits.
 """
 from __future__ import annotations
 
@@ -19,25 +20,41 @@ from . import spin
 
 router = APIRouter(prefix="/api/orbit", tags=["UNO LUCK Orbit"])
 WIN_PERCENT = 80
+RULES_VERSION = 2
 FACES = spin.FACES
 COLORS = spin.COLORS
+ACTION_TRIO = frozenset(('SKIP', 'REVERSE', '+2'))
 
-# Per-winning-round probabilities in millionths; unbiased and independent.
-# Across all completed rounds 20% NO_MATCH, 80% Color Match.
-# Jackpot tiers are assigned at creation, not at spin #3 and not on client.
+# Unchanged per-winning-round weights (millionths) and payout table.
+# Each weight now controls which card-pattern template gets generated.
+# The authoritative payout rank is independently CLASSIFIED FROM THE CARDS.
 CELEBRATIONS = {
-    1: {'title': 'DRAGON KING JACKPOT', 'theme': 'dragon', 'multiplier': 200, 'weight': 100},
-    2: {'title': 'IMPERIAL FORTUNE', 'theme': 'imperial', 'multiplier': 80, 'weight': 900},
-    3: {'title': 'PHOENIX COLOR BLAST', 'theme': 'phoenix', 'multiplier': 30, 'weight': 4000},
-    4: {'title': 'GOLDEN MATCH', 'theme': 'emerald', 'multiplier': 10, 'weight': 30000},
-    5: {'title': 'LUCKY COLOR WIN', 'theme': 'ruby', 'multiplier': 2, 'weight': 965000},
+    1: {'title': 'DRAGON KING JACKPOT', 'theme': 'dragon', 'multiplier': 200,
+        'weight': 100, 'pattern': 'TRIPLE_DRAW_FOUR',
+        'rule': '3 kartu Wild Draw Four (+4)'},
+    2: {'title': 'IMPERIAL FORTUNE', 'theme': 'imperial', 'multiplier': 80,
+        'weight': 900, 'pattern': 'TRIPLE_WILD',
+        'rule': '3 kartu Wild (ganti warna)'},
+    3: {'title': 'PHOENIX COLOR BLAST', 'theme': 'phoenix', 'multiplier': 30,
+        'weight': 4000, 'pattern': 'ACTION_TRIO',
+        'rule': 'Skip + Reverse + Draw Two (+2), semuanya satu warna'},
+    4: {'title': 'GOLDEN MATCH', 'theme': 'emerald', 'multiplier': 10,
+        'weight': 30000, 'pattern': 'COLOR_STRAIGHT',
+        'rule': '3 angka berurutan (0-9), semuanya satu warna'},
+    5: {'title': 'LUCKY COLOR WIN', 'theme': 'ruby', 'multiplier': 2,
+        'weight': 965000, 'pattern': 'COLOR_MATCH',
+        'rule': '3 kartu satu warna, selain kombinasi Rank 3 dan 4'},
 }
 WEIGHT_SCALE = 1_000_000
 assert sum(t['weight'] for t in CELEBRATIONS.values()) == WEIGHT_SCALE
 
 
 def choose_tier() -> int:
-    """Cryptographic weighted choice; no daily quota or player-linked adjustment."""
+    """Draw a winning HAND TEMPLATE with unchanged cryptographic weights.
+
+    The payout rank is still classified from real card faces, not this draw.
+    No daily quota, pity timer, user-linked adjustment, or client RNG.
+    """
     roll = secrets.randbelow(WEIGHT_SCALE)
     for rank in sorted(CELEBRATIONS):
         roll -= CELEBRATIONS[rank]['weight']
@@ -46,11 +63,15 @@ def choose_tier() -> int:
     raise RuntimeError('tier probability table invalid')
 
 
-def rank_details(rank: int | None) -> dict | None:
+def rank_details(rank: int | None, *, legacy: bool = False) -> dict | None:
     if rank not in CELEBRATIONS:
         return None
     tier = CELEBRATIONS[rank]
-    return {k: tier[k] for k in ('title', 'theme', 'multiplier')} | {'rank': rank}
+    details = {k: tier[k] for k in ('title', 'theme', 'multiplier', 'pattern', 'rule')} | {'rank': rank}
+    if legacy:
+        details['pattern'] = 'LEGACY_COLOR_MATCH'
+        details['rule'] = 'Ronde lama: tiga kartu satu warna, dengan Rank versi sebelum perubahan kombinasi'
+    return details
 
 
 class PickRequest(BaseModel):
@@ -70,6 +91,7 @@ def create_schema(db: sqlite3.Connection) -> None:
             payout INTEGER NOT NULL DEFAULT 0,
             combo TEXT NOT NULL,
             tier INTEGER CHECK(tier BETWEEN 1 AND 5),
+            rules_version INTEGER NOT NULL DEFAULT 1,
             created_at REAL NOT NULL,
             finished_at REAL,
             UNIQUE(account_id,start_key)
@@ -89,6 +111,9 @@ def create_schema(db: sqlite3.Connection) -> None:
     existing = {r['name'] for r in db.execute('PRAGMA table_info(orbit_rounds)').fetchall()}
     if 'tier' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN tier INTEGER CHECK(tier BETWEEN 1 AND 5)')
+    # Old/unfinished rounds keep their original pre-pattern rank and payout.
+    if 'rules_version' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN rules_version INTEGER NOT NULL DEFAULT 1')
 
 
 def open_db() -> sqlite3.Connection:
@@ -103,16 +128,86 @@ def open_db() -> sqlite3.Connection:
 _initialized: set[str] = set()
 
 
+def classify_rank(cards: list[dict]) -> int | None:
+    """Classify EXACTLY the displayed three UNO-inspired cards.
+
+    Ordered from most specific pattern to broad Color Match. Wild cards have
+    NO color; only triple Wild or triple +4 are winning wild combinations.
+    This is UNO LUCK's custom reward system, not a rule of Mattel UNO.
+    """
+    if len(cards) != 3 or not all(isinstance(card, dict) for card in cards):
+        return None
+    colors = [card.get('color') for card in cards]
+    faces = [str(card.get('face')) for card in cards]
+    if colors == ['wild'] * 3:
+        if faces == ['+4'] * 3:
+            return 1
+        if faces == ['WILD'] * 3:
+            return 2
+        return None  # mixed Wild/+4 is not a paid pattern
+    if len(set(colors)) != 1 or colors[0] not in COLORS:
+        return None
+    if frozenset(faces) == ACTION_TRIO and len(set(faces)) == 3:
+        return 3
+    if all(face in ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9') for face in faces):
+        numbers = sorted(int(face) for face in faces)
+        if numbers[1] == numbers[0] + 1 and numbers[2] == numbers[1] + 1:
+            return 4
+    if all(face in FACES for face in faces):
+        return 5
+    return None
+
+
+def cards_for_tier(rank: int) -> list[dict]:
+    """Generate a recognizable 3-card pattern using a CSPRNG.
+
+    Patterns are consistent with quantities in one classic 108-card UNO deck:
+    four Wild +4, four Wild, each colored 0 once and 1-9/action twice.
+    Each round is a weighted virtual outcome, NOT an unweighted deck shuffle.
+    """
+    if rank == 1:
+        return [{'color': 'wild', 'face': '+4'} for _ in range(3)]
+    if rank == 2:
+        return [{'color': 'wild', 'face': 'WILD'} for _ in range(3)]
+    if rank not in (3, 4, 5):
+        raise ValueError('Unknown combination rank')
+    color = secrets.choice(COLORS)
+    if rank == 3:
+        faces = ['SKIP', 'REVERSE', '+2']
+    elif rank == 4:
+        start = secrets.randbelow(8)  # 0-1-2 through 7-8-9
+        faces = [str(start + offset) for offset in range(3)]
+    else:
+        for _ in range(100):
+            faces = [secrets.choice(FACES) for _ in range(3)]
+            if faces.count('0') > 1 or len(set(faces)) == 1:
+                continue  # avoid combinations impossible in a single deck
+            sample = [{'color': color, 'face': face} for face in faces]
+            if classify_rank(sample) == 5:
+                break
+        else:
+            raise RuntimeError('Could not generate ordinary Color Match')
+    secrets.SystemRandom().shuffle(faces)
+    return [{'color': color, 'face': face} for face in faces]
+
+
 def choose_cards() -> list[dict]:
-    """Secure Bernoulli draw; winning and losing branches cannot overlap."""
+    """80% winning pattern vs 20% non-winning, unchanged odds."""
     winner = secrets.randbelow(100) < WIN_PERCENT
-    colors = [secrets.choice(COLORS) for _ in range(3)]
     if winner:
-        colors = [colors[0]] * 3
-    elif len(set(colors)) == 1:
-        remaining = [c for c in COLORS if c != colors[0]]
-        colors[2] = secrets.choice(remaining)
-    return [dict(color=c, face=secrets.choice(FACES)) for c in colors]
+        sampled_template = choose_tier()
+        cards = cards_for_tier(sampled_template)
+        # Server must pay what the actual cards represent, never a separate roll.
+        if classify_rank(cards) != sampled_template:
+            raise RuntimeError('Card combination and payout rank disagree')
+        return cards
+    colors = [secrets.choice(COLORS) for _ in range(3)]
+    if len(set(colors)) == 1:
+        colors[2] = secrets.choice([c for c in COLORS if c != colors[0]])
+    cards = [{'color': color, 'face': secrets.choice(FACES)} for color in colors]
+    if classify_rank(cards) is not None:
+        raise RuntimeError('NO_MATCH accidentally generated a winning pattern')
+    return cards
 
 
 def current_round(db: sqlite3.Connection, aid: str):
@@ -123,13 +218,25 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
     if round_row is None:
         return None
     picked = round_row['picked'] if phase is None else min(phase, round_row['picked'])
-    cards = json.loads(round_row['cards_json'])[:picked]
+    dealt = json.loads(round_row['cards_json'])
+    cards = dealt[:picked]
     complete = picked == 3
+    saved_rank = (round_row['tier'] or 5) if round_row['combo'] == 'COLOR_MATCH' else None
+    version = int(round_row['rules_version'])
+    if complete and version >= RULES_VERSION and round_row['combo'] == 'COLOR_MATCH':
+        if classify_rank(dealt) != saved_rank:
+            raise RuntimeError('Stored prize rank contradicts actual dealt cards')
+    pattern = None
+    if complete and round_row['combo'] == 'COLOR_MATCH':
+        pattern = (CELEBRATIONS[saved_rank]['pattern']
+                   if version >= RULES_VERSION and saved_rank in CELEBRATIONS
+                   else 'LEGACY_COLOR_MATCH')
     return {
         'id': round_row['id'], 'picked': picked, 'stake': round_row['stake'],
         'cards': cards, 'complete': complete,
         'combo': round_row['combo'] if complete else None,
-        'tier': rank_details(round_row['tier']) if complete and round_row['combo'] == 'COLOR_MATCH' else None,
+        'tier': rank_details(saved_rank, legacy=version < RULES_VERSION) if complete and round_row['combo'] == 'COLOR_MATCH' else None,
+        'pattern': pattern, 'rules_version': version,
         'payout': round_row['payout'] if complete else None,
         'delta': round_row['payout'] - round_row['stake'] if complete else None,
     }
@@ -137,7 +244,8 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
 
 def public_rules() -> dict:
     return {
-        'mode': 'three-pick-orbit', 'virtual_only': True, 'win_probability_percent': WIN_PERCENT,
+        'mode': 'three-pick-orbit', 'virtual_only': True, 'rules_version': RULES_VERSION,
+        'win_probability_percent': WIN_PERCENT, 'winning_combinations_percent': WIN_PERCENT,
         'stake_options': spin.COSTS,
         'base_payout_multiplier': 2, 'payout_multiplier': 2,
         'celebrations': [rank_details(rank) | {
@@ -146,7 +254,7 @@ def public_rules() -> dict:
         } for rank in sorted(CELEBRATIONS)],
         'coin_cap': spin.COIN_CAP,
         'spin_sequence': ['kiri','tengah','kanan'],
-        'note': 'Setiap ronde tiga SPIN dan satu biaya. 80% Color Match dengan tier acak independen 2x/10x/30x/80x/200x, 20% tidak cocok. Hadiah dapat dibatasi batas saldo virtual 1.000.000. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
+        'note': 'Setiap ronde 3 SPIN dan 1 biaya. Peluang 80% untuk salah satu dari 5 pola kartu UNO-inspired, 20% NO_MATCH. Payout rank ditentukan dari 3 kartu yang benar-benar muncul. Weight adalah generator virtual, bukan shuffle dek UNO asli. Saldo dapat dibatasi 1.000.000 koin. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
     }
 
 
@@ -158,8 +266,15 @@ def state(request: Request, response: Response):
         row = current_round(db, account['id'])
         hist = spin.spin_history(db, account['id'], 8)
         for item in hist:
-            tier_row = db.execute('SELECT tier FROM orbit_rounds WHERE id=? AND account_id=?', (item['id'], account['id'])).fetchone()
-            item['tier'] = rank_details(tier_row['tier']) if tier_row and item['combo'] == 'COLOR_MATCH' else None
+            tier_row = db.execute('SELECT tier,rules_version,cards_json FROM orbit_rounds WHERE id=? AND account_id=?', (item['id'], account['id'])).fetchone()
+            version = int(tier_row['rules_version']) if tier_row else 1
+            item['tier'] = (rank_details(tier_row['tier'] or 5, legacy=version < RULES_VERSION)
+                if tier_row and item['combo'] == 'COLOR_MATCH' else None)
+            item['pattern'] = (CELEBRATIONS[tier_row['tier']]['pattern']
+                if tier_row and version >= RULES_VERSION and item['combo'] == 'COLOR_MATCH'
+                and tier_row['tier'] in CELEBRATIONS else
+                'LEGACY_COLOR_MATCH' if tier_row and item['combo'] == 'COLOR_MATCH' else None)
+            item['rules_version'] = version
         response.headers['Cache-Control'] = 'no-store'
         return {'account': spin.account_view(account), 'round': view_round(row),
                 'recent': hist, 'rules': public_rules()}
@@ -197,11 +312,11 @@ def pick(request: Request, response: Response, payload: PickRequest):
             if acct['balance'] < payload.stake:
                 raise HTTPException(409,'Koin tidak cukup. Klaim hadiah atau refill gratis.')
             cards=choose_cards()
-            combo,_=spin.classify(cards,payload.stake)
-            tier=choose_tier() if combo=='COLOR_MATCH' else None
+            tier=classify_rank(cards)  # derives payout exclusively from dealt cards
+            combo='COLOR_MATCH' if tier is not None else 'NO_MATCH'
             rid=spin.new_id()
-            db.execute('INSERT INTO orbit_rounds(id,account_id,start_key,stake,cards_json,picked,combo,tier,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-                       (rid,aid,payload.request_id,payload.stake,json.dumps(cards,separators=(',',':')),1,combo,tier,stamp))
+            db.execute('INSERT INTO orbit_rounds(id,account_id,start_key,stake,cards_json,picked,combo,tier,rules_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                       (rid,aid,payload.request_id,payload.stake,json.dumps(cards,separators=(',',':')),1,combo,tier,RULES_VERSION,stamp))
             new_balance=acct['balance']-payload.stake
             db.execute('UPDATE accounts SET balance=? WHERE id=?',(new_balance,aid))
             db.execute('INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)',
@@ -216,7 +331,10 @@ def pick(request: Request, response: Response, payload: PickRequest):
             if picked > 3:
                 raise HTTPException(409,'Ronde ini sudah selesai')
             if picked == 3:
-                rank=row['tier'] or 5  # Legacy unfinished Color Match remains 2x.
+                rank=row['tier'] or 5  # Existing v1 unfinished Color Match keeps its original award.
+                if row['combo']=='COLOR_MATCH' and int(row['rules_version'])>=RULES_VERSION:
+                    if classify_rank(json.loads(row['cards_json'])) != rank:
+                        raise RuntimeError('Invalid stored card/payout combination; settlement blocked')
                 multiplier=CELEBRATIONS[rank]['multiplier'] if row['combo']=='COLOR_MATCH' else 0
                 payout=multiplier * row['stake']
                 new_balance=min(spin.COIN_CAP,acct['balance']+payout)

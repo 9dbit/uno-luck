@@ -17,6 +17,9 @@
     if(!result?.complete || result.combo!=='COLOR_MATCH' ||
        !result.tier?.rank || !result.cards || result.cards.length!==3 ||
        !(result.cards.every(card=>card.color===result.cards[0].color)))return false;
+    // Wild and +4 cards have no color in actual UNO. Their triple-card
+    // jackpots may advance to Celebration without falsely announcing COLOR MATCH.
+    if(result.cards[0].color==='wild'){clear();return true;}
     clear();
     const marker=generation;
     art.hidden=false;

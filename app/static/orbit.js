@@ -9,7 +9,7 @@ const RING_COUNT = 9;
 const MUTE_MUSIC = 'uno_orbit_music';
 const MUTE_EFFECTS = 'uno_orbit_sfx';
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let account = null, currentRound=null, last=null, stakeIndex=1, isSpinning=false;
+let account = null, currentRound=null, last=null, ruleset=null, stakeIndex=1, isSpinning=false;
 let isTurbo=false, isAuto=false, cancelAuto=false, ringCards=[], wheel=null;
 let audioContext=null, musicTimer=null, musicEnabled=localStorage.getItem(MUTE_MUSIC)!=='off';
 let sfxEnabled=localStorage.getItem(MUTE_EFFECTS)!=='off', nextMusicAt=0, musicStep=0;
@@ -225,7 +225,18 @@ async function claimDaily(){try{const x=await legacyBonus('daily');syncAccount(x
 async function claimRefill(){try{const x=await legacyBonus('refill');syncAccount(x.account);sfx('coin');say(`Refill gratis +${idMoney(x.credited)} koin`);closeModal();}catch(e){say(e.message);}}
 function showWallet(){const area=modal('Koin Virtual');paragraph(area,`Saldo saat ini ${idMoney(account?.balance||0)} koin.`);paragraph(area,'Tidak ada deposit, penarikan tunai, jual-beli koin, atau hadiah bernilai uang.');modalButton(area,'🎁 Klaim +250 harian',claimDaily).disabled=!account?.daily_available;modalButton(area,'✦ Refill gratis +1.000',claimRefill).disabled=!account?.refill_available;}
 async function showHistory(){const area=modal('Riwayat Ronde');try{const x=await api('/state');const list=x.recent||[];if(!list.length)paragraph(area,'Belum ada ronde selesai.');for(const item of list){const row=document.createElement('div');row.className='history-line';row.textContent=`${item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':'NO MATCH')} · Biaya ${idMoney(item.stake)} · ${item.delta>=0?'+':''}${idMoney(item.delta)} koin`;area.append(row);}}catch(e){paragraph(area,e.message);}}
-function showRules(){const area=modal('Aturan UNO LUCK Color Match');paragraph(area,'Satu ronde memiliki tiga SPIN: kartu kiri, tengah, lalu kanan. Kartu yang terpilih adalah kartu tepat di posisi tengah atas carousel saat berhenti.');paragraph(area,'Biaya ronde hanya dipotong sekali pada SPIN pertama. Tiga warna sama memenangkan salah satu bonus 2×, 10×, 30×, 80×, atau 200× setelah SPIN ketiga.');paragraph(area,'Peluang Color Match 80% per ronde, NO MATCH 20%. Dari ronde menang: Rank 1 0,01%; Rank 2 0,09%; Rank 3 0,4%; Rank 4 3%; Rank 5 96,5%. Semua hasil independen dari putaran sebelumnya; tidak ada jaminan jackpot berdasarkan jumlah cycle.');paragraph(area,'Angka kartu, Reverse, Skip dan +2 hanya simbol dalam mode ini. AUTO hingga 10 ronde dan TURBO hanya mengubah kecepatan animasi, bukan peluang menang.');paragraph(area,'Semua koin virtual tidak memiliki nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat membatasi payout yang benar-benar dikreditkan. Peluang tinggi dan bonus besar berarti ekonomi koin gratis dapat terus bertambah.');}
+function showRules(){
+  const area=modal('Aturan UNO LUCK · 5 Kombinasi');
+  paragraph(area,'Tiga SPIN membentuk satu ronde: kartu kiri, tengah, kanan. BET dipotong sekali pada SPIN pertama. Hasil ditentukan oleh server, lalu diumumkan setelah SPIN ketiga.');
+  paragraph(area,'Ada lima pola kartu yang bisa menang. Wild dan Wild +4 tidak mempunyai warna; hanya tiga Wild sejenis yang memenuhi Rank 1/2. Warna sama biasa memenuhi Rank 5 jika bukan Rank 3/4.');
+  if(ruleset?.celebrations?.length){
+    for(const tier of ruleset.celebrations){
+      paragraph(area,`RANK ${tier.rank} · ${tier.title} · ${tier.rule} · ${tier.multiplier}× BET · ${tier.conditional_win_probability_percent}% dari ronde menang.`);
+    }
+  }else paragraph(area,'Daftar kombinasi sedang disinkronkan dari server. Periksa koneksi sebelum bermain.');
+  paragraph(area,'Peluang menang dasar 80% dan NO MATCH 20%. Distribusi Rank mempertahankan bobot virtual yang telah dipublikasikan, bukan peluang pengocokan dek UNO fisik. Kombinasi ditentukan sebelum ronde dimulai; tidak ada jaminan jackpot atau bonus setelah sejumlah spin.');
+  paragraph(area,'AUTO maksimal 10 ronde, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
+}
 function showStakeChoices(){const area=modal('Biaya SPIN');paragraph(area,'Pilih biaya satu ronde tiga SPIN. Perubahan hanya dapat dilakukan sebelum ronde dimulai.');for(const [i,cost] of STAKES.entries()){const btn=modalButton(area,`${cost===STAKES[stakeIndex]?'✓ ':''}${idMoney(cost)} koin`,()=>{stakeIndex=i;paintRound(null,true);updateButtons();closeModal();say(`Biaya ronde berikutnya ${idMoney(cost)} koin.`);});btn.disabled=!!currentRound;}}
 function showCelebrationGallery(){
   const area=modal('Galeri Celebration · Demo Visual');
@@ -236,6 +247,8 @@ function showCelebrationGallery(){
     modalButton(area,`PERINGKAT ${rank} · ${item.name} · ${item.multiplier}×`,async()=>{
       closeModal();await unlockAudio();window.UNOLuckCelebration.present(null,{preview:true,rank});
     });
+    const rule=ruleset?.celebrations?.find(t=>t.rank===rank)?.rule;
+    if(rule)paragraph(area,'Kombinasi: '+rule);
   }
 }
 async function testSound(){
@@ -279,11 +292,11 @@ function showSoundStudio(){
   if(window.UNOLuckSoundStudio)window.UNOLuckSoundStudio.show(area);
   else paragraph(area,'Sound Studio belum tersedia. Refresh halaman.');
 }
-function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Sound Studio · 12 Custom Sound Effects',showSoundStudio);
+function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan Kombinasi & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Sound Studio · 12 Custom Sound Effects',showSoundStudio);
 modalButton(area,'Mixer Master · Musik · SFX',showSoundVolume);modalButton(area,'Tes Suara Meriah',testSound);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');window.UNOLuckSound?.setEnabled(sfxEnabled);if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v1.1 · staging · hadiah virtual tanpa nilai tunai.');}
 function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 async function loadState(quiet=false){
-  try{const data=await api('/state');syncAccount(data.account);currentRound=data.round;
+  try{const data=await api('/state');ruleset=data.rules||ruleset;syncAccount(data.account);currentRound=data.round;
     if(data.round){paintRound(data.round);}else if(data.recent?.length){const lastSpin=data.recent[0];last={...lastSpin,complete:true,picked:3};paintRound(last);}else paintRound(null,true);
     const pending=pendingInfo();
     if(pending && ((data.round && data.round.picked>=pending.expected) ||
