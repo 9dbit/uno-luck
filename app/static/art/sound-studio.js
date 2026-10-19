@@ -56,6 +56,7 @@ async function syncCloud(force=false){
     }
     return true;
   })().catch(error=>{
+    cloudReady=false;
     cloudError=String(error?.message||error);
     console.warn('[UNO SOUND CLOUD]',cloudError);
     return false;
@@ -598,10 +599,19 @@ function show(host){
   const cloudInfo=element('p','studio-cloud-status');
   const statusText=()=>{
     const state=cloudStatus();
+    const unpublished=KEYS.filter(([key])=>{
+      const local=profiles[key];
+      return Boolean(local&&(local.custom||local.edited)&&
+        (!cloudProfiles.has(key)||local.fileName!==cloudProfiles.get(key)?.fileName));
+    }).length;
+    const auth=state.admin?' · ADMIN AKTIF':' · READ-ONLY';
     cloudInfo.textContent=state.ready?
-      ('TERHUBUNG · '+state.online+' / 12 kanal dipublikasikan'+
-        (state.admin?' · ADMIN AKTIF':' · READ-ONLY')) :
-      ('BELUM TERHUBUNG · '+(state.error||'sedang memeriksa cloud'));
+      (state.online?
+        'TERHUBUNG · '+state.online+' / 12 kanal dipublikasikan'+auth+
+        (unpublished?' · '+unpublished+' draft lokal perlu PUBLISH':''):
+        'TERHUBUNG · CLOUD MASIH KOSONG (0/12). Audio desktop BELUM dipublikasikan. Verifikasi admin lalu pilih PUBLISH ALL.') :
+      ('SOUND CLOUD TIDAK TERHUBUNG · '+(state.error||'menunggu server')+
+        '. Setting desktop tidak dapat dipakai di mobile sampai cloud pulih.');
   };
   const syncButton=element('button','studio-cloud-button','↻ REFRESH CLOUD');
   syncButton.type='button';
