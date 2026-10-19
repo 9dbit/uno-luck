@@ -16,6 +16,7 @@ MODES=[
     ("safari-visible",393,659),
     ("pwa-fullscreen",393,852),
     ("portrait-small",320,700),
+    ("portrait-short",320,568),
     ("portrait-large",430,932),
     ("landscape",852,393),
 ]
@@ -89,6 +90,7 @@ with sync_playwright() as p:
         assert data['scrollWidth']<=width+2,(name,data)
         assert data['scrollHeight']<=data['innerHeight']+2,(name,data)
         assert data['caption']['bottom']<=data['game']['bottom']+2,(name,data)
+        assert data['stage']['bottom']<=data['area']['bottom']+2,(name,'wheel artwork clipped',data)
         if width<height:
             assert 5<=float(data['wheelDrop'].replace('px',''))<=19,(name,data)
             assert data['stage']['top']>=data['area']['top']+4,(name,data)
