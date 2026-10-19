@@ -19,7 +19,8 @@ def test_safari_autostart_keeps_audio_behind_first_user_gesture():
     assert "void runBoot().catch" in BOOT
     assert "window.UNOLuckSound?.unlock()" not in BOOT
     assert "studio()?.playSplashGesture?.()" in BOOT
-    assert "cover.addEventListener('pointerdown'" in BOOT
+    assert "button.addEventListener('click'" in BOOT
+    assert "studio()?.armMusicOnSplashGesture?.()" in BOOT
     assert "window.UNOLuckSound?.playCue(" not in BOOT
     assert "playSplashGesture()" in STUDIO
     assert "prepareSplashMedia()" in STUDIO
@@ -27,8 +28,8 @@ def test_safari_autostart_keeps_audio_behind_first_user_gesture():
     assert "URL.createObjectURL(typed)" in STUDIO
     assert "promise=player.play()" in STUDIO
     assert "media-src 'self' blob:" in HTML
-    assert "boot.js?v=1130" in HTML
-    assert "sound-studio.js?v=1130" in HTML
+    assert "boot.js?v=1131" in HTML
+    assert "sound-studio.js?v=1131" in HTML
     assert "const activate=()=>{" in (ROOT/'orbit.js').read_text()
 
 
