@@ -40,6 +40,7 @@ jobs:
         run: |
           export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-${GITHUB_RUN_ID}"
           export UNO_SOUND_ADMIN_TOKEN="uno-ci-only-shared-sound-secret-for-playwright-2026"
+          python tests/seed_ci_published_sounds.py
           python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi

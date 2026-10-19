@@ -14,10 +14,12 @@
   const game=find('game-shell');
   const playButton=find('boot-play');
   const playText=find('boot-play-text');
+  const playError=find('boot-play-error');
   const studio=()=>window.UNOLuckSoundStudio;
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
   let released=false,started=false,splashReady=false,splashPlayed=false,musicReady=false;
+  let retrying=false,attemptSerial=0;
   let splashStartAt=null,current=0;
   let releaseGate=()=>{};
   const playGate=new Promise(resolve=>{releaseGate=resolve;});
@@ -39,32 +41,84 @@
     if(typeof img.decode==='function')void img.decode().catch(()=>{});
     return pending;
   }
+  // One visible PLAY button is the only Safari activation and retry control.
+  // Errors are explanatory text, not another confirmation card or button.
+  function reportAudioError(reason){
+    const message=String(reason||'Audio belum dapat diputar.').slice(0,220);
+    if(playError){playError.textContent=message+' Ketuk PLAY WITH SOUND untuk mencoba lagi.';playError.hidden=false;}
+    if(playButton){playButton.disabled=false;playButton.hidden=false;playButton.title=message;}
+    if(playText)playText.textContent='PLAY WITH SOUND';
+  }
+  function clearAudioError(){
+    if(playError){playError.hidden=true;playError.textContent='';}
+    if(playButton)playButton.removeAttribute('title');
+  }
+  function prepareAgain(){
+    if(retrying)return;
+    retrying=true;playButton.disabled=true;
+    // Read-only refresh. Never publish, reset, or overwrite saved Sound Cloud.
+    void Promise.resolve(studio()?.syncCloud?.(true)).then(()=>Promise.all([
+      studio()?.prepareSplashMedia?.(),
+      localStorage.getItem('uno_orbit_music')==='off'?true:studio()?.prepareMusicMedia?.()
+    ])).then(([s,m])=>{
+      splashReady=Boolean(s);musicReady=Boolean(m);
+      if(!splashReady)reportAudioError(studio()?.splashError||
+        'File Soft Tech Splash belum tersedia di Sound Cloud.');
+      else if(localStorage.getItem('uno_orbit_music')!=='off'&&!musicReady)
+        reportAudioError(studio()?.lastError||'Background Music belum siap diputar.');
+      else clearAudioError();
+    }).catch(error=>reportAudioError('Gagal memuat audio: '+String(error?.message||error)))
+      .finally(()=>{retrying=false;playButton.disabled=false;});
+  }
   function onPlay(){
-    if(released||started||!playButton||playButton.disabled)return;
-    started=true;splashStartAt=performance.now();
-    // Critical: HTML5 media.play() and WebAudio resume() must be called
-    // DIRECTLY in the native click event, before awaiting any promises.
-    // The published file is preloaded before enabling the PLAY button.
-    try{
-      const result=splashReady?studio()?.playSplashGesture?.():null;
-      if(result)void Promise.resolve(result).then(playing=>{
-        splashPlayed=Boolean(playing);
-        if(!playing)console.warn('[UNO SPLASH] sound blocked by browser');
-      }).catch(error=>console.warn('[UNO SPLASH] sound',error));
-    }catch(error){console.warn('[UNO SPLASH] sound',error);}
-    try{void window.UNOLuckSound?.unlock?.();}
-    catch(error){console.warn('[UNO SPLASH] audio unlock',error);}
-    // The *same* PLAY click reserves a separate, muted music player in
-    // iPhone Safari. When the game appears we can unmute it instantly.
-    if(musicReady&&localStorage.getItem('uno_orbit_music')!=='off'){
-      try{
-        const pending=studio()?.armMusicOnSplashGesture?.();
-        if(pending)void Promise.resolve(pending).catch(
-          error=>console.warn('[UNO SPLASH] BGM prearm',error));
-      }catch(error){console.warn('[UNO SPLASH] BGM prearm',error);}
+    if(released||started||retrying||!playButton||playButton.disabled)return;
+    const musicWanted=localStorage.getItem('uno_orbit_music')!=='off';
+    if(!splashReady||(musicWanted&&!musicReady)){
+      reportAudioError(!splashReady?
+        (studio()?.splashError||'File custom splash belum selesai dimuat.'):
+        (studio()?.lastError||'Background Music belum selesai dimuat.'));
+      prepareAgain();
+      return;
     }
-    playButton.hidden=true;
-    releaseGate();
+    clearAudioError();
+    const activationAt=performance.now();
+    // DO NOT await anything before either HTMLMediaElement.play() call.
+    // Both elements are prepared before the trusted native click on Safari.
+    let splashPromise,musicPromise=true;
+    try{splashPromise=studio()?.playSplashGesture?.();}
+    catch(error){reportAudioError('Soft Tech Splash: '+String(error?.message||error));return;}
+    if(!splashPromise){reportAudioError('File custom Soft Tech Splash tidak tersedia.');return;}
+    try{
+      if(musicWanted)musicPromise=studio()?.armMusicOnSplashGesture?.();
+    }catch(error){musicPromise=false;console.warn('[UNO SPLASH] BGM gesture',error);}
+    try{void window.UNOLuckSound?.unlock?.();}
+    catch(error){console.warn('[UNO SPLASH] audio context unlock',error);}
+    const serial=++attemptSerial;
+    playButton.disabled=true;
+    // Never enter gameplay on an unconfirmed / rejected splash playback.
+    void Promise.race([
+      Promise.all([Promise.resolve(splashPromise),Promise.resolve(musicPromise)]),
+      wait(8000).then(()=>[false,false])
+    ]).then(([splashOk,musicOk])=>{
+      if(serial!==attemptSerial||released)return;
+      if(!splashOk||(musicWanted&&!musicOk)){
+        studio()?.stopSplashAudio?.();
+        if(musicWanted)studio()?.stopLoop?.();
+        const reason=!splashOk?
+          (studio()?.splashError||studio()?.lastError||'Safari menolak suara splash (NotAllowedError).'):
+          (studio()?.lastError||'Safari belum mengaktifkan Background Music.');
+        reportAudioError(reason);
+        return;
+      }
+      splashPlayed=true;started=true;splashStartAt=activationAt;
+      playButton.hidden=true;
+      releaseGate();
+    }).catch(error=>{
+      if(serial!==attemptSerial)return;
+      studio()?.stopSplashAudio?.();
+      if(musicWanted)studio()?.stopLoop?.();
+      reportAudioError('Playback gagal: '+String(error?.message||error));
+    });
   }
   if(playButton)playButton.addEventListener('click',onPlay);
 
@@ -101,11 +155,13 @@
       // a third-party browser delays its audio metadata.
       await Promise.race([musicPromise,wait(1400)]);
       if(!splashReady){
-        playButton.title='Sound belum siap. PLAY tetap dapat memulai game.';
+        reportAudioError(studio()?.splashError||'Custom Soft Tech Splash belum tersedia.');
         console.warn('[UNO SPLASH] custom audio unavailable at activation');
       }
       playButton.disabled=false;
-      if(playText)playText.textContent=splashReady?'PLAY WITH SOUND':'PLAY';
+      if(playText)playText.textContent='PLAY WITH SOUND';
+      if(splashReady&&localStorage.getItem('uno_orbit_music')!=='off'&&!musicReady)
+        reportAudioError(studio()?.lastError||'Background Music belum siap.');
       await playGate;
     }else{
       // Classic's legacy page has no PLAY button and retains auto entry.
@@ -165,7 +221,8 @@
     // Do not bypass the explicit PLAY gate on the UNO LUCK PWA.
     if(playButton&&!started){
       playButton.disabled=false;
-      if(playText)playText.textContent='PLAY';
+      if(playText)playText.textContent='PLAY WITH SOUND';
+      reportAudioError('Terjadi kegagalan memuat intro. Audio harus aktif sebelum bermain.');
       void playGate.then(release);
     }else void release();
   });
