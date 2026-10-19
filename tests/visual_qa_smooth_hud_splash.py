@@ -111,7 +111,7 @@ with sync_playwright() as p:
     }""")
     assert metrics["accepted"] is True,metrics
     assert metrics["draws"]>=15,metrics
-    assert metrics["queries"]==0,"Glyph DOM must be cached before animation",metrics
+    assert metrics["queries"]==0,("Glyph DOM must be cached before animation",metrics)
     assert metrics["fromServer"]=="7" and metrics["geometryFixed"],metrics
     assert not errors,errors
     browser.close()
