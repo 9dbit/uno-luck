@@ -309,7 +309,8 @@ function playMusicMedia(){
   if(!bgmPrepared||bgmRevision!==cloudRevision||document.hidden)
     return Promise.resolve(false);
   const player=bgmElement();
-  if(!player.paused)return Promise.resolve(true);
+  // A pending denied autoplay must not swallow the first trusted tap.
+  if(!player.paused&&!bgmStarting)return Promise.resolve(true);
   const profile=liveProfile('background-music');
   const repeat=getRepeat('background-music');
   const mirror=bgmMirrorDuration>0;
