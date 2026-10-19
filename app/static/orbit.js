@@ -311,9 +311,14 @@ function listeners(){
   // entering gameplay, not only on a later touch or visibilitychange.
   window.addEventListener('uno:boot-finished',()=>{
     if(!musicEnabled)return;
-    // A simultaneous Cloud manifest fetch and HTML5 preload previously
-    // canceled the first background-music start with no retry. Ensure the
-    // exact published clip is ready before requesting autoplay.
+    // PLAY WITH SOUND already activated a separate iOS media lane during the
+    // intro. Unmute that lane *immediately* when gameplay becomes visible,
+    // without another network request or a browser-blocked asynchronous play.
+    const prepared=window.UNOLuckSoundStudio?.activateMusicAtGameplay?.();
+    if(prepared){
+      void startMusic(); // records musicRequested; existing lane is idempotent
+      return;
+    }
     void Promise.resolve(window.UNOLuckSoundStudio?.prepareMusicMedia?.())
       .then(()=>{
         if(musicEnabled&&!document.hidden)void startMusic();
