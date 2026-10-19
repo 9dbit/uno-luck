@@ -39,13 +39,17 @@
   <link rel="stylesheet" href="/assets/art/celebrations.css?v=100">
   <link rel="stylesheet" href="/assets/art/v11.css?v=110">
   <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1120">
-  <link rel="stylesheet" href="/assets/art/viewport-v11.css?v=1126">
+  <link rel="stylesheet" href="/assets/art/viewport-v11.css?v=1132">
   <title>UNO LUCK | Dragon Spin v1.1</title>
 </head>
 <body>
   <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
     <section class="boot-stage boot-softtech" id="boot-softtech" aria-label="Soft Tech">
       <img class="boot-softtech-logo" id="boot-softtech-img" src="/assets/boot-softtech.webp" alt="Soft Tech" fetchpriority="high">
+      <button id="boot-play" class="boot-play" type="button" disabled aria-label="Mulai dengan suara" aria-live="polite">
+        <span class="boot-play-symbol" aria-hidden="true">▶</span>
+        <span id="boot-play-text">MENYIAPKAN SUARA…</span>
+      </button>
     </section>
     <section class="boot-stage boot-banner" id="boot-banner" aria-label="Memuat UNO LUCK" hidden>
       <img id="boot-banner-img" class="boot-banner-img" src="/assets/boot-uno-banner.webp" alt="UNO LUCK" decoding="async">
@@ -144,6 +148,6 @@
   <script src="/assets/art/celebrations.js?v=1116" defer></script>
   <script src="/assets/orbit.js?v=1130" defer></script>
   <script src="/assets/viewport-v11.js?v=1124" defer></script>
-  <script src="/assets/boot.js?v=1130" defer></script>
+  <script src="/assets/boot.js?v=1132" defer></script>
 </body>
 </html>
