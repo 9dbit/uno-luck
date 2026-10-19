@@ -57,3 +57,21 @@ jobs:
             artifacts/uno-v11-ios-safari-audio/*.png
             artifacts/uno-v11-shared-sound/*.png
           if-no-files-found: ignore
+
+  volume-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate mounted volume is writable by application user
+        run: |
+          docker build -t uno-volume-runtime .
+          mkdir -p "$RUNNER_TEMP/uno-sound-test"
+          chmod 0700 "$RUNNER_TEMP/uno-sound-test"
+          docker run -d --name uno-volume-test -p 127.0.0.1:18085:8080 -v "$RUNNER_TEMP/uno-sound-test:/data/uno-luck-audio" -e UNO_SOUND_STORAGE_DIR=/data/uno-luck-audio uno-volume-runtime
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:18085/api/sounds/health > /tmp/uno-sound-probe.json; then break; fi
+            sleep 1
+          done
+          python3 -c 'import json; a=json.load(open("/tmp/uno-sound-probe.json")); assert a["ready"] and a["published_cues"]==0'
+          test "$(docker exec uno-volume-test stat -c %u /data/uno-luck-audio)" = 10001
+          echo "PASS: Railway style volume is writable as UID 10001"
