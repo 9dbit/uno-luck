@@ -163,3 +163,45 @@ def test_sound_cloud_health_does_not_change_virtual_coin_health(sound_storage):
     with TestClient(app) as client:
         assert client.get("/api/sounds/health").json()["ready"]
         assert client.get("/health").json()["money_enabled"] is False
+
+
+def test_music_mirror_is_validated_published_and_only_applies_to_music(sound_storage):
+    with TestClient(app) as browser:
+        response = browser.put(API + "/cues/background-music", content=WAV,
+            headers={
+                **headers(),
+                "X-UNO-Sound-Settings": __import__("json").dumps({
+                    "start": 0.1, "stop": 0.8, "fadeIn": 0.1, "fadeOut": 0.1,
+                    "repeat": True, "mirror": True, "mirrorCrossfadeMs": 180,
+                    "fileDuration": 1.0,
+                }),
+            })
+        assert response.status_code == 200, response.text
+        cue = browser.get(API + "/manifest").json()["cues"]["background-music"]
+        assert cue["mirror"] is True
+        assert cue["mirrorCrossfadeMs"] == 180
+        assert cue["repeat"] is True
+        patch = browser.patch(API + "/cues/background-music",
+            headers={"X-UNO-Sound-Admin": TOKEN},
+            json={"start": 0.1, "stop": 0.8, "fadeIn": 0, "fadeOut": 0,
+                  "repeat": False, "mirror": False, "mirrorCrossfadeMs": 0,
+                  "fileDuration": 1.0})
+        assert patch.status_code == 200, patch.text
+        next_cue = browser.get(API + "/manifest").json()["cues"]["background-music"]
+        assert next_cue["mirror"] is False
+        assert next_cue["mirrorCrossfadeMs"] == 0
+        assert browser.get(next_cue["url"]).content == WAV
+        for invalid in (-1, 1001, "200", float("nan")):
+            bad = browser.patch(API + "/cues/background-music",
+                headers={"X-UNO-Sound-Admin": TOKEN},
+                json={"start": 0.1, "stop": 0.8, "fadeIn": 0, "fadeOut": 0,
+                      "repeat": True, "mirror": True, "mirrorCrossfadeMs": invalid,
+                      "fileDuration": 1.0})
+            assert bad.status_code == 422, (invalid, bad.text)
+        assert browser.put(API + "/cues/jackpot-1", content=WAV,
+            headers={**headers(), "X-UNO-Sound-Settings": __import__("json").dumps({
+                "start": 0.1, "stop": 0.8, "fadeIn": 0, "fadeOut": 0,
+                "fileDuration": 1.0, "mirror": True, "mirrorCrossfadeMs": 140
+            })}).status_code == 200
+        jackpot = browser.get(API + "/manifest").json()["cues"]["jackpot-1"]
+        assert "mirror" not in jackpot and "mirrorCrossfadeMs" not in jackpot
