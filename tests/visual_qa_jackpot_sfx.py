@@ -53,7 +53,9 @@ with sync_playwright() as p:
 
     # Settings must survive a real reload. Safari still needs a new sound gesture.
     page.reload(wait_until='domcontentloaded')
-    page.locator('#boot-start-sound').click()
+    page.locator('#game-shell').wait_for(state='visible',timeout=25000)
+    page.locator('#menu-open').click()
+    page.locator('#modal-close').click()
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
     page.evaluate("""() => {
       window.__jackpotStarts=[]; window.__jackpotStops=0;window.__synthCount=0;
