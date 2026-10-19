@@ -44,7 +44,7 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "window.visualViewport" in VIEWPORT
     assert "visualViewport?.addEventListener('resize'" in VIEWPORT
     assert "'--uno-wheel-size'" in VIEWPORT
-    assert "rect.height*1.005" in VIEWPORT
+    assert "rect.height-shift-2" in VIEWPORT
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
@@ -93,7 +93,7 @@ def test_led_previews_show_random_uno_cards_not_nine_ones():
 def test_iphone15pro_pwa_background_full_bleed_and_safe_area():
     assert "CSS.supports?.('height','100dvh')" in VIEWPORT
     assert "--uno-wheel-drop" in VIEWPORT
-    assert "rect.height*1.005" in VIEWPORT
+    assert "rect.height-shift-2" in VIEWPORT
     assert "height:100lvh" in LAYOUT
     assert "body::before" in LAYOUT
     assert "url('/assets/art/v4/lava-temple.webp')!important" in LAYOUT
