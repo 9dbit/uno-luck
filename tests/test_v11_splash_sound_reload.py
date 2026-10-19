@@ -11,7 +11,7 @@ def test_splash_has_audio_choice_and_no_autoplay_skip():
                      "id=\"boot-start-muted\"","id=\"boot-sound-status\""):
         assert fragment in H
     assert "boot.js?v=1119" in H
-    assert "sound-studio.css?v=1119" in H
+    assert "sound-studio.css?v=1120" in H
     assert "runBoot().catch(() => release(false))" not in B
     assert "soundStart.addEventListener('click'" in B
     assert "silentStart.addEventListener('click'" in B
