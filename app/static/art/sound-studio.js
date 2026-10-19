@@ -91,6 +91,10 @@ async function publishCue(key,{remove=false}={}){
       start:Number(local.start??0),stop:Number(local.stop??duration),
       fadeIn:Number(local.fadeIn??0),fadeOut:Number(local.fadeOut??0),
       fileDuration:duration,repeat:local.repeat!==false,
+      ...(key==='background-music'?{
+        mirror:local.mirror===true,
+        mirrorCrossfadeMs:Math.round(clamp(local.mirrorCrossfadeMs??140,0,1000))
+      }:{}),
     };
     expected=meta;
     if(local.custom){
@@ -124,6 +128,12 @@ async function publishCue(key,{remove=false}={}){
     }
     if(Boolean(published.repeat)!==expected.repeat)
       throw Error('Repeat di cloud belum sesuai dengan setting desktop');
+    if(key==='background-music'){
+      if(Boolean(published.mirror)!==expected.mirror)
+        throw Error('Mirror Loop di cloud belum sesuai dengan setting desktop');
+      if(Number(published.mirrorCrossfadeMs??140)!==expected.mirrorCrossfadeMs)
+        throw Error('Mirror Crossfade di cloud belum sesuai dengan setting desktop');
+    }
   }
   return true;
 }
@@ -424,6 +434,10 @@ function profile(key){return {...editProfile(key)};}
 function publishedProfile(key){return {...(cloudProfiles.get(key)||{})};}
 function getRepeat(key){return key==='background-music' && liveProfile(key)?.repeat!==false;}
 function getDraftRepeat(key){return key==='background-music' && editProfile(key)?.repeat!==false;}
+function mirrorConfig({draft=false}={}){
+  const p=draft?editProfile('background-music'):liveProfile('background-music');
+  return {mirror:p?.mirror===true,crossfadeMs:clamp(p?.mirrorCrossfadeMs??140,0,1000)};
+}
 function setRepeat(key,enabled){
   if(key!=='background-music')throw Error('Repeat hanya untuk BACKGROUND MUSIC');
   profiles[key]={...editProfile(key),repeat:Boolean(enabled),edited:true};
@@ -444,7 +458,11 @@ async function configure(key,settings){
   if(![start,stop,fi,fo].every(Number.isFinite)||start<0||stop>length+.001||stop-start<.02||
       fi<0||fo<0||fi+fo>stop-start+.001)throw Error('Rentang start/stop atau fade tidak valid');
   profiles[key]={...editProfile(key),start:decimals(start),stop:decimals(Math.min(stop,length)),
-    fadeIn:decimals(fi),fadeOut:decimals(fo),edited:true};
+    fadeIn:decimals(fi),fadeOut:decimals(fo),edited:true,
+    ...(key==='background-music'?{
+      mirror:settings.mirror===true,
+      mirrorCrossfadeMs:Math.round(clamp(settings.mirrorCrossfadeMs??140,0,1000))
+    }:{})};
   save();bufferCache.delete('draft:'+key);
   if(hasAdminKey())await publishCue(key);
   if(key==='background-music')window.UNOLuckSound?.refreshMusic?.();
@@ -464,7 +482,11 @@ async function upload(key,file){
   bufferCache.set('draft:'+key,decoded);
   profiles[key]={custom:true,edited:true,fileName:file.name,fileDuration:decimals(decoded.duration),
     start:0,stop:decimals(decoded.duration),fadeIn:0,fadeOut:0,
-    ...(key==='background-music'?{repeat:getRepeat(key)}:{})};
+    ...(key==='background-music'?{
+      repeat:getDraftRepeat(key),
+      mirror:mirrorConfig({draft:true}).mirror,
+      mirrorCrossfadeMs:mirrorConfig({draft:true}).crossfadeMs
+    }:{})};
   save();
   if(hasAdminKey())await publishCue(key);
   if(key==='soft-tech-splash-screen'&&splashUrl){
