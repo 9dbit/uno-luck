@@ -223,7 +223,7 @@ function useFallbackSource(key,url){
 // element: on interrupted WebKit the former singleton caused every effect
 // to pause background music and could discard an in-flight splash attempt.
 let bgmPlayer=null,bgmPrepared=false,bgmPreparation=null,bgmRevision='';
-let bgmObjectUrl=null,bgmMirrorDuration=0,bgmRaf=null,bgmSerial=0;
+let bgmObjectUrl=null,bgmMirrorDuration=0,bgmRaf=null,bgmSerial=0,bgmStarting=false;
 function bgmElement(){
   if(!bgmPlayer){
     bgmPlayer=document.createElement('audio');
@@ -238,6 +238,7 @@ function bgmElement(){
 }
 function stopMusicMedia({invalidate=false}={}){
   ++bgmSerial;
+  bgmStarting=false;
   if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
   bgmRaf=null;
   if(bgmPlayer){bgmPlayer.pause();bgmPlayer.loop=false;}
@@ -342,18 +343,22 @@ function playMusicMedia(){
     bgmRaf=requestAnimationFrame(monitor);
   };
   let pending;
+  bgmStarting=true;
   try{pending=player.play();}
   catch(error){
+    bgmStarting=false;
     lastError='Background Music: '+String(error?.message||error);
     return Promise.resolve(false);
   }
   return Promise.resolve(pending).then(()=>{
-    if(serial!==bgmSerial){player.pause();return false;}
+    if(serial!==bgmSerial)return false;
+    bgmStarting=false;
     mediaUnlocked=true;lastError='';
     if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
     bgmRaf=requestAnimationFrame(monitor);
     return true;
   }).catch(error=>{
+    if(serial===bgmSerial)bgmStarting=false;
     lastError='Background Music: '+String(error?.message||error);
     console.warn('[UNO iOS BGM]',lastError);return false;
   });
@@ -361,6 +366,9 @@ function playMusicMedia(){
 function playMusicGesture(){
   if(!bgmPrepared||document.hidden)return false;
   return playMusicMedia(); // synchronously invokes player.play() on first tap
+}
+function isMusicMediaPlaying(){
+  return bgmStarting||Boolean(bgmPlayer&&!bgmPlayer.paused&&!bgmPlayer.ended);
 }
 async function prepareSplashMedia(){
   await syncCloud();
@@ -1112,7 +1120,7 @@ function show(host){
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
-  prepareSplashMedia,playSplashGesture,prepareMusicMedia,playMusicGesture,isIOS,
+  prepareSplashMedia,playSplashGesture,prepareMusicMedia,playMusicGesture,isMusicMediaPlaying,isIOS,
   syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
