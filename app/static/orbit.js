@@ -196,6 +196,7 @@ async function pickOne(){
   }finally{
     isSpinning=false;
     window.UNOLuckMotion?.endSpin();
+    wheel?.startIdle();
     updateButtons();
   }
 }
@@ -306,6 +307,15 @@ function listeners(){
   const activate=()=>{unlockAudio().then(yes=>{if(yes){document.removeEventListener('pointerdown',activate,true);document.removeEventListener('touchend',activate,true);}});};
   document.addEventListener('pointerdown',activate,{passive:true,capture:true});
   document.addEventListener('touchend',activate,{passive:true,capture:true});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){stopMusic();if(isAuto)cancelAuto=true;}else startMusic();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){
+      wheel?.stopIdle();
+      stopMusic();
+      if(isAuto)cancelAuto=true;
+    }else{
+      if(!isSpinning)wheel?.startIdle();
+      startMusic();
+    }
+  });
 }
 resetRing();listeners();window.UNOLuckSound?.setEnabled(sfxEnabled);loadState();
