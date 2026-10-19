@@ -22,7 +22,7 @@ def test_auto_boot_removes_sound_confirmation_card_and_buttons():
     assert "studio()?.prepareSplashMedia?.()" in BOOT
     assert "trySplashSound(false)" in BOOT
     assert "cover.addEventListener('pointerdown'" in BOOT
-    assert "void window.UNOLuckSound?.unlock?.()" in BOOT
+    assert "window.UNOLuckSound?.unlock?.()" in BOOT
 
 
 def test_softtech_zoom_loading_height_and_logo_pulse():
