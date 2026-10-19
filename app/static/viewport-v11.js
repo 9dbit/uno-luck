@@ -37,7 +37,10 @@
     // stay in place while the wheel fills the bottom section more naturally.
     // Side controls remain above the iPhone home-indicator safe area.
     const shift=Math.min(18,Math.max(6,rect.height*.029));
-    const size=Math.min(rect.width*.99,rect.height*1.005);
+    // Contain the artwork inside the wheel row on short Safari heights
+    // (e.g. iPhone viewport 393x659 or older 320x568). Oversizing by even
+    // 8px cuts the dragon's bottom and the lower action buttons.
+    const size=Math.min(rect.width*.99,rect.height-shift-2);
     lastWheel=setPx(game,'--uno-wheel-size',Math.max(1,size),lastWheel);
     lastShift=setPx(game,'--uno-wheel-drop',shift,lastShift);
   }
