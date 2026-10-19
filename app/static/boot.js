@@ -13,6 +13,29 @@
   const percent = find('boot-loading-percent');
   const game = find('game-shell');
   let released = false;
+  let splashReady=false, splashPlayed=false, splashAttempted=false;
+  const studio=()=>window.UNOLuckSoundStudio;
+  // Preserve the existing custom Sound Studio file and trim/fade/mixer.
+  // On iOS, a trusted touch on the splash surface is the entire audio unlock
+  // interaction; no button, confirmation card or misleading autoplay promise.
+  function trySplashSound(fromGesture=false){
+    if(released||logo.hidden||splashPlayed||!splashReady)return;
+    if(!fromGesture&&splashAttempted)return;
+    splashAttempted=true;
+    const result=studio()?.playSplashGesture?.();
+    if(result)void Promise.resolve(result).then(played=>{
+      if(played)splashPlayed=true;
+    }).catch(error=>console.warn('[UNO SPLASH] audio deferred',error));
+  }
+  logo.addEventListener('pointerdown',()=>{
+    if(!splashReady){
+      // Gesture-activate Web Audio for late custom audio retrieval.
+      void window.UNOLuckSound?.unlock?.();
+      return;
+    }
+    trySplashSound(true);
+  },{passive:true});
+
   let current = 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -47,8 +70,14 @@
   }
   async function runBoot() {
     const soft=find('boot-softtech-img'),bannerImage=find('boot-banner-img');
-    // Start prefetch without waiting on audio or network APIs.
-    void window.UNOLuckSoundStudio?.syncCloud?.();
+    // Read-only fetch: never change profiles, trim/fade or saved mixer.
+    // Prefetch the exact published splash cue while the visual intro starts.
+    // Browsers that permit autoplay can hear it immediately. iOS requires
+    // the direct splash touch handler above for audible media playback.
+    void studio()?.prepareSplashMedia?.().then(ready=>{
+      splashReady=Boolean(ready);
+      if(splashReady)trySplashSound(false);
+    }).catch(error=>console.warn('[UNO SPLASH] custom file unavailable',error));
     await Promise.race([preloadImage(soft),wait(2500)]);
     logo.classList.add('is-zooming');
     await wait(reducedMotion?350:1480);
@@ -83,8 +112,8 @@
     await wait(reducedMotion?180:560);
     await release();
   }
-  // Never try to autoplay custom splash / background music on Safari.
-  // The first SPIN, TURBO, AUTO, or other trusted tap resumes its AudioContext.
+  // A denied autoplay is normal on Safari. The first game interaction still
+  // unlocks the existing Sound Studio mixer, without changing its settings.
   void runBoot().catch(error=>{
     console.warn('[UNO BOOT] visual boot fallback',error);
     void release();
