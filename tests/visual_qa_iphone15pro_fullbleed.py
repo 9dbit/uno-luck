@@ -50,6 +50,9 @@ def inspect(page):
         htmlBackground:html.backgroundImage,
         pseudoBackground:bg.backgroundImage,
         pseudoHeight:parseFloat(bg.height),
+        backgroundSize:bg.backgroundSize,
+        root:bounds(document.documentElement),body:bounds(document.body),
+        dragon:bounds(game.querySelector('.dragon-wheel-art')),
         safeTop:parseFloat(getComputedStyle(game).paddingTop),
         safeBottom:parseFloat(getComputedStyle(game).paddingBottom),
         screenHeight:document.documentElement.clientHeight,
@@ -98,7 +101,15 @@ with sync_playwright() as p:
         assert data['cssDvh'],"Modern Safari/WebKit must support dynamic height"
         assert data['game']['top']>=-1,(name,data)
         assert data['game']['bottom']>=data['innerHeight']-2,(name,data)
+        # Checking only game/pseudo height missed the real-device screenshot:
+        # a shorter overflow:hidden HTML/body can clip a correctly sized child.
+        for ancestor in ('root','body'):
+            assert data[ancestor]['bottom']>=data['innerHeight']-2,(name,ancestor,data)
+            assert data[ancestor]['bottom']>=data['game']['bottom']-2,(name,ancestor,data)
+        assert data['dragon']['bottom']<=min(data['area']['bottom'],data['body']['bottom'])+2,(name,'dragon clipped by ancestor',data)
         assert data['pseudoHeight']>=data['innerHeight']-2,(name,data)
+        if width/height<=9/16:
+            assert 'auto 100%' in data['backgroundSize'],(name,'portrait must fit artwork height',data)
         assert "lava-temple.webp" in data['htmlBackground'],(name,data)
         assert "lava-temple.webp" in data['pseudoBackground'],(name,data)
         assert data['safeBottom']>=3,(name,data)
@@ -109,6 +120,7 @@ with sync_playwright() as p:
         assert data['caption']['bottom']<=data['game']['bottom']+2,(name,data)
         assert data['stage']['bottom']<=data['area']['bottom']+2,(name,'wheel artwork clipped',data)
         if width<height:
+            assert data['dragon']['bottom']<=data['caption']['top']-2,(name,'caption hides dragon tail',data)
             assert 5<=float(data['wheelDrop'].replace('px',''))<=19,(name,data)
             assert data['stage']['top']>=data['area']['top']+4,(name,data)
             assert data['area']['bottom']>=data['innerHeight']-data['safeBottom']-2,(name,data)

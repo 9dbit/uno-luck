@@ -8,7 +8,16 @@
     :root{--uno-viewport-height:100lvh}
   }
 }
-html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+/* The clipping ancestors must use the same viewport as gameplay. In iOS
+   standalone, percentage height can resolve to the shorter initial containing
+   block while 100lvh includes the status bar: overflow:hidden then cuts both
+   the dragon and the fixed background before the bottom safe area. */
+html,body{
+  width:100%;max-width:100%;
+  height:var(--uno-viewport-height,100dvh)!important;
+  min-height:var(--uno-viewport-height,100dvh)!important;
+  overflow:hidden;overscroll-behavior:none;
+}
 .game-shell{
   height:var(--uno-viewport-height,100dvh)!important;
   max-height:var(--uno-viewport-height,100dvh)!important;
@@ -156,7 +165,6 @@ html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behav
    If iOS WebKit shortens/clips the pseudo-element during safe-area or toolbar
    transitions, the last pixels show the same lava-temple image, not body black. */
 html{
-  min-height:100%!important;
   background-color:#120004!important;
   background-image:linear-gradient(180deg,rgba(13,0,5,.52),rgba(19,0,4,.14)),
     url('/assets/art/v4/lava-temple.webp')!important;
@@ -187,6 +195,15 @@ body::before{
 }
 @supports not (height:100lvh){
   body::before{height:100vh}
+}
+/* The portrait artwork is wider than tall-phone viewports at equal height.
+   Fit its full height without stretching; crop only the sides. Wide windows
+   keep cover so landscape and desktop also have no empty side bands. */
+@media(max-aspect-ratio:9/16){
+  html,body::before{
+    background-size:100% 100%,auto 100%!important;
+    background-position:center top!important;
+  }
 }
 .game-shell{
   z-index:1;

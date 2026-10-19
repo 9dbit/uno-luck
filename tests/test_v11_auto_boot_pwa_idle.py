@@ -44,12 +44,12 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "window.visualViewport" in VIEWPORT
     assert "visualViewport?.addEventListener('resize'" in VIEWPORT
     assert "'--uno-wheel-size'" in VIEWPORT
-    assert "rect.height-shift-2" in VIEWPORT
+    assert "rect.height-shift-captionHeight-4" in VIEWPORT
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
-    assert '/assets/art/viewport-v11.css?v=1139' in HTML
-    assert '/assets/viewport-v11.js?v=1125' in HTML
+    assert '/assets/art/viewport-v11.css?v=1140' in HTML
+    assert '/assets/viewport-v11.js?v=1140' in HTML
     assert 'height:var(--uno-viewport-height,100dvh)!important' in LAYOUT
 
 
@@ -95,7 +95,7 @@ def test_iphone15pro_pwa_background_full_bleed_and_safe_area():
     assert "--uno-wheel-drop" in VIEWPORT
     assert 'else update(); // First paint must not wait' in VIEWPORT
     assert 'update(); // Manual/boot refresh is synchronous' in VIEWPORT
-    assert "rect.height-shift-2" in VIEWPORT
+    assert "rect.height-shift-captionHeight-4" in VIEWPORT
     assert "height:100lvh" in LAYOUT
     assert "body::before" in LAYOUT
     assert "url('/assets/art/v4/lava-temple.webp')!important" in LAYOUT
