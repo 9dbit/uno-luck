@@ -8,7 +8,8 @@ BOOT=(ROOT/'boot.js').read_text()
 HTML=(ROOT/'orbit-index.html').read_text()
 
 def test_gameplay_entry_requests_music_before_any_joystick_or_spin_touch():
-    assert "document.addEventListener('uno:boot-finished'" in GAME
+    assert "window.addEventListener('uno:boot-finished'" in GAME
+    assert "window.dispatchEvent(new Event('uno:boot-finished'))" in BOOT
     assert "window.UNOLuckSoundStudio?.prepareMusicMedia?.()" in GAME
     assert "if(musicEnabled&&!document.hidden)void startMusic()" in GAME
     assert "window.UNOLuckSound?.music(true)" in GAME
