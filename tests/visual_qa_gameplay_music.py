@@ -49,6 +49,7 @@ with sync_playwright() as p:
   errors=[]
   page.on("pageerror",lambda error:errors.append(str(error)))
   page.goto("http://127.0.0.1:8080/",wait_until="domcontentloaded")
+  page.locator("#boot-play").tap(timeout=17000)
   page.locator("#game-shell").wait_for(state="visible",timeout=26000)
   # Expose an actionable trace if the initial BGM request never reaches
   # HTMLMediaElement.play (e.g., a cloud-preload/start race).
@@ -69,8 +70,9 @@ with sync_playwright() as p:
   page.wait_for_function("""() => window.__musicCalls.some(c=>!c.gesture)""",timeout=14000)
   assert page.evaluate("window.UNOLuckSoundStudio.getRepeat('background-music')")
   assert page.locator("audio[data-uno-music='background-music']").count()==1
-  assert page.evaluate("window.UNOLuckSound.webAudioState")=="inactive"
-  # No iOS autoplay bypass: the app tried immediately and Safari blocked it.
+  assert page.evaluate("window.UNOLuckSound.webAudioState")=="interrupted"
+  # The splash PLAY gesture unlocked the attempt; a later background-music
+  # request outside the transient iOS permission window is still blocked.
   assert not page.evaluate("""() => [...document.querySelectorAll('audio[data-uno-music]')]
      .some(a=>!a.paused)""")
   # The first real click must use the already prepared media element while the

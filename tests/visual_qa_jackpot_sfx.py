@@ -23,6 +23,7 @@ with sync_playwright() as p:
     errs=[]
     page.on('pageerror',lambda e:errs.append(str(e)))
     page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
+    page.locator('#boot-play').click(timeout=17000)
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
     page.locator('#menu-open').click()
     page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
@@ -53,6 +54,7 @@ with sync_playwright() as p:
 
     # Settings must survive a real reload. Safari still needs a new sound gesture.
     page.reload(wait_until='domcontentloaded')
+    page.locator('#boot-play').click(timeout=17000)
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
     page.locator('#menu-open').click()
     page.locator('#modal-close').click()

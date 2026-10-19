@@ -41,6 +41,7 @@ with sync_playwright() as p:
     errors=[]
     d.on("pageerror",lambda err:errors.append(str(err)))
     d.goto(URL,wait_until="domcontentloaded")
+    d.locator("#boot-play").click(timeout=17000)
     d.locator("#game-shell").wait_for(state="visible",timeout=26000)
 
     studio=open_studio(d)
@@ -85,8 +86,8 @@ with sync_playwright() as p:
         is_mobile=True,has_touch=True,user_agent=IOS_UA)
     m=mobile.new_page()
     m.on("pageerror",lambda err:errors.append(str(err)))
-    # Safari policy simulation: automatic HTML5 splash playback is refused,
-    # but a trusted tap anywhere on the splash must retry the published cue.
+    # Safari policy simulation: explicit PLAY must start the published cue
+    # inside the button's trusted pointer activation window.
     m.add_init_script("""(() => {
       window.__splashAttempts=[];
       window.__splashGesture=false;
@@ -111,7 +112,7 @@ with sync_playwright() as p:
         .some(x=>(x.getAttribute('src')||'').includes('soft-tech-splash-screen'));
       return preloaded && !document.getElementById('boot-overlay').hidden;
     }""",timeout=6500)
-    m.locator('#boot-overlay').tap(position={"x":140,"y":240})
+    m.locator('#boot-play').tap(timeout=17000)
     m.wait_for_function("""() => window.__splashAttempts.some(x=>x.trusted)""",timeout=4000)
     m.locator("#game-shell").wait_for(state="visible",timeout=26000)
     assert m.locator("#boot-start-sound").count()==0

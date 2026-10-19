@@ -150,3 +150,54 @@ body::before{
 @media(prefers-reduced-motion:reduce){
   .game-header .uno-logo{animation:none!important;will-change:auto}
 }
+
+/* One deliberate iPhone activation button. Intro waits until pressed so the
+   device never misses the only gesture that is allowed to start sound. */
+.boot-softtech{position:absolute}
+.boot-softtech .boot-play{
+  position:absolute;
+  z-index:6;
+  left:50%;
+  bottom:calc(max(22px,env(safe-area-inset-bottom,0px)) + 7dvh);
+  transform:translate3d(-50%,0,0);
+  display:inline-flex;
+  justify-content:center;
+  align-items:center;
+  gap:13px;
+  width:min(77vw,300px);
+  min-height:58px;
+  padding:11px 23px;
+  border:2px solid #ffe29c;
+  border-radius:999px;
+  color:#fff;
+  background:linear-gradient(145deg,#fb761b,#d52916 53%,#870012);
+  box-shadow:0 0 21px #ff642b8c,inset 0 1px 0 #ffefbda6,0 5px 0 #4c0610;
+  font-weight:950;
+  font-size:clamp(14px,3.8vw,19px);
+  letter-spacing:1px;
+  line-height:1.1;
+  text-shadow:0 2px 4px #5b0511;
+  white-space:nowrap;
+  touch-action:manipulation;
+  animation:unoBootPlayPulse 2.4s ease-in-out infinite;
+}
+.boot-softtech .boot-play[hidden]{display:none!important}
+.boot-softtech .boot-play:disabled{opacity:.82;animation:none;filter:saturate(.65)}
+.boot-softtech .boot-play:not(:disabled):active{
+  transform:translate3d(-50%,3px,0) scale(.97);
+}
+.boot-softtech .boot-play-symbol{font-size:21px;line-height:1}
+@keyframes unoBootPlayPulse{
+  0%,100%{box-shadow:0 0 12px #ff8f3b86,0 5px 0 #4c0610;filter:brightness(1)}
+  52%{box-shadow:0 0 29px #ffd65ec8,0 5px 0 #4c0610;filter:brightness(1.16)}
+}
+@media(max-height:570px){
+  .boot-softtech .boot-play{
+    bottom:calc(max(7px,env(safe-area-inset-bottom,0px)) + 3dvh);
+    min-height:44px;
+    padding:7px 17px;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .boot-softtech .boot-play{animation:none!important}
+}
