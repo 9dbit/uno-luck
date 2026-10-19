@@ -11,7 +11,7 @@ def test_splash_has_one_explicit_sound_button_and_custom_cue():
                        "boot-with-audio","boot-continue"):
         assert f'id="{identifier}"' not in H
     assert 'id="boot-play"' in H
-    assert 'boot.js?v=1133' in H
+    assert 'boot.js?v=1134' in H
     assert "playButton.addEventListener('click',onPlay)" in B
     assert "await playGate" in B
     assert "studio()?.prepareSplashMedia?.()" in B
@@ -33,3 +33,14 @@ def test_uploaded_splash_persists_across_reload():
     assert "const response=await fetch(cfg.url" in S
     assert "await syncCloud()" in S
     assert "source.start(now,bounds.start,bounds.length)" in S
+
+def test_failed_splash_keeps_single_play_retry_and_never_enters_game_silently():
+    assert 'id="boot-play-error"' in H
+    assert "function reportAudioError(reason)" in B
+    assert "function prepareAgain()" in B
+    assert "if(!splashOk||(musicWanted&&!musicOk))" in B
+    assert "playButton.hidden=true" in B
+    assert B.index("if(!splashOk||(musicWanted&&!musicOk))") < B.index("releaseGate();",B.index("function onPlay()"))
+    assert "window.UNOLuckSound?.unlock?.()" in B
+    assert "studio()?.armMusicOnSplashGesture?.()" in B
+    assert H.count('id="boot-play"')==1
