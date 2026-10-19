@@ -129,6 +129,42 @@ with sync_playwright() as p:
     assert m.evaluate("window.UNOLuckSoundStudio.cloudStatus().online")==3
     m.screenshot(path=str(ARTIFACTS/"iphone-shared-audio-after-update.png"),full_page=True)
 
+    # Mirror crossfade is a per-cue cloud setting, never a client-only checkbox.
+    # Desktop edits it, iPhone receives the exact values without shared storage.
+    music=studio.locator("details.studio-cue").nth(2)
+    music.locator("summary").click()
+    music.locator('input[name="background-music-repeat"]').check()
+    for _ in range(80):
+        published=d.request.get(URL+"api/sounds/manifest").json()["cues"]["background-music"]
+        if published["repeat"] is True:
+            break
+        d.wait_for_timeout(100)
+    assert published["repeat"] is True, published
+    music.locator('input[name="background-music-mirror"]').check()
+    music.locator('input[name="background-music-mirror-crossfade"]').evaluate(
+        """el => {el.value='180';el.dispatchEvent(new Event('input',{bubbles:true}));}""")
+    music.locator("button",has_text="SAVE").click()
+    music.locator(".studio-status").get_by_text("Setting disimpan di CLOUD",exact=False).wait_for(timeout=16000)
+    published=d.request.get(URL+"api/sounds/manifest").json()["cues"]["background-music"]
+    assert published["mirror"] is True and published["mirrorCrossfadeMs"]==180,published
+    assert published["repeat"] is True
+    assert m.evaluate("window.UNOLuckSoundStudio.syncCloud(true)")
+    live=m.evaluate("window.UNOLuckSoundStudio.publishedProfile('background-music')")
+    assert live["mirror"] is True and live["mirrorCrossfadeMs"]==180,live
+    assert m.evaluate("window.UNOLuckSoundStudio.getRepeat('background-music')")
+    # Check that mobile playback is wired to a generated mirror period.
+    result=m.evaluate("""async () => {
+      const ok=await window.UNOLuckSoundStudio.play('background-music',{looping:true});
+      const channel=window.UNOLuckSound.channels().context;
+      const cfg=window.UNOLuckSoundStudio.mirrorConfig();
+      return {ok,mirror:cfg.mirror,crossfadeMs:cfg.crossfadeMs,
+        webAudio:window.UNOLuckSound.webAudioState,
+        htmlLoop:document.querySelector('audio')?.loop===true};
+    }""")
+    assert result["ok"] and result["mirror"] and result["crossfadeMs"]==180,result
+    m.screenshot(path=str(ARTIFACTS/"iphone-mirror-loop-cloud.png"),full_page=True)
+    m.evaluate("window.UNOLuckSoundStudio.stopLoop()")
+
     assert not errors,errors
     browser.close()
 print("PASS: desktop local drafts publish all; mobile has exact file, trim, fade, repeat and mixer; live refresh works")
