@@ -153,6 +153,9 @@
   async function music(playIt){
     musicRequested=Boolean(playIt);
     if(!playIt)studio?.stopLoop();
+    // The music lane was preactivated on splash PLAY and is already playing
+    // when gameplay opens. Do not start another AudioBufferSource on top.
+    if(playIt&&studio?.isMusicMediaPlaying?.())return true;
     if(!isActive()){
       if(!playIt)return false;
       // Music has its own mute preference. SFX OFF must not mute music.
