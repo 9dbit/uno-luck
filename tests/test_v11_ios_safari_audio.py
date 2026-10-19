@@ -32,7 +32,7 @@ def test_uploaded_splash_is_prepared_before_user_activation():
     assert "mediaUnlocked=true" in STUDIO
     assert "media-src 'self' blob:" in HTML
     assert "sound.js?v=1117" in HTML
-    assert "sound-studio.js?v=1119" in HTML
+    assert "sound-studio.js?v=1120" in HTML
     assert "boot.js?v=1119" in HTML
 
 def test_ios_media_fallback_preserves_sound_studio_settings():
