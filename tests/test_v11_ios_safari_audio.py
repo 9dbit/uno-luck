@@ -19,6 +19,11 @@ def test_safari_play_button_activates_published_splash_in_trusted_event():
     assert "void runBoot().catch" in BOOT
     assert "window.UNOLuckSound?.unlock()" not in BOOT
     assert "studio()?.playSplashGesture?.()" in BOOT
+    assert "studio()?.armMusicOnSplashGesture?.()" in BOOT
+    assert "function activateMusicAtGameplay()" in STUDIO
+    assert "bgmElement().muted=true" in STUDIO
+    assert "player.muted=false" in STUDIO
+    assert "studio?.isMusicMediaPlaying?.()" in SOUND
     assert "playButton.addEventListener('click',onPlay)" in BOOT
     assert "await playGate" in BOOT
     assert 'id="boot-play"' in HTML
@@ -29,8 +34,8 @@ def test_safari_play_button_activates_published_splash_in_trusted_event():
     assert "URL.createObjectURL(typed)" in STUDIO
     assert "promise=player.play()" in STUDIO
     assert "media-src 'self' blob:" in HTML
-    assert "boot.js?v=1132" in HTML
-    assert "sound-studio.js?v=1130" in HTML
+    assert "boot.js?v=1133" in HTML
+    assert "sound-studio.js?v=1133" in HTML
     assert "const activate=()=>{" in (ROOT/'orbit.js').read_text()
 
 
