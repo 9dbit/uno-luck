@@ -41,7 +41,6 @@ with sync_playwright() as p:
     errors=[]
     page.on('pageerror',lambda error:errors.append(str(error)))
     page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
-    page.locator('#boot-start-sound').click()
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
     assert page.evaluate("window.UNOLuckSound.webAudioState")=='interrupted'
 
@@ -62,18 +61,13 @@ with sync_playwright() as p:
     assert setting['custom'] and setting['start']==.4 and setting['stop']==2.5,setting
     assert setting['fadeIn']==.3 and setting['fadeOut']==.4
 
-    # Reload re-reads IndexedDB before enabling the sound button.
+    # iOS autoplay is intentionally disabled. Custom file is still available
+    # in IndexedDB after a reload and can be previewed after the user's tap.
     page.reload(wait_until='domcontentloaded')
-    button=page.locator('#boot-start-sound')
-    for _ in range(100):
-        if button.is_enabled():break
-        page.wait_for_timeout(100)
-    assert button.is_enabled(),page.locator('#boot-sound-status').inner_text()
-    assert 'iphone-splash.wav' in page.locator('#boot-sound-status').inner_text()
+    page.locator('#game-shell').wait_for(state='visible',timeout=25000)
+    assert page.locator('#boot-start-sound').count()==0
     assert page.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').custom")
     assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
-    assert page.locator('audio[src^="blob:"]').count()==1,'Splash Blob media must be prepared before tap'
-
     page.evaluate("""() => {
         window.__iosMediaPlays=0;
         const original=HTMLMediaElement.prototype.play;
@@ -82,15 +76,8 @@ with sync_playwright() as p:
             return original.apply(this,args);
         };
     }""")
-    page.screenshot(path=str(OUT/'iphone-splash-ready.png'),full_page=True)
-    button.click()
-    page.locator('#boot-sound-gate').wait_for(state='hidden',timeout=16000)
-    assert page.evaluate("window.__iosMediaPlays")>=1
-    assert page.evaluate("window.UNOLuckSoundStudio.mediaUnlocked")
-    assert page.evaluate("window.UNOLuckSound.webAudioState")=='interrupted'
-    page.locator('#game-shell').wait_for(state='visible',timeout=25000)
-    page.screenshot(path=str(OUT/'iphone-sound-enabled-game.png'),full_page=True)
-
+    page.screenshot(path=str(OUT/'iphone-auto-splash.png'),full_page=True)
+    assert page.evaluate("window.__iosMediaPlays")==0
     # HTML5 media remains usable after the introductory gesture. Preview
     # must not reject merely because AudioContext.state is interrupted.
     page.locator('#menu-open').click()
@@ -102,7 +89,8 @@ with sync_playwright() as p:
     splash.locator('.studio-status').get_by_text('Preview aktif',exact=False).wait_for(timeout=12000)
     assert page.evaluate('window.__iosMediaPlays')>previous
     splash.locator('button',has_text='STOP').click()
+    assert page.evaluate('window.__iosMediaPlays')>0
     assert not errors,errors
     context.close()
     browser.close()
-print('PASS: iPhone UA with interrupted WebAudio; custom splash preloaded, played on tap, trimmed, reload and preview')
+print('PASS: iPhone interrupted WebAudio, hands-free silent splash, saved custom preview on gesture')
