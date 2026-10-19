@@ -74,3 +74,18 @@ def test_clockwise_idle_faces_not_ledger_or_metal_frame_geometry():
     assert 'const RING_COUNT = 9' in GAME
     assert orbit.WIN_PERCENT==80
     assert [orbit.CELEBRATIONS[i]['multiplier'] for i in range(1,6)]==[200,80,30,10,2]
+
+
+def test_led_previews_show_random_uno_cards_not_nine_ones():
+    # Keep the approved clockwise LED-only chase and server authority.
+    assert "const WILDS = ['WILD','+4'];" in WHEEL
+    assert "const ACTIONS = ['SKIP','REVERSE','+2'];" in WHEEL
+    assert "this.displays=previewPack()" in WHEEL
+    assert "this.flashPreview(index)" in WHEEL
+    assert "node.dataset.face=String(card.face)" in WHEEL
+    assert "this.displays[PICKS]={...this.lastSelected}" in WHEEL
+    assert "this.displays[PICKS]={...this.ready.card}" in WHEEL
+    assert "textContent='1'" not in WHEEL
+    assert 'ledwheel.js?v=1127' in HTML
+    assert 'ledwheel.css?v=10' in HTML
+    assert 'Sembilan panel kartu UNO berwarna' in HTML
