@@ -118,4 +118,6 @@ def test_inflight_old_rank_is_honored_after_migration(tmp_path,monkeypatch):
         done=pick(client,3).json()['round']
         assert done['tier']['rank']==1
         assert done['pattern']=='LEGACY_COLOR_MATCH'
+        assert done['tier']['pattern']=='LEGACY_COLOR_MATCH'
+        assert 'Ronde lama' in done['tier']['rule']
         assert done['payout']==25*200
