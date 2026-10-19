@@ -309,7 +309,7 @@ function listeners(){
   addEventListener('resize',layoutRing);
   // The intro is hands-free. Background Music is requested immediately on
   // entering gameplay, not only on a later touch or visibilitychange.
-  document.addEventListener('uno:boot-finished',()=>{
+  window.addEventListener('uno:boot-finished',()=>{
     if(!musicEnabled)return;
     // A simultaneous Cloud manifest fetch and HTML5 preload previously
     // canceled the first background-music start with no retry. Ensure the
