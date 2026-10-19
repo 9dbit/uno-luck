@@ -14,27 +14,39 @@
   const game = find('game-shell');
   let released = false;
   let splashReady=false, splashPlayed=false, splashAttempted=false;
+  let splashPlaying=false,gestureReceived=false;
   const studio=()=>window.UNOLuckSoundStudio;
-  // Preserve the existing custom Sound Studio file and trim/fade/mixer.
-  // On iOS, a trusted touch on the splash surface is the entire audio unlock
-  // interaction; no button, confirmation card or misleading autoplay promise.
+  // No Sound Studio writes. iOS user activation must reach media.play()
+  // synchronously from the trusted pointer/keyboard event.
   function trySplashSound(fromGesture=false){
-    if(released||logo.hidden||splashPlayed||!splashReady)return;
+    if(released||splashPlayed||splashPlaying||!splashReady)return;
     if(!fromGesture&&splashAttempted)return;
     splashAttempted=true;
+    splashPlaying=true;
     const result=studio()?.playSplashGesture?.();
-    if(result)void Promise.resolve(result).then(played=>{
-      if(played)splashPlayed=true;
-    }).catch(error=>console.warn('[UNO SPLASH] audio deferred',error));
+    if(!result){splashPlaying=false;return;}
+    void Promise.resolve(result).then(played=>{
+      splashPlayed=Boolean(played);
+      if(!played&&fromGesture)console.warn('[UNO SPLASH] iOS did not start custom audio');
+    }).catch(error=>console.warn('[UNO SPLASH] playback blocked',error))
+      .finally(()=>{splashPlaying=false;});
   }
-  logo.addEventListener('pointerdown',()=>{
-    if(!splashReady){
-      // Gesture-activate Web Audio for late custom audio retrieval.
+  function onSplashGesture(){
+    if(released)return;
+    gestureReceived=true;
+    if(splashReady){
+      trySplashSound(true);
+    }else{
+      // This is a prewarm, not fake playback. The real splash sound still
+      // requires a gesture once the network audio file becomes available.
       void window.UNOLuckSound?.unlock?.();
-      return;
     }
-    trySplashSound(true);
-  },{passive:true});
+  }
+  // Entire visible splash is tappable. No extra SOUND button or message.
+  cover.addEventListener('pointerdown',onSplashGesture,{passive:true});
+  cover.addEventListener('keydown',event=>{
+    if(event.key==='Enter'||event.key===' '){event.preventDefault();onSplashGesture();}
+  });
 
   let current = 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -76,7 +88,11 @@
     // the direct splash touch handler above for audible media playback.
     void studio()?.prepareSplashMedia?.().then(ready=>{
       splashReady=Boolean(ready);
-      if(splashReady)trySplashSound(false);
+      if(splashReady){
+        // Desktop/previously allowed browsers may autoplay. iOS generally
+        // blocks it; a real screen tap retriggers media.play() synchronously.
+        trySplashSound(false);
+      }
     }).catch(error=>console.warn('[UNO SPLASH] custom file unavailable',error));
     await Promise.race([preloadImage(soft),wait(2500)]);
     logo.classList.add('is-zooming');

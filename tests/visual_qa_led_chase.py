@@ -50,21 +50,46 @@ with sync_playwright() as p:
       const base=Array.from({length:9},(_,i)=>({color:'blue',face:String(i)}));
       w.mount(base);
       const coin=document.getElementById('wallet-balance').textContent;
+      const timeline=[];
+      let previous=-1;
+      const observer=new MutationObserver(()=>{
+        const index=Number(el.dataset.ledFrame);
+        if(index!==previous){
+          previous=index;
+          timeline.push({t:performance.now(),index,phase:el.dataset.spinPhase});
+        }
+      });
+      observer.observe(el,{attributes:true,attributeFilter:['data-led-frame']});
       w.begin({turbo:false});
       const ack=w.settle({color:'red',face:'1'},1);
-      const finished=await Promise.race([ack,new Promise(resolve=>setTimeout(()=>resolve('timeout'),4800))]);
+      const finished=await Promise.race([ack,new Promise(resolve=>setTimeout(()=>resolve('timeout'),6500))]);
+      observer.disconnect();
       const choice=w.lastSelected;
       const center=w.nodes[4].querySelector('.led-symbol').textContent;
       const lit=Array.from(w.nodes).filter(n=>n.classList.contains('led-illuminated')).length;
       const unchanged=document.getElementById('wallet-balance').textContent===coin;
+      const intervals=timeline.slice(1).map((row,i)=>({
+        ms:row.t-timeline[i].t,phase:row.phase,index:row.index
+      }));
+      const cruise=intervals.filter(x=>x.phase==='accelerate').map(x=>x.ms);
+      const brake=intervals.filter(x=>x.phase==='decelerate').map(x=>x.ms);
+      const finalStep=timeline.length?timeline[timeline.length-1].index:-1;
       w.cancel();el.remove();
-      return {finished,choice,center,lit,unchanged};
+      return {finished,choice,center,lit,unchanged,finalStep,
+        cruise:cruise.slice(0,8),brake:brake.slice(-6)};
+
     }""")
     assert state["finished"] is True,state
     assert state["choice"]=={"color":"red","face":"1"},state
     assert state["center"]=="1",state
     assert state["lit"]==0,state
     assert state["unchanged"],"Visual-only LED test must never change balance"
+    assert state["finalStep"]==4,state
+    assert state["cruise"] and len(state["brake"])>=4,state
+    early=sum(state["cruise"])/len(state["cruise"])
+    last=sum(state["brake"][-3:])/3
+    assert last>early*1.8,(early,last,state)
+
     assert not errors,errors
     browser.close()
-print("PASS: idle illuminated A->I, no moving glyphs/metal sockets; fake ACK locks server card at center without gameplay requests")
+print("PASS: fixed LEDs idle A->I; fast chase decelerates smoothly and locks fifth card from server ACK only")

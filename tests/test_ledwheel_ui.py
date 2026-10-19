@@ -13,7 +13,7 @@ def test_single_approved_static_wheel_with_nine_led_placeholders():
     assert HTML.count('id="spin-btn"')==1
     assert HTML.count('wheel-dragon.webp')==1
     assert 'wheel360.js?v=8' not in HTML
-    assert '/assets/art/ledwheel.js?v=1124' in HTML
+    assert '/assets/art/ledwheel.js?v=1126' in HTML
     assert '/assets/art/ledwheel.css?v=9' in HTML
     assert 'const RING_COUNT = 9' in ORBIT
     assert 'GEOMETRY = [' in WHEEL
@@ -41,7 +41,8 @@ def test_server_selected_card_moves_from_led_pointer_to_next_result():
     assert "await wheel.transferTo($('result-'+(phase-1)))" in ORBIT
     assert 'paintRound(confirmed.round,false,true)' in ORBIT
     assert ORBIT.index('await wheel.transferTo')<ORBIT.index('paintRound(confirmed.round,false,true)')
-    assert 'if(slowed&&this.chaseIndex===PICKS)' in WHEEL
+    assert 'if(this.chaseIndex!==PICKS)' in WHEEL
+    assert 'this.deceleration={total:minimumSteps+extra,remaining:minimumSteps+extra}' in WHEEL
     assert "if(!this.ready?.card)throw Error" in WHEEL
     assert 'this.displays[PICKS]={...this.ready.card}' in WHEEL
     assert 'this.lastSelected={...this.ready.card}' in WHEEL

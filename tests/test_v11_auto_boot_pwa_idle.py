@@ -21,7 +21,7 @@ def test_auto_boot_removes_sound_confirmation_card_and_buttons():
     assert 'uno:boot-finished' in BOOT
     assert "studio()?.prepareSplashMedia?.()" in BOOT
     assert "trySplashSound(false)" in BOOT
-    assert "logo.addEventListener('pointerdown'" in BOOT
+    assert "cover.addEventListener('pointerdown'" in BOOT
     assert "void window.UNOLuckSound?.unlock?.()" in BOOT
 
 
@@ -31,7 +31,7 @@ def test_softtech_zoom_loading_height_and_logo_pulse():
     assert '5.6dvh' in LAYOUT
     assert 'height:clamp(34px,5.6dvh,52px)!important' in LAYOUT
     assert 'is-zooming' in BOOT
-    assert 'boot.js?v=1124' in HTML
+    assert 'boot.js?v=1126' in HTML
 
 
 def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
@@ -42,17 +42,20 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
-    assert '/assets/art/viewport-v11.css?v=1124' in HTML
+    assert '/assets/art/viewport-v11.css?v=1126' in HTML
     assert '/assets/viewport-v11.js?v=1124' in HTML
     assert 'height:var(--uno-viewport-height,100dvh)!important' in LAYOUT
 
 
 def test_clockwise_idle_faces_not_ledger_or_metal_frame_geometry():
     assert 'this.illuminate((this.chaseIndex+1)%this.count)' in WHEEL
+    assert "this.host.dataset.spinPhase='decelerate'" in WHEEL
+    assert 'const smooth=progress*progress*(3-2*progress)' in WHEEL
+    assert 'if(this.chaseIndex!==PICKS)' in WHEEL
     assert 'this.idleInterval=480' in WHEEL
     assert "this.host.classList.add('led-idle','led-ambient')" in WHEEL
     assert "this.stopIdle();\n      this.active=true" in WHEEL
-    assert "window.UNOLuckSound?.ledTick(slowed)" in WHEEL
+    assert "window.UNOLuckSound?.ledTick(Boolean(this.deceleration))" in WHEEL
     assert "wheel?.startIdle()" in GAME
     assert "wheel?.stopIdle()" in GAME
     assert 'led-illuminated' in LAYOUT

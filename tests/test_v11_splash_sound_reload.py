@@ -10,12 +10,12 @@ def test_splash_autostart_preserves_custom_sound_and_ios_gesture():
     for identifier in ("boot-sound-gate","boot-start-sound","boot-start-muted",
                        "boot-sound-status","boot-with-audio","boot-continue"):
         assert f'id="{identifier}"' not in H
-    assert 'boot.js?v=1124' in H
+    assert 'boot.js?v=1126' in H
     assert "void runBoot().catch" in B
     assert "studio()?.prepareSplashMedia?.()" in B
     assert "trySplashSound(false)" in B
     assert "trySplashSound(true)" in B
-    assert "logo.addEventListener('pointerdown'" in B
+    assert "cover.addEventListener('pointerdown'" in B
     assert "window.UNOLuckSound?.unlock()" not in B
     assert "window.UNOLuckSound?.playCue(" not in B
     assert "window.dispatchEvent(new Event('uno:boot-finished'))" in B
