@@ -57,14 +57,18 @@ def main():
         assert page.locator('#orbit-ring').evaluate("(el)=>el.classList.contains('led-ambient')")
         initial=page.locator('#orbit-ring .led-slot').evaluate_all(
             "(nodes)=>nodes.map(n=>n.dataset.color+':'+n.querySelector('.led-symbol').textContent)")
+        before_index=page.locator('#orbit-ring').get_attribute('data-led-frame')
         slots_before=page.locator('#orbit-ring .led-slot').evaluate_all(
             "(nodes)=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})")
         page.wait_for_timeout(1150)
         after=page.locator('#orbit-ring .led-slot').evaluate_all(
             "(nodes)=>nodes.map(n=>n.dataset.color+':'+n.querySelector('.led-symbol').textContent)")
+        after_index=page.locator('#orbit-ring').get_attribute('data-led-frame')
         slots_after=page.locator('#orbit-ring .led-slot').evaluate_all(
             "(nodes)=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})")
-        assert initial!=after, 'Idle LED content must advance slowly clockwise'
+        assert initial==after, 'LED glyphs/colors must remain stationary during idle'
+        assert before_index!=after_index, 'Illuminated LED panel must advance clockwise'
+        assert page.locator('#orbit-ring .led-illuminated').count()==1
         assert slots_before==slots_after, 'Idle must never rotate the nine metal frames'
         page.locator('#menu-open').click()
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()

@@ -18,7 +18,8 @@ def test_single_approved_static_wheel_with_nine_led_placeholders():
     assert 'const RING_COUNT = 9' in ORBIT
     assert 'GEOMETRY = [' in WHEEL
     assert 'this.count=count;' in WHEEL
-    assert 'this.displays[i]=this.displays[i-1]' in WHEEL
+    assert 'this.illuminate((this.chaseIndex+1)%this.count)' in WHEEL
+    assert "node.querySelector('.led-symbol').textContent='1'" in WHEEL
     assert 'Math.sin(' not in WHEEL and 'Math.cos(' not in WHEEL
     assert 'animation:ambientMove' in CSS
     assert 'object-fit:contain!important' in CSS
@@ -40,10 +41,10 @@ def test_server_selected_card_moves_from_led_pointer_to_next_result():
     assert "await wheel.transferTo($('result-'+(phase-1)))" in ORBIT
     assert 'paintRound(confirmed.round,false,true)' in ORBIT
     assert ORBIT.index('await wheel.transferTo')<ORBIT.index('paintRound(confirmed.round,false,true)')
-    assert 'if(this.ready && !this.injected' in WHEEL
-    assert 'this.shift(this.ready.card)' in WHEEL
-    assert 'this.afterInject===PICKS' in WHEEL
-    assert 'this.lastSelected=this.ready?.card' in WHEEL
+    assert 'if(slowed&&this.chaseIndex===PICKS)' in WHEEL
+    assert "if(!this.ready?.card)throw Error" in WHEEL
+    assert 'this.displays[PICKS]={...this.ready.card}' in WHEEL
+    assert 'this.lastSelected={...this.ready.card}' in WHEEL
     assert 'this.host.replaceChildren(...this.nodes)' in WHEEL
 
 

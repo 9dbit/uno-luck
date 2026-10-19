@@ -18,7 +18,8 @@ def test_safari_interrupted_context_is_recoverable():
 def test_safari_autostart_keeps_audio_behind_first_user_gesture():
     assert "void runBoot().catch" in BOOT
     assert "window.UNOLuckSound?.unlock()" not in BOOT
-    assert "playSplashGesture" not in BOOT
+    assert "studio()?.playSplashGesture?.()" in BOOT
+    assert "logo.addEventListener('pointerdown'" in BOOT
     assert "window.UNOLuckSound?.playCue(" not in BOOT
     assert "playSplashGesture()" in STUDIO
     assert "prepareSplashMedia()" in STUDIO

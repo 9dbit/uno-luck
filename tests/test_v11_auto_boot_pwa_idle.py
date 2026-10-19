@@ -19,7 +19,10 @@ def test_auto_boot_removes_sound_confirmation_card_and_buttons():
     assert "window.UNOLuckSound?.playCue(" not in BOOT
     assert 'game.classList.remove(\'is-booting\')' in BOOT
     assert 'uno:boot-finished' in BOOT
-    assert "window.UNOLuckSoundStudio?.syncCloud?.()" in BOOT
+    assert "studio()?.prepareSplashMedia?.()" in BOOT
+    assert "trySplashSound(false)" in BOOT
+    assert "logo.addEventListener('pointerdown'" in BOOT
+    assert "void window.UNOLuckSound?.unlock?.()" in BOOT
 
 
 def test_softtech_zoom_loading_height_and_logo_pulse():
@@ -45,14 +48,17 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
 
 
 def test_clockwise_idle_faces_not_ledger_or_metal_frame_geometry():
-    assert 'this.shift(preview(),{silent:true})' in WHEEL
+    assert 'this.illuminate((this.chaseIndex+1)%this.count)' in WHEEL
     assert 'this.idleInterval=480' in WHEEL
     assert "this.host.classList.add('led-idle','led-ambient')" in WHEEL
     assert "this.stopIdle();\n      this.active=true" in WHEEL
-    assert "if(!silent)window.UNOLuckSound?.ledTick(this.injected)" in WHEEL
+    assert "window.UNOLuckSound?.ledTick(slowed)" in WHEEL
     assert "wheel?.startIdle()" in GAME
     assert "wheel?.stopIdle()" in GAME
-    assert 'unoLedIdleGlide' in LAYOUT
+    assert 'led-illuminated' in LAYOUT
+    assert 'unoLedIdleGlide' not in LAYOUT
+    assert 'width:min(56vw,441px)!important' in LAYOUT
+    assert "url('/assets/art/v4/lava-temple.webp')" in LAYOUT
     assert 'this.host.replaceChildren(...this.nodes)' in WHEEL
     assert 'const PICKS = 4' in WHEEL
     assert 'fetch(' not in WHEEL
