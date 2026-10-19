@@ -310,7 +310,14 @@ function listeners(){
   // The intro is hands-free. Background Music is requested immediately on
   // entering gameplay, not only on a later touch or visibilitychange.
   document.addEventListener('uno:boot-finished',()=>{
-    if(musicEnabled)void startMusic();
+    if(!musicEnabled)return;
+    // A simultaneous Cloud manifest fetch and HTML5 preload previously
+    // canceled the first background-music start with no retry. Ensure the
+    // exact published clip is ready before requesting autoplay.
+    void Promise.resolve(window.UNOLuckSoundStudio?.prepareMusicMedia?.())
+      .then(()=>{
+        if(musicEnabled&&!document.hidden)void startMusic();
+      }).catch(error=>console.warn('[UNO GAMEPLAY BGM] preload',error));
   });
   const activate=()=>{
     if($('game-shell').classList.contains('is-booting'))return;
