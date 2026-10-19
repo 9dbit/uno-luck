@@ -309,3 +309,65 @@ body::before{
   .game-shell > .result-bar small{font-size:clamp(8px,1vw,11px)!important}
   .game-shell > .result-bar strong{font-size:clamp(11px,1.6vw,17px)!important}
 }
+
+
+/* UNO LUCK solid-face LED roulette: no translucent cards.
+   Fixed nine card positions; JS moves active illumination and glyph together. */
+.wheel-led-ring .led-slot{
+  isolation:isolate!important;
+  overflow:visible!important;
+  border-radius:9%!important;
+}
+.wheel-led-ring .led-slot .led-screen{
+  clip-path:none!important;
+  border-radius:9%!important;
+  background-color:#123fd3!important;
+  opacity:1!important;
+  border:2px solid #fff8df!important;
+  box-shadow:inset 0 0 0 2px #ffffff8c,inset 0 -5px 10px #0005!important;
+  transition:box-shadow .07s linear!important;
+}
+.wheel-led-ring .led-slot[data-color='red'] .led-screen{background:#e82032!important}
+.wheel-led-ring .led-slot[data-color='blue'] .led-screen{background:#1169e9!important}
+.wheel-led-ring .led-slot[data-color='green'] .led-screen{background:#16ae50!important}
+.wheel-led-ring .led-slot[data-color='yellow'] .led-screen{background:#f5c916!important}
+.wheel-led-ring .led-slot[data-color='wild'] .led-screen{
+  background:conic-gradient(#e82032 0 25%,#f5c916 25% 50%,#16ae50 50% 75%,#1169e9 75%)!important;
+}
+.wheel-led-ring .led-screen::before{
+  content:''!important;
+  position:absolute!important;
+  inset:15% 8%!important;
+  border:2px solid #fff9!important;
+  border-radius:50%!important;
+  transform:rotate(-27deg)!important;
+  background:none!important;
+  mix-blend-mode:normal!important;
+  pointer-events:none!important;
+}
+.wheel-led-ring .led-slot .led-symbol{
+  opacity:1!important;
+  color:#fff!important;
+  -webkit-text-stroke:1px #18223e!important;
+  text-shadow:0 2px 2px #000b!important;
+  filter:none!important;
+}
+.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-dimmed .led-screen{
+  opacity:1!important;
+  filter:brightness(.37) saturate(.72)!important;
+  box-shadow:inset 0 0 0 2px #ffffff4a,inset 0 0 15px #000a!important;
+}
+.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-dimmed .led-symbol{
+  opacity:1!important;
+  color:#c8cbd4!important;
+}
+.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-illuminated .led-screen,
+.wheel-led-ring.led-locked .led-slot:nth-child(5) .led-screen{
+  opacity:1!important;
+  filter:brightness(1.35) saturate(1.25)!important;
+  box-shadow:inset 0 0 7px #fff,0 0 15px #ffc22e,0 0 26px #ff8d1b!important;
+}
+.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-illuminated .led-symbol{
+  color:#fff!important;
+  text-shadow:0 0 5px #fff,0 1px 3px #161020!important;
+}
