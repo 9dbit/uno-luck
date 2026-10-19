@@ -12,6 +12,11 @@
   const fill=find('boot-loading-fill'),percent=find('boot-loading-percent');
   const studio=()=>window.UNOLuckSoundStudio;
   const wantMusic=()=>localStorage.getItem('uno_orbit_music')!=='off';
+  const splashConfigured=()=>{
+    const p=studio()?.publishedProfile?.('soft-tech-splash-screen')||
+      studio()?.profile?.('soft-tech-splash-screen')||{};
+    return p.custom===true||p.source==='custom';
+  };
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   let released=false,accepted=false,current=0;
@@ -47,7 +52,9 @@
       ]);
       splashReady=results[0].status==='fulfilled'&&results[0].value===true;
       bgmReady=results[1].status==='fulfilled'&&results[1].value===true;
-      if(splashReady&&bgmReady){
+      // In an empty/staging-demo catalog there may not yet be a custom
+      // splash clip. Do not lock game entry forever on a nonexistent file.
+      if((splashReady||!splashConfigured())&&bgmReady){
         label('PLAY WITH SOUND');
         button.disabled=false;
         return true;
@@ -63,7 +70,7 @@
   // inside this same trusted button click, before any Promise or await.
   button.addEventListener('click',()=>{
     if(accepted||released)return;
-    if(!splashReady||(wantMusic()&&!bgmReady)){
+    if((!splashReady&&splashConfigured())||(wantMusic()&&!bgmReady)){
       void prepareSound();return;
     }
     accepted=true;
