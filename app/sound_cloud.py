@@ -96,7 +96,7 @@ def check_cue(key: str) -> None:
         raise HTTPException(404, "Sound tidak ditemukan")
 
 
-def settings(value: object, *, duration: float | None = None) -> dict:
+def settings(value: object, *, duration: float | None = None, cue: str | None = None) -> dict:
     if not isinstance(value, dict):
         raise HTTPException(422, "Sound settings tidak valid")
     try:
@@ -114,12 +114,22 @@ def settings(value: object, *, duration: float | None = None) -> dict:
             fade_in + fade_out <= stop-start + .001 and
             0 < file_duration <= 3600 and stop <= file_duration + .01):
         raise HTTPException(422, "Rentang START, STOP, dan fade tidak valid")
-    return {
+    options = {
         "start": round(start, 3), "stop": round(stop, 3),
         "fadeIn": round(fade_in, 3), "fadeOut": round(fade_out, 3),
         "fileDuration": round(file_duration, 3),
         "repeat": value.get("repeat", True) is not False,
     }
+    if cue == "background-music":
+        mirror = value.get("mirror", False)
+        ms = value.get("mirrorCrossfadeMs", 140)
+        if not isinstance(mirror, bool):
+            raise HTTPException(422, "Mirror harus ON atau OFF")
+        if isinstance(ms, bool) or not isinstance(ms, (int, float)) or not math.isfinite(ms) or not 0 <= ms <= 1000:
+            raise HTTPException(422, "Mirror crossfade harus 0–1000 ms")
+        options["mirror"] = mirror
+        options["mirrorCrossfadeMs"] = round(ms)
+    return options
 
 
 def _safe_name(filename: str) -> str:
@@ -201,7 +211,7 @@ def manifest():
             continue
         clean = {name: info[name] for name in
                  ("source", "start", "stop", "fadeIn", "fadeOut", "fileDuration",
-                  "repeat", "fileName", "revision") if name in info}
+                  "repeat", "mirror", "mirrorCrossfadeMs", "fileName", "revision") if name in info}
         if info.get("source") == "custom":
             clean["url"] = "/api/sounds/files/" + quote(cue) + "?v=" + quote(info["revision"])
         public[cue] = clean
@@ -281,7 +291,7 @@ async def publish_file(cue: str, request: Request):
         meta = json.loads(request.headers.get("x-uno-sound-settings", ""))
     except ValueError:
         raise HTTPException(422, "X-UNO-Sound-Settings wajib JSON")
-    config = settings(meta)
+    config = settings(meta, cue=cue)
     data = await _read_upload(request)
     mime, ext = _audio_mime(name, data)
     with LOCK:
@@ -328,7 +338,7 @@ async def publish_settings(cue: str, request: Request):
         root = storage()
         data = _read(root)
         previous = data["cues"].get(cue)
-        config = settings(info)
+        config = settings(info, cue=cue)
         revision = secrets.token_hex(12)
         data["cues"][cue] = ({
             **(previous or {"source": "default", "fileName": ""}),
