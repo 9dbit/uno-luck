@@ -13,7 +13,7 @@ def test_single_approved_static_wheel_with_nine_led_placeholders():
     assert HTML.count('id="spin-btn"')==1
     assert HTML.count('wheel-dragon.webp')==1
     assert 'wheel360.js?v=8' not in HTML
-    assert '/assets/art/ledwheel.js?v=1128' in HTML
+    assert '/assets/art/ledwheel.js?v=1129' in HTML
     assert '/assets/art/ledwheel.css?v=10' in HTML
     assert 'const RING_COUNT = 9' in ORBIT
     assert 'GEOMETRY = [' in WHEEL
@@ -24,7 +24,7 @@ def test_single_approved_static_wheel_with_nine_led_placeholders():
     assert "this.advanceFaces(index)" in WHEEL
     assert "const WILDS = ['WILD','+4'];" in WHEEL
     assert "const ACTIONS = ['SKIP','REVERSE','+2'];" in WHEEL
-    assert 'this.displays[slot]=before[(j+track.length-1)%track.length]' in WHEEL
+    assert 'this.displays[track[j]]=this.displays[track[j-1]]' in WHEEL
     assert 'this.host.dataset.faceFrame=String(this.faceSteps)' in WHEEL
     assert 'Math.sin(' not in WHEEL and 'Math.cos(' not in WHEEL
     assert 'animation:ambientMove' in CSS
