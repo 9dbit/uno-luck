@@ -23,22 +23,26 @@ with sync_playwright() as p:
     assert ring.locator(".led-slot").count()==9
     first=page.evaluate("""() => ({
       index:document.querySelector('#orbit-ring').dataset.ledFrame,
+      faceFrame:document.querySelector('#orbit-ring').dataset.faceFrame,
       content:Array.from(document.querySelectorAll('#orbit-ring .led-slot')).map(n=>n.querySelector('.led-symbol').textContent),
       rects:Array.from(document.querySelectorAll('#orbit-ring .led-slot')).map(n=>{let r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height];})
     })""")
     # Visuals are UNO-like: 9 distinct numbers/actions/Wilds rather than nine "1".
     assert first["content"] != ["1"]*9,first
     assert len(set(first["content"]))==9,first
-    assert any(x in first["content"] for x in ("⊘","⇄","+2")),first
-    assert any(x in first["content"] for x in ("◉","+4")),first
+    assert all(x in ("0","1","2","3","4","5","6","7","8","9","⊘","⇄","+2","+4","◉")
+               for x in first["content"]),first
     assert ring.locator(".led-illuminated").count()==1
     page.wait_for_timeout(1050)
     second=page.evaluate("""() => ({
       index:document.querySelector('#orbit-ring').dataset.ledFrame,
+      faceFrame:document.querySelector('#orbit-ring').dataset.faceFrame,
       content:Array.from(document.querySelectorAll('#orbit-ring .led-slot')).map(n=>n.querySelector('.led-symbol').textContent),
       rects:Array.from(document.querySelectorAll('#orbit-ring .led-slot')).map(n=>{let r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height];})
     })""")
-    assert first["content"]==second["content"],"Letters/digits must stay in place during idle"
+    assert first["content"]!=second["content"],"UNO numbers must rotate during the idle LED chase"
+    assert sum(a!=b for a,b in zip(first["content"],second["content"]))>=6,(first,second)
+    assert int(second["faceFrame"])>int(first["faceFrame"]),"Number frame must advance with LED"
     assert first["rects"]==second["rects"],"Gold LED frames must stay in place"
     assert first["index"]!=second["index"],"LED light must advance clockwise"
     assert ring.locator(".led-illuminated").count()==1
@@ -62,7 +66,10 @@ with sync_playwright() as p:
         if(index!==previous){
           previous=index;
           timeline.push({t:performance.now(),index,phase:el.dataset.spinPhase,
-            face:w.nodes[index]?.dataset.face,color:w.nodes[index]?.dataset.color});
+            face:w.nodes[index]?.dataset.face,color:w.nodes[index]?.dataset.color,
+            faces:w.nodes.map(node=>node.dataset.face),
+            faceFrame:Number(el.dataset.faceFrame),
+            lit:w.nodes.filter(n=>n.classList.contains('led-illuminated')).length});
         }
       });
       observer.observe(el,{attributes:true,attributeFilter:['data-led-frame']});
@@ -78,6 +85,21 @@ with sync_playwright() as p:
       w.startIdle();
       const centerAfterIdle=w.nodes[4].querySelector('.led-symbol').textContent;
       const variedAfterIdle=new Set(w.nodes.map(n=>n.dataset.face)).size;
+      const idleBefore=w.nodes.map(n=>n.dataset.face);
+      await new Promise(resolve=>setTimeout(resolve,1030));
+      const idleAfter=w.nodes.map(n=>n.dataset.face);
+      const idleCenterHeld=idleAfter[4]==='1';
+      const idleOthersMove=idleAfter.some((face,i)=>i!==4&&face!==idleBefore[i]);
+      const syncedSteps=timeline.slice(1).map((row,i)=>{
+        const prev=timeline[i];
+        return {
+          ledMoves:row.index===(prev.index+1)%9,
+          faceMoves:row.faceFrame===prev.faceFrame+1,
+          matches:row.faces.reduce((n,face,slot)=>n+(face===prev.faces[(slot+8)%9]?1:0),0),
+          changed:row.faces.filter((face,slot)=>face!==prev.faces[slot]).length,
+          lit:row.lit
+        };
+      });
       const intervals=timeline.slice(1).map((row,i)=>({
         ms:row.t-timeline[i].t,phase:row.phase,index:row.index
       }));
@@ -85,7 +107,8 @@ with sync_playwright() as p:
       const brake=intervals.filter(x=>x.phase==='decelerate').map(x=>x.ms);
       const finalStep=timeline.length?timeline[timeline.length-1].index:-1;
       w.cancel();el.remove();
-      return {finished,choice,center,centerAfterIdle,variedAfterIdle,previewVariety,lit,unchanged,finalStep,
+      return {finished,choice,center,centerAfterIdle,variedAfterIdle,previewVariety,
+        idleCenterHeld,idleOthersMove,syncedSteps,lit,unchanged,finalStep,
         cruise:cruise.slice(0,8),brake:brake.slice(-6)};
 
     }""")
@@ -94,7 +117,18 @@ with sync_playwright() as p:
     assert state["center"]=="1",state
     assert state["centerAfterIdle"]=="1","Idle must preserve exact server-picked fifth card"
     assert state["variedAfterIdle"]>=8,state
+    assert state["idleCenterHeld"],"Actual server result must remain visible during idle"
+    assert state["idleOthersMove"],"Non-winning LED faces must continue moving during idle"
     assert state["previewVariety"]>=4,"Spinning must visibly randomize the UNO card faces"
+    assert len(state["syncedSteps"])>=12,state
+    # Final LED frame is immediately overwritten with the server card and its
+    # illuminated class is cleared by complete() before MutationObserver runs.
+    assert all(
+        row["ledMoves"] and row["faceMoves"] and row["changed"]>=7 and
+        row["matches"] >= (7 if i==len(state["syncedSteps"])-1 else 8) and
+        row["lit"] == (0 if i==len(state["syncedSteps"])-1 else 1)
+        for i,row in enumerate(state["syncedSteps"])
+    ), "All number frames must follow the LED step; last frame is server-authoritative"
     assert state["lit"]==0,state
     assert state["unchanged"],"Visual-only LED test must never change balance"
     assert state["finalStep"]==4,state
@@ -105,4 +139,4 @@ with sync_playwright() as p:
 
     assert not errors,errors
     browser.close()
-print("PASS: diverse UNO card faces, stationary panels, random spin previews, fast-to-slow light and fifth-card server lock")
+print("PASS: idle+spin numbers rotate with each LED step, random UNO cards, fixed frames, slow-motion finish, fifth server card stays pinned")

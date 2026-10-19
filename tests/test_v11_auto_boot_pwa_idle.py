@@ -48,7 +48,7 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
-    assert '/assets/art/viewport-v11.css?v=1134' in HTML
+    assert '/assets/art/viewport-v11.css?v=1135' in HTML
     assert '/assets/viewport-v11.js?v=1124' in HTML
     assert 'height:var(--uno-viewport-height,100dvh)!important' in LAYOUT
 
@@ -77,15 +77,15 @@ def test_clockwise_idle_faces_not_ledger_or_metal_frame_geometry():
 
 
 def test_led_previews_show_random_uno_cards_not_nine_ones():
-    # Keep the approved clockwise LED-only chase and server authority.
+    # Numbers now travel with each clockwise LED pulse; server remains authoritative.
     assert "const WILDS = ['WILD','+4'];" in WHEEL
     assert "const ACTIONS = ['SKIP','REVERSE','+2'];" in WHEEL
     assert "this.displays=previewPack()" in WHEEL
-    assert "this.flashPreview(index)" in WHEEL
+    assert "this.advanceFaces(index)" in WHEEL
     assert "node.dataset.face=String(card.face)" in WHEEL
     assert "this.displays[PICKS]={...this.lastSelected}" in WHEEL
     assert "this.displays[PICKS]={...this.ready.card}" in WHEEL
     assert "textContent='1'" not in WHEEL
-    assert 'ledwheel.js?v=1127' in HTML
+    assert 'ledwheel.js?v=1128' in HTML
     assert 'ledwheel.css?v=10' in HTML
     assert 'Sembilan panel kartu UNO berwarna' in HTML

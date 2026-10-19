@@ -1,7 +1,8 @@
 /* UNO LUCK v1.2: nine fixed, full-color UNO-inspired LED cards.
-   Preview symbols/colors change independently inside the fixed panels; only
-   the LED highlight runs clockwise and decelerates at card five.
-   Backend /api/orbit/pick alone chooses the settled card, credit and payout. */
+   Each LED step moves the entire symbol/color sequence clockwise on the SAME
+   animation tick as the illuminated panel, and injects a random UNO card.
+   Frames are fixed; the final fifth-panel card comes ONLY from the server.
+   This preview animation never draws prizes or changes backend outcome odds. */
 (() => {
   'use strict';
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -64,6 +65,7 @@
       this.injected=false;
       this.afterInject=0;
       this.tickNo=0;
+      this.faceSteps=0;
       this.resolve=null;
       this.pending=null;
       this.lastSelected=null;
@@ -73,32 +75,49 @@
       this.idleInterval=480;
       this.chaseIndex=-1;
     }
-    // LED Chase: metal frames never move. When idle, nine assorted UNO card
-    // faces stand still and only the LED light advances. On SPIN, each newly
-    // lit panel can flicker to another colored UNO card without shifting slots.
+    // The metal LED frames NEVER move. Each tick moves their UNO faces one
+    // position in the same clockwise direction as the LED chase. In idle,
+    // numbers also circulate slowly instead of staying static.
     chaseFace(){
       this.displays=previewPack();
-      // The center card is the real server result after a finished SPIN.
-      // Never replace that card with a decorative preview during idle/reload.
+      this.faceSteps=0;
+      // After a completed SPIN, the fifth card is a real server result. The
+      // animated idle preview may NOT rotate or reroll that center outcome.
       if(!this.active && this.cardConfirmed && this.lastSelected)
         this.displays[PICKS]={...this.lastSelected};
       this.updateAll();
     }
-    flashPreview(index){
-      if(!this.active)return;
-      const shown=new Set(this.displays
-        .filter((_,i)=>i!==index).map(card=>card.face));
-      const prior=this.displays[index]?.face;
-      // Keep all nine symbols varied, and make the lit preview change on each
-      // pass. Math.random here is ONLY presentation, not game result RNG.
-      const candidates=FACES.filter(face=>face!==prior&&!shown.has(face));
-      if(!candidates.length)return;
-      const card=preview(random(candidates));
-      this.displays[index]=card;
-      this.paint(index,card);
+    advanceFaces(index){
+      if(!this.displays.length)return;
+      const centerLocked=!this.active && this.cardConfirmed && Boolean(this.lastSelected);
+      const track=Array.from({length:this.count},(_,i)=>i)
+        .filter(i=>!centerLocked || i!==PICKS);
+      // Rotate actual face+color pairs, rather than flashing only one number.
+      const before=track.map(i=>({...this.displays[i]}));
+      track.forEach((slot,j)=>{
+        this.displays[slot]=before[(j+track.length-1)%track.length];
+      });
+      const current=index===PICKS && centerLocked ? track[3] : index;
+      const at=track.indexOf(current);
+      // Every second tick rerolls the active illuminated card; alternate ticks
+      // feed a fresh card in just behind it. The whole sequence keeps moving,
+      // while the bright number visibly varies throughout fast and slow SPIN.
+      const injectAt=track[this.faceSteps%2===0
+        ? at : (at+track.length-1)%track.length];
+      const previousFace=this.displays[injectAt]?.face;
+      const used=new Set(this.displays
+        .filter((_,i)=>i!==injectAt).map(card=>card.face));
+      const choices=FACES.filter(face=>face!==previousFace && !used.has(face));
+      if(choices.length)this.displays[injectAt]=preview(random(choices));
+      if(centerLocked)this.displays[PICKS]={...this.lastSelected};
+      this.faceSteps++;
+      this.updateAll();
+      this.host.dataset.faceFrame=String(this.faceSteps);
     }
     illuminate(index){
-      if(this.active)this.flashPreview(index);
+      // Face rotation, random number injection and LED highlight share this
+      // single tick. No separate timer or race with the server acknowledgment.
+      if(this.nodes.length)this.advanceFaces(index);
       this.chaseIndex=index;
       this.nodes.forEach((node,i)=>{
         node.classList.toggle('led-illuminated',i===index);

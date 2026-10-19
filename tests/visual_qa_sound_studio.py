@@ -74,7 +74,8 @@ def main():
         after_index=page.locator('#orbit-ring').get_attribute('data-led-frame')
         slots_after=page.locator('#orbit-ring .led-slot').evaluate_all(
             "(nodes)=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})")
-        assert initial==after, 'LED glyphs/colors must remain stationary during idle'
+        assert initial!=after, 'UNO faces must circulate with the idle LED sequence'
+        assert sum(a!=b for a,b in zip(initial,after))>=6, 'Most card faces should advance at every LED pulse'
         assert before_index!=after_index, 'Illuminated LED panel must advance clockwise'
         assert page.locator('#orbit-ring .led-illuminated').count()==1
         assert slots_before==slots_after, 'Idle must never rotate the nine metal frames'

@@ -44,15 +44,30 @@ html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behav
   height:auto!important;
   aspect-ratio:1!important;
 }
-/* Panel illumination, not translated card numbers. The 9 metal
-   placeholders, symbols and fixed gold pointer never animate position. */
+/* Number/color content and LED illumination advance in the same JS tick.
+   Fixed nine frames and pointer never translate; only luminosity eases. */
 .wheel-led-ring .led-symbol{
   animation:none!important;
   transform:none!important;
-  transition:none!important;
+  transition:opacity .06s linear,filter .06s linear!important;
 }
 .wheel-led-ring .led-slot .led-screen{
-  transition:filter .19s ease-out,opacity .19s ease-out,box-shadow .19s ease-out!important;
+  transition:filter .06s linear,opacity .06s linear,box-shadow .06s linear!important;
+}
+.wheel-led-ring.led-ambient .led-symbol,
+.wheel-led-ring.led-ambient .led-slot .led-screen{
+  transition-duration:.15s!important;
+}
+.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-dimmed .led-symbol{
+  opacity:.58;
+  filter:brightness(.55);
+}
+.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-illuminated .led-symbol{
+  opacity:1;
+  filter:brightness(1.5) drop-shadow(0 0 6px #ffe69a);
+}
+.wheel-led-ring.led-locked .led-slot:nth-child(5) .led-symbol{
+  opacity:1;
 }
 .wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-dimmed .led-screen{
   filter:brightness(.37) saturate(.55)!important;
