@@ -164,7 +164,8 @@
       return Boolean(await studio?.play('background-music',{looping:true}));
     }
     if(playIt&&studio?.isCustomized('background-music')){
-      if(!isActive()||document.hidden)return;
+      if(!isActive()||document.hidden)return false;
+      if(studio?.isMusicWebAudioPlaying?.())return true;
       if(playingMusic){try{playingMusic.stop();}catch(_){}playingMusic.disconnect();playingMusic=null;}
       return studio.play('background-music',{looping:true});
     }
