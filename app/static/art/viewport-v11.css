@@ -13,13 +13,28 @@ html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behav
 }
 .game-header{min-height:0!important}
 .game-header .uno-logo{
-  transform-origin:50% 50%;
-  animation:unoLuckLogoBreathe 3.5s ease-in-out infinite!important;
+  transform-origin:32% 48%;
+  animation:unoLuckLogoBreathe 2.65s cubic-bezier(.3,.06,.4,1) infinite!important;
   backface-visibility:hidden;
+  will-change:transform,filter;
 }
 @keyframes unoLuckLogoBreathe{
-  0%,100%{transform:translateZ(0) scale(1);filter:brightness(1) drop-shadow(0 0 5px #ff8d3a88)}
-  48%{transform:translateZ(0) scale(1.055);filter:brightness(1.14) drop-shadow(0 0 11px #ffbf4a9c)}
+  0%,100%{
+    transform:translate3d(0,0,0) scale(1) rotate(-1deg);
+    filter:brightness(1.02) drop-shadow(0 0 4px #ff8d3a88);
+  }
+  35%{
+    transform:translate3d(1px,-1px,0) scale(1.27) rotate(1.8deg);
+    filter:brightness(1.35) drop-shadow(0 0 16px #ffd461);
+  }
+  54%{
+    transform:translate3d(1px,-1px,0) scale(1.19) rotate(-.8deg);
+    filter:brightness(1.26) drop-shadow(0 0 14px #ff8129);
+  }
+  72%{
+    transform:translate3d(0,0,0) scale(1.12) rotate(.5deg);
+    filter:brightness(1.16) drop-shadow(0 0 9px #ffac37);
+  }
 }
 .wheel-area{overflow:hidden!important;min-height:0!important}
 .wheel-area .wheel-stage{
@@ -100,17 +115,38 @@ html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behav
     max-height:36.4dvh!important;
   }
 }
-/* Full-bleed cinematic backdrop behind the safe-area bounded HUD. This
-   continues to the home-indicator strip without moving any controls. */
+/* Full-bleed from the physical screen top through the iOS home-indicator.
+   Separate the background from .game-shell's content height/safe area.
+   The controls remain inside their existing safe-area bounded grid. */
 html,body{background-color:#120004!important}
 body{
-  background-image:linear-gradient(180deg,rgba(13,0,5,.57),rgba(19,0,4,.28)),
-    url('/assets/art/v4/lava-temple.webp')!important;
-  background-position:center center,center bottom!important;
-  background-size:100% 100%,cover!important;
-  background-repeat:no-repeat!important;
+  position:relative;
+  isolation:isolate;
+  background-color:#120004!important;
+  background-image:none!important;
+}
+body::before{
+  content:'';
+  position:fixed;
+  pointer-events:none;
+  z-index:0;
+  left:0;right:0;
+  top:calc(-1 * env(safe-area-inset-top,0px));
+  bottom:calc(-1 * env(safe-area-inset-bottom,0px));
+  height:calc(100dvh + env(safe-area-inset-top,0px) + env(safe-area-inset-bottom,0px));
+  background-image:linear-gradient(180deg,rgba(13,0,5,.52),rgba(19,0,4,.14)),
+    url('/assets/art/v4/lava-temple.webp');
+  background-repeat:no-repeat;
+  background-position:center,center;
+  background-size:100% 100%,cover;
+  transform:translateZ(0);
 }
 .game-shell{
-  background-position:center center,center bottom!important;
-  background-size:100% 100%,cover!important;
+  z-index:1;
+  background:transparent!important;
+}
+.game-shell::before{opacity:.4}
+.game-shell::after{opacity:.65}
+@media(prefers-reduced-motion:reduce){
+  .game-header .uno-logo{animation:none!important;will-change:auto}
 }
