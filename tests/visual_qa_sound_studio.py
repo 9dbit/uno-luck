@@ -136,6 +136,7 @@ def main():
         splash.locator('input[type=file]').set_input_files(str(tone))
         splash.locator('.studio-status').get_by_text('Audio tersimpan:',exact=False).wait_for(timeout=10000)
         page.reload(wait_until='domcontentloaded')
+        page.locator('#boot-play').click(timeout=17000)
         page.locator('#game-shell').wait_for(state='visible',timeout=25000)
         assert page.locator('#boot-start-sound').count()==0
         stored=page.evaluate("window.UNOLuckSoundStudio.profile('push-button')")
