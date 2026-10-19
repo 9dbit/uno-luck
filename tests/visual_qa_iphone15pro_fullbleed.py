@@ -73,10 +73,13 @@ with sync_playwright() as p:
             # Linux WebKit emulation reports zero iOS hardware safe insets.
             # Mimic the iPhone 15 Pro dynamic island (59+9px) and home bar
             # (34px) so the actual available game grid is also exercised.
-            page.add_style_tag(content=(
-                ".game-shell{padding-top:68px!important;"
-                "padding-bottom:34px!important}"
-            ))
+            # CSP disallows injected <style> elements. CSSOM property
+            # updates through element.style are permitted without weakening CSP.
+            page.evaluate("""() => {
+              const g=document.getElementById('game-shell');
+              g.style.setProperty('padding-top','68px','important');
+              g.style.setProperty('padding-bottom','34px','important');
+            }""")
         page.wait_for_function("() => !!window.UNOLuckViewport && !!window.UNOLuckLEDWheel",
                                timeout=16000)
         # The audio gate is tested separately. This is geometry-only QA.
