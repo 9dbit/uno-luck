@@ -1,10 +1,19 @@
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080
 WORKDIR /app
+
+# Railway persistent volumes are mounted at runtime and can be owned by root.
+# Install runuser so we can fix only the volume directory's ownership before
+# starting the actual FastAPI process as a non-root user.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends util-linux \
+    && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
-RUN useradd --create-home --uid 10001 runner
-USER runner
+RUN groupadd --gid 10001 runner \
+    && useradd --create-home --uid 10001 --gid runner runner
+COPY --chmod=755 deploy/start-web.sh /usr/local/bin/uno-start
+
 EXPOSE 8080
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+ENTRYPOINT ["/usr/local/bin/uno-start"]
