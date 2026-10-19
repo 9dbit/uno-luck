@@ -11,6 +11,12 @@ RUN apt-get update \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
+COPY scripts/build_social_assets.py ./scripts/build_social_assets.py
+# Render a static 1200x630 JPEG preview and correct-size iOS/PWA icons from
+# the existing branded game image before dropping build-only Pillow.
+RUN pip install --no-cache-dir Pillow \
+    && python scripts/build_social_assets.py --root /app/app/static \
+    && pip uninstall -y Pillow
 RUN groupadd --gid 10001 runner \
     && useradd --create-home --uid 10001 --gid runner runner
 COPY --chmod=755 deploy/start-web.sh /usr/local/bin/uno-start
