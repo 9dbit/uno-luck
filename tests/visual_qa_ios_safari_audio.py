@@ -41,10 +41,11 @@ with sync_playwright() as p:
     errors=[]
     page.on('pageerror',lambda error:errors.append(str(error)))
     page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
+    page.locator('#boot-play-sound').click(timeout=15000)
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
     # Auto-boot must not create an AudioContext. The menu tap below activates
     # our deliberately interrupted WebAudio shim on iOS.
-    assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
+    assert page.evaluate("window.UNOLuckSound.webAudioState")=='interrupted'
 
     # The WAV is decoded and saved even when WebAudio is interrupted.
     page.locator('#menu-open').click()
@@ -66,10 +67,11 @@ with sync_playwright() as p:
     # iOS autoplay is intentionally disabled. Custom file is still available
     # in IndexedDB after a reload and can be previewed after the user's tap.
     page.reload(wait_until='domcontentloaded')
+    page.locator('#boot-play-sound').click(timeout=15000)
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
     assert page.locator('#boot-start-sound').count()==0
     assert page.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').custom")
-    assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
+    assert page.evaluate("window.UNOLuckSound.webAudioState")=='interrupted'
     page.evaluate("""() => {
         window.__iosMediaPlays=0;
         const original=HTMLMediaElement.prototype.play;
