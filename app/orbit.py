@@ -63,11 +63,15 @@ def choose_tier() -> int:
     raise RuntimeError('tier probability table invalid')
 
 
-def rank_details(rank: int | None) -> dict | None:
+def rank_details(rank: int | None, *, legacy: bool = False) -> dict | None:
     if rank not in CELEBRATIONS:
         return None
     tier = CELEBRATIONS[rank]
-    return {k: tier[k] for k in ('title', 'theme', 'multiplier', 'pattern', 'rule')} | {'rank': rank}
+    details = {k: tier[k] for k in ('title', 'theme', 'multiplier', 'pattern', 'rule')} | {'rank': rank}
+    if legacy:
+        details['pattern'] = 'LEGACY_COLOR_MATCH'
+        details['rule'] = 'Ronde lama: tiga kartu satu warna, dengan Rank versi sebelum perubahan kombinasi'
+    return details
 
 
 class PickRequest(BaseModel):
@@ -217,7 +221,7 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
     dealt = json.loads(round_row['cards_json'])
     cards = dealt[:picked]
     complete = picked == 3
-    saved_rank = round_row['tier']
+    saved_rank = (round_row['tier'] or 5) if round_row['combo'] == 'COLOR_MATCH' else None
     version = int(round_row['rules_version'])
     if complete and version >= RULES_VERSION and round_row['combo'] == 'COLOR_MATCH':
         if classify_rank(dealt) != saved_rank:
@@ -231,7 +235,7 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
         'id': round_row['id'], 'picked': picked, 'stake': round_row['stake'],
         'cards': cards, 'complete': complete,
         'combo': round_row['combo'] if complete else None,
-        'tier': rank_details(saved_rank) if complete and round_row['combo'] == 'COLOR_MATCH' else None,
+        'tier': rank_details(saved_rank, legacy=version < RULES_VERSION) if complete and round_row['combo'] == 'COLOR_MATCH' else None,
         'pattern': pattern, 'rules_version': version,
         'payout': round_row['payout'] if complete else None,
         'delta': round_row['payout'] - round_row['stake'] if complete else None,
@@ -263,8 +267,9 @@ def state(request: Request, response: Response):
         hist = spin.spin_history(db, account['id'], 8)
         for item in hist:
             tier_row = db.execute('SELECT tier,rules_version,cards_json FROM orbit_rounds WHERE id=? AND account_id=?', (item['id'], account['id'])).fetchone()
-            item['tier'] = rank_details(tier_row['tier']) if tier_row and item['combo'] == 'COLOR_MATCH' else None
             version = int(tier_row['rules_version']) if tier_row else 1
+            item['tier'] = (rank_details(tier_row['tier'] or 5, legacy=version < RULES_VERSION)
+                if tier_row and item['combo'] == 'COLOR_MATCH' else None)
             item['pattern'] = (CELEBRATIONS[tier_row['tier']]['pattern']
                 if tier_row and version >= RULES_VERSION and item['combo'] == 'COLOR_MATCH'
                 and tier_row['tier'] in CELEBRATIONS else
