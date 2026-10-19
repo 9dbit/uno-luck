@@ -49,14 +49,12 @@
   function onSplashGesture(){
     if(released)return;
     gestureReceived=true;
-    if(splashReady){
-      trySplashSound(true);
-    }else{
-      // Prime WebAudio synchronously inside the trusted gesture, then play
-      // when the published splash clip finishes preloading.
-      const unlocking=window.UNOLuckSound?.unlock?.();
-      void Promise.resolve(unlocking).then(splashAfterPrewarm);
-    }
+    // A splash tap is also permission for the upcoming gameplay BGM. Call
+    // AudioContext.resume synchronously in this same trusted event instead
+    // of losing the privilege when the splash transitions to gameplay.
+    if(splashReady)trySplashSound(true);
+    const unlocking=window.UNOLuckSound?.unlock?.();
+    void Promise.resolve(unlocking).then(splashAfterPrewarm);
   }
   // Entire visible splash is tappable. No extra SOUND button or message.
   cover.addEventListener('pointerdown',onSplashGesture,{passive:true});
