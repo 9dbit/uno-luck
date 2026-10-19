@@ -316,7 +316,8 @@ function listeners(){
     if($('game-shell').classList.contains('is-booting'))return;
     // HTMLMediaElement.play() MUST run in the trusted iOS event before any
     // awaited AudioContext.resume(), otherwise WebKit may reject the request.
-    if(musicEnabled)void window.UNOLuckSoundStudio?.playMusicGesture?.();
+    if(musicEnabled&&window.UNOLuckSound?.webAudioState!=='running')
+      void window.UNOLuckSoundStudio?.playMusicGesture?.();
     void unlockAudio().then(yes=>{
       const musicReady=!musicEnabled ||
         window.UNOLuckSound?.webAudioState==='running' ||
