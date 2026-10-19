@@ -28,6 +28,7 @@ def main():
         errors=[]
         page.on('pageerror',lambda err:errors.append(str(err)))
         page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
+        page.locator('#boot-play').click(timeout=17000)
         page.locator('#game-shell').wait_for(state='visible',timeout=25000)
         for width,height in SIZES:
             page.set_viewport_size({'width':width,'height':height})
