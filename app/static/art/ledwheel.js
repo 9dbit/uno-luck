@@ -46,6 +46,27 @@
       this.pending=null;
       this.lastSelected=null;
       this.cardConfirmed=false;
+      this.idleTimer=0;
+      this.idleEnabled=!REDUCED;
+      this.idleInterval=480;
+    }
+    // Nine metal frames and the gold pointer never rotate. During idle only
+    // preview LED face content advances clockwise along the fixed arc.
+    stopIdle() {
+      clearTimeout(this.idleTimer);
+      this.idleTimer=0;
+      this.host.classList.remove('led-ambient');
+    }
+    startIdle() {
+      this.stopIdle();
+      if(this.active||!this.idleEnabled||document.hidden||!this.nodes.length)return;
+      this.host.classList.add('led-idle','led-ambient');
+      const tick=()=>{
+        if(this.active||document.hidden){this.stopIdle();return;}
+        this.shift(preview(),{silent:true});
+        this.idleTimer=setTimeout(tick,this.idleInterval);
+      };
+      this.idleTimer=setTimeout(tick,this.idleInterval);
     }
     mount(values) {
       this.cancel();
@@ -66,6 +87,7 @@
       this.updateAll();
       this.lastSelected=null;
       this.host.classList.add('led-idle');
+      this.startIdle();
     }
     resize() { /* All coordinates are percentages of the same square wheel art. */ }
     paint(index,card) {
@@ -78,16 +100,17 @@
       node.classList.toggle('led-selected',!this.active&&index===PICKS);
     }
     updateAll() {this.displays.forEach((data,i)=>this.paint(i,data));}
-    shift(card) {
+    shift(card,{silent=false}={}) {
       // A traveling LED sequence: the gold frames never move, only their content.
       for(let i=this.count-1;i>0;i--)this.displays[i]=this.displays[i-1];
       this.displays[0]={...card};
       this.updateAll();
       this.host.dataset.ledFrame=String((this.tickNo++)%9);
-      window.UNOLuckSound?.ledTick(this.injected);
+      if(!silent)window.UNOLuckSound?.ledTick(this.injected);
     }
     begin({turbo=false}={}) {
       if(this.active)throw Error('LED selection already in progress');
+      this.stopIdle();
       this.active=true;
       this.turbo=Boolean(turbo);
       this.lastTick=0;
@@ -181,14 +204,16 @@
     }
     recover(card){
       this.cancel();
-      if(!card)return;
+      if(!card){this.startIdle();return;}
       this.lastSelected={...card};
       this.displays[PICKS]={...card};
       this.cardConfirmed=true;
       this.updateAll();
       this.host.classList.add('led-locked');
+      this.startIdle();
     }
     cancel(){
+      this.stopIdle();
       cancelAnimationFrame(this.raf);this.raf=0;
       this.active=false;this.ready=null;this.injected=false;
       this.host.classList.remove('led-running','led-slowing');

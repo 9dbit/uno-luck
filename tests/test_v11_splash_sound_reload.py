@@ -6,22 +6,20 @@ H=(P/'orbit-index.html').read_text()
 C=(P/'art/sound-studio.css').read_text()
 S=(P/'art/sound-studio.js').read_text()
 
-def test_splash_has_audio_choice_and_no_autoplay_skip():
-    for fragment in ("id=\"boot-sound-gate\"","id=\"boot-start-sound\"",
-                     "id=\"boot-start-muted\"","id=\"boot-sound-status\""):
-        assert fragment in H
-    assert "boot.js?v=1119" in H
-    assert "sound-studio.css?v=1120" in H
-    assert "runBoot().catch(() => release(false))" not in B
-    assert "soundStart.addEventListener('click'" in B
-    assert "silentStart.addEventListener('click'" in B
-    assert "const pendingUnlock = window.UNOLuckSound?.unlock()" in B
-    assert "await window.UNOLuckSound.playCue('soft-tech-splash-screen')" in B
-    assert "if(custom&&!played)" in B
-    assert "AUDIO GAGAL:" in B
-    assert "if (requestedSound) window.UNOLuckSound?.playCue('loading-scene')" in B
-    assert "soundGate.hidden = true" in B
-    assert ".boot-sound-gate[hidden]{display:none!important}" in C
+def test_splash_auto_starts_without_buttons_and_never_autoplays_audio():
+    for identifier in ("boot-sound-gate","boot-start-sound","boot-start-muted",
+                       "boot-sound-status","boot-with-audio","boot-continue"):
+        assert f'id="{identifier}"' not in H
+    assert 'boot.js?v=1124' in H
+    assert "void runBoot().catch" in B
+    assert "void window.UNOLuckSoundStudio?.syncCloud?.()" in B
+    assert "window.UNOLuckSound?.unlock()" not in B
+    assert "window.UNOLuckSound?.playCue(" not in B
+    assert "window.dispatchEvent(new Event('uno:boot-finished'))" in B
+    assert "game.classList.remove('is-booting')" in B
+    assert "progress(100,'loading game system')" in B
+    assert "id=\"boot-loading-track\"" in H
+
 
 def test_uploaded_splash_persists_across_reload():
     assert "indexedDB.open(DB,1)" in S

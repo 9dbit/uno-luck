@@ -41,7 +41,6 @@ with sync_playwright() as p:
     errors=[]
     d.on("pageerror",lambda err:errors.append(str(err)))
     d.goto(URL,wait_until="domcontentloaded")
-    d.locator("#boot-start-sound").click()
     d.locator("#game-shell").wait_for(state="visible",timeout=26000)
 
     studio=open_studio(d)
@@ -87,19 +86,15 @@ with sync_playwright() as p:
     m=mobile.new_page()
     m.on("pageerror",lambda err:errors.append(str(err)))
     m.goto(URL,wait_until="domcontentloaded")
-    for _ in range(100):
-        if m.locator("#boot-start-sound").is_enabled():break
-        m.wait_for_timeout(100)
-    assert m.locator("#boot-start-sound").is_enabled()
-    assert "SINKRON CLOUD" in m.locator("#boot-sound-status").inner_text()
+    m.locator("#game-shell").wait_for(state="visible",timeout=26000)
+    assert m.locator("#boot-start-sound").count()==0
     assert m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen').source")=="custom"
     assert m.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').stop")==2.4
-    assert m.locator('audio[src*="/api/sounds/files/soft-tech-splash-screen"]').count()==1
-    m.screenshot(path=str(ARTIFACTS/"iphone-shared-softtech-ready.png"),full_page=True)
-    m.locator("#boot-start-sound").click()
-    m.locator("#boot-sound-gate").wait_for(state="hidden",timeout=16000)
-    m.locator("#game-shell").wait_for(state="visible",timeout=26000)
-    assert m.evaluate("window.UNOLuckSoundStudio.mediaUnlocked")
+    assert m.evaluate("window.UNOLuckSoundStudio.cloudStatus().ready")
+    # The first trusted menu click, not auto boot, initiates Safari unlock.
+    m.locator("#menu-open").click()
+    m.locator("#modal-close").click()
+    assert m.evaluate("window.UNOLuckSound.webAudioState") in ("running","interrupted","media-fallback")
     assert m.evaluate("window.UNOLuckSoundStudio.getRepeat('background-music')") is False
 
     # Publish a new desktop trim and ensure an already-open iPhone receives it.

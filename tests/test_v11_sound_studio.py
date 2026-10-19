@@ -36,13 +36,13 @@ def test_editing_is_real_and_persistent_without_server_upload():
 def test_real_game_events_and_boot_use_studio_cues():
     assert 'sound-studio.js?v=1120' in H
     assert 'sound-studio.css?v=1120' in H
-    assert H.index('sound.js?v=1117') < H.index('sound-studio.js?v=1120') < H.index('orbit.js?v=1119')
+    assert H.index('sound.js?v=1117') < H.index('sound-studio.js?v=1120') < H.index('orbit.js?v=1124')
     assert "installStudio,channels,playCue,result" in S
     assert "studio?.isCustomized(cue)" in S
     assert "studio?.isCustomized('background-music')" in S
     assert "studio?.isCustomized('result-sound')" in S
-    assert "playCue('soft-tech-splash-screen')" in BOOT
-    assert "playCue('loading-scene')" in BOOT
+    assert "window.UNOLuckSound?.playCue(" not in BOOT
+    assert "void runBoot().catch" in BOOT
     assert "showSoundStudio" in GAME and 'Sound Studio · 12 Custom Sound Effects' in GAME
     assert "last.combo!=='COLOR_MATCH')window.UNOLuckSound?.result(false)" in GAME
     assert "window.UNOLuckSound?.play('lock')" in (P/'art/ledwheel.js').read_text()

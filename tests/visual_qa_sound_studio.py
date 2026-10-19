@@ -28,7 +28,6 @@ def main():
         errors=[]
         page.on('pageerror',lambda err:errors.append(str(err)))
         page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
-        page.locator('#boot-start-sound').click()
         page.locator('#game-shell').wait_for(state='visible',timeout=25000)
         for width,height in SIZES:
             page.set_viewport_size({'width':width,'height':height})
@@ -42,10 +41,31 @@ def main():
             assert left['x']+left['width'] < spin['x'],(width,height,'TURBO overlaps SPIN')
             assert spin['x']+spin['width'] < right['x'],(width,height,'SPIN overlaps AUTO')
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),(width,height,'horizontal overflow')
+            assert page.evaluate('document.documentElement.scrollHeight <= innerHeight+2'),(width,height,'vertical overflow')
+            assert page.locator('#boot-sound-gate').count()==0
+            game=bound(page.locator('#game-shell'))
+            area=bound(page.locator('.wheel-area'))
+            stage=bound(page.locator('.wheel-stage'))
+            assert game['y']>=-1 and game['y']+game['height']<=height+2,(width,height,'PWA viewport')
+            assert stage['y']>=area['y']-2,(width,height,'wheel top clipped')
+            assert stage['y']+stage['height']<=area['y']+area['height']+2,(width,height,'wheel bottom clipped')
             for selector in ('#turbo-btn','#auto-btn'):
                 assert page.locator(selector).evaluate('(el)=>el.scrollWidth <= el.clientWidth+2'),selector
             page.screenshot(path=str(OUTPUT/f'game-{width}x{height}.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':844})
+        assert page.locator('#orbit-ring .led-slot').count()==9
+        assert page.locator('#orbit-ring').evaluate("(el)=>el.classList.contains('led-ambient')")
+        initial=page.locator('#orbit-ring .led-slot').evaluate_all(
+            "(nodes)=>nodes.map(n=>n.dataset.color+':'+n.querySelector('.led-symbol').textContent)")
+        slots_before=page.locator('#orbit-ring .led-slot').evaluate_all(
+            "(nodes)=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})")
+        page.wait_for_timeout(1150)
+        after=page.locator('#orbit-ring .led-slot').evaluate_all(
+            "(nodes)=>nodes.map(n=>n.dataset.color+':'+n.querySelector('.led-symbol').textContent)")
+        slots_after=page.locator('#orbit-ring .led-slot').evaluate_all(
+            "(nodes)=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})")
+        assert initial!=after, 'Idle LED content must advance slowly clockwise'
+        assert slots_before==slots_after, 'Idle must never rotate the nine metal frames'
         page.locator('#menu-open').click()
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         editor=page.locator('.sound-studio')
@@ -104,19 +124,18 @@ def main():
         assert on['loop'] and len(on['startArgs'])==2, on
         page.evaluate('window.UNOLuckSoundStudio.stopLoop()')
         page.screenshot(path=str(OUTPUT/'settings-390x844.png'),full_page=True)
-        # Regression: custom splash must persist in IndexedDB and actually
-        # call AudioBufferSourceNode.start after a new user gesture on reload.
+        # Auto boot never plays sound without a gesture. File remains stored
+        # across reload; Sound Studio PREVIEW after a user click can play it.
         splash=editor.locator('details.studio-cue').first
         splash.locator('summary').click()
         splash.locator('input[type=file]').set_input_files(str(tone))
         splash.locator('.studio-status').get_by_text('Audio tersimpan:',exact=False).wait_for(timeout=10000)
         page.reload(wait_until='domcontentloaded')
+        page.locator('#game-shell').wait_for(state='visible',timeout=25000)
+        assert page.locator('#boot-start-sound').count()==0
         stored=page.evaluate("window.UNOLuckSoundStudio.profile('push-button')")
         assert stored['start']==0.1 and stored['fileName']=='qa-tone.wav'
-        bgm=page.evaluate("window.UNOLuckSoundStudio.profile('background-music')")
-        assert bgm['repeat'] is True and abs(bgm['stop']-.45)<.02, bgm
         assert page.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').custom")
-        assert page.locator('#boot-sound-status').inner_text().find('qa-tone.wav')!=-1
         page.evaluate("""() => {
             window.__splashStartCount=0;
             const start=AudioBufferSourceNode.prototype.start;
@@ -125,20 +144,19 @@ def main():
                 return start.apply(this,args);
             };
         }""")
-        page.screenshot(path=str(OUTPUT/'splash-audio-gate-after-reload.png'),full_page=True)
-        page.locator('#boot-start-sound').click()
-        for _ in range(80):
-            if page.evaluate('window.__splashStartCount || 0') > 0:
-                break
-            page.wait_for_timeout(125)
-        assert page.evaluate('window.__splashStartCount || 0') > 0, (
-            'Uploaded splash file never started AudioBufferSourceNode after tap: '
-            +page.locator('#boot-sound-status').inner_text())
-        page.locator('#boot-sound-gate').wait_for(state='hidden')
-        page.locator('#game-shell').wait_for(state='visible',timeout=25000)
+        assert page.evaluate("window.__splashStartCount")==0, 'Autoplay audio must be blocked'
+        page.locator('#menu-open').click()
+        page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
+        storedSplash=page.locator('.sound-studio details.studio-cue').first
+        storedSplash.locator('summary').click()
+        storedSplash.locator('button',has_text='PREVIEW').click()
+        storedSplash.locator('.studio-status').get_by_text('Preview aktif',exact=False).wait_for(timeout=10000)
+        assert page.evaluate("window.__splashStartCount")>0
+        storedSplash.locator('button',has_text='STOP').click()
+        page.screenshot(path=str(OUTPUT/'auto-splash-reload.png'),full_page=True)
         assert not errors, 'Uncaught browser errors: '+str(errors)
         browser.close()
-    print('PASS: 60 sliders, trim/fades, BGM repeat OFF/ON real source looping, persistence and splash reload')
+    print('PASS: responsive Sound Studio, trim/fades, music repeat and auto boot with gesture-only preview')
 
 if __name__=='__main__':
     main()

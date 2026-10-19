@@ -39,19 +39,13 @@
   <link rel="stylesheet" href="/assets/art/celebrations.css?v=100">
   <link rel="stylesheet" href="/assets/art/v11.css?v=110">
   <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1120">
+  <link rel="stylesheet" href="/assets/art/viewport-v11.css?v=1124">
   <title>UNO LUCK | Dragon Spin v1.1</title>
 </head>
 <body>
   <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
     <section class="boot-stage boot-softtech" id="boot-softtech" aria-label="Soft Tech">
       <img class="boot-softtech-logo" id="boot-softtech-img" src="/assets/boot-softtech.webp" alt="Soft Tech" fetchpriority="high">
-      <div id="boot-sound-gate" class="boot-sound-gate" role="group" aria-label="Pilih mode audio untuk intro">
-        <p id="boot-sound-status" class="boot-sound-status" role="status" aria-live="polite">Ketuk START WITH SOUND untuk mengaktifkan suara intro.</p>
-        <div class="boot-sound-controls">
-          <button id="boot-start-sound" type="button" class="boot-gate-start">♫ START WITH SOUND</button>
-          <button id="boot-start-muted" type="button" class="boot-gate-muted">TANPA SUARA</button>
-        </div>
-      </div>
     </section>
     <section class="boot-stage boot-banner" id="boot-banner" aria-label="Memuat UNO LUCK" hidden>
       <img id="boot-banner-img" class="boot-banner-img" src="/assets/boot-uno-banner.webp" alt="UNO LUCK" decoding="async">
@@ -62,10 +56,6 @@
           <span class="boot-loading-label" id="boot-loading-label">loading game system</span>
         </div>
         <strong id="boot-loading-percent" class="boot-loading-percent">0%</strong>
-        <div class="boot-ready-actions" id="boot-ready-actions" hidden>
-          <button type="button" class="boot-sound-start" id="boot-with-audio" aria-label="Let's Play dengan suara">♫</button>
-          <button type="button" class="boot-continue" id="boot-continue">LET'S PLAY</button>
-        </div>
       </div>
     </section>
   </div>
@@ -146,13 +136,14 @@
     <div class="modal-card"><div class="modal-header"><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" aria-label="Tutup">×</button></div><div class="modal-content" id="modal-content"></div></div>
   </dialog>
   <script src="/assets/art/motion.js?v=8" defer></script>
-  <script src="/assets/art/ledwheel.js?v=9" defer></script>
+  <script src="/assets/art/ledwheel.js?v=1124" defer></script>
   <script src="/assets/art/sound.js?v=1117" defer></script>
   <script src="/assets/art/mirror-loop.js?v=1120" defer></script>
   <script src="/assets/art/sound-studio.js?v=1120" defer></script>
   <script src="/assets/art/match-announce.js?v=110" defer></script>
   <script src="/assets/art/celebrations.js?v=1116" defer></script>
-  <script src="/assets/orbit.js?v=1119" defer></script>
-  <script src="/assets/boot.js?v=1119" defer></script>
+  <script src="/assets/orbit.js?v=1124" defer></script>
+  <script src="/assets/viewport-v11.js?v=1124" defer></script>
+  <script src="/assets/boot.js?v=1124" defer></script>
 </body>
 </html>

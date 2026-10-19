@@ -25,18 +25,18 @@ def test_splash_sequence_and_auto_entry():
     assert 'id="boot-with-audio"' in HTML
     assert 'id="boot-continue"' in HTML
     assert "logo.classList.add('is-fading')" in BOOT
-    assert "banner.hidden = false" in BOOT
-    assert "progress(100, 'loading game system')" in BOOT
-    assert "finishTimer = setTimeout(() => release(false)" in BOOT
+    assert "banner.hidden=false" in BOOT
+    assert "progress(100,'loading game system')" in BOOT
+    assert "await release()" in BOOT
     assert 'game.classList.remove(\'is-booting\')' in BOOT
     assert 'aria-hidden' in BOOT
 
 
 def test_audio_unlocked_inside_user_gesture_and_no_autoplay_attempt():
-    assert "const pendingUnlock = window.UNOLuckSound?.unlock()" in BOOT
-    assert "soundStart.addEventListener('click'" in BOOT
-    assert "await window.UNOLuckSound.playCue('soft-tech-splash-screen')" in BOOT
-    assert "find('boot-with-audio').addEventListener('click'" in BOOT
+    # v1.1 enters the game automatically and never attempts Safari autoplay.
+    assert "window.UNOLuckSound?.unlock()" not in BOOT
+    assert "window.UNOLuckSound?.playCue(" not in BOOT
+    assert "void runBoot().catch" in BOOT
     assert 'await audioUnlockPending' in JS
     assert "audio.state==='running'" in JS
     assert "window.UNOLuckAudio={unlock:audioReady" in JS
