@@ -370,6 +370,7 @@ function playMusicGesture(){
 function isMusicMediaPlaying(){
   return bgmStarting||Boolean(bgmPlayer&&!bgmPlayer.paused&&!bgmPlayer.ended);
 }
+function isMusicWebAudioPlaying(){return Boolean(loop?.source);}
 async function prepareSplashMedia(){
   await syncCloud();
   const cfg=liveProfile('soft-tech-splash-screen');
@@ -1120,7 +1121,7 @@ function show(host){
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
-  prepareSplashMedia,playSplashGesture,prepareMusicMedia,playMusicGesture,isMusicMediaPlaying,isIOS,
+  prepareSplashMedia,playSplashGesture,prepareMusicMedia,playMusicGesture,isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
   syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
