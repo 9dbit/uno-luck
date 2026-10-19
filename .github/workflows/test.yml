@@ -20,6 +20,7 @@ jobs:
       - run: node --check app/static/art/ledwheel.js
       - run: node --check app/static/art/sound.js
       - run: node --check app/static/art/sound-studio.js
+      - run: node --check app/static/art/mirror-loop.js
       - run: node --check app/static/art/celebrations.js
       - run: node --check app/static/art/match-announce.js
 
