@@ -41,10 +41,31 @@ def main():
             assert left['x']+left['width'] < spin['x'],(width,height,'TURBO overlaps SPIN')
             assert spin['x']+spin['width'] < right['x'],(width,height,'SPIN overlaps AUTO')
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),(width,height,'horizontal overflow')
+            assert page.evaluate('document.documentElement.scrollHeight <= innerHeight+2'),(width,height,'vertical overflow')
+            assert page.locator('#boot-sound-gate').count()==0
+            game=bound(page.locator('#game-shell'))
+            area=bound(page.locator('.wheel-area'))
+            stage=bound(page.locator('.wheel-stage'))
+            assert game['y']>=-1 and game['y']+game['height']<=height+2,(width,height,'PWA viewport')
+            assert stage['y']>=area['y']-2,(width,height,'wheel top clipped')
+            assert stage['y']+stage['height']<=area['y']+area['height']+2,(width,height,'wheel bottom clipped')
             for selector in ('#turbo-btn','#auto-btn'):
                 assert page.locator(selector).evaluate('(el)=>el.scrollWidth <= el.clientWidth+2'),selector
             page.screenshot(path=str(OUTPUT/f'game-{width}x{height}.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':844})
+        assert page.locator('#orbit-ring .led-slot').count()==9
+        assert page.locator('#orbit-ring').evaluate("(el)=>el.classList.contains('led-ambient')")
+        initial=page.locator('#orbit-ring .led-slot').evaluate_all(
+            "(nodes)=>nodes.map(n=>n.dataset.color+':'+n.querySelector('.led-symbol').textContent)")
+        slots_before=page.locator('#orbit-ring .led-slot').evaluate_all(
+            "(nodes)=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})")
+        page.wait_for_timeout(1150)
+        after=page.locator('#orbit-ring .led-slot').evaluate_all(
+            "(nodes)=>nodes.map(n=>n.dataset.color+':'+n.querySelector('.led-symbol').textContent)")
+        slots_after=page.locator('#orbit-ring .led-slot').evaluate_all(
+            "(nodes)=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})")
+        assert initial!=after, 'Idle LED content must advance slowly clockwise'
+        assert slots_before==slots_after, 'Idle must never rotate the nine metal frames'
         page.locator('#menu-open').click()
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         editor=page.locator('.sound-studio')
