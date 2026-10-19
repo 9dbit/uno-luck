@@ -798,6 +798,35 @@ function show(host){
       });
       repeatRow.append(repeatInput,repeatTitle,repeatState);
     }
+    let mirrorInput=null,mirrorSlider=null,mirrorNumber=null,mirrorState=null;
+    const mirrorRow=element('div','studio-mirror-panel');
+    if(key==='background-music'){
+      const heading=element('label','studio-repeat-row');
+      mirrorInput=element('input','studio-repeat-input');
+      mirrorInput.type='checkbox';mirrorInput.name='background-music-mirror';
+      mirrorInput.disabled=true;
+      mirrorInput.setAttribute('aria-label','MIRROR LOOP BACKGROUND MUSIC');
+      const label=element('span','studio-repeat-label','MIRROR LOOP · MAJU ↔ MUNDUR');
+      mirrorState=element('strong','studio-repeat-state','OFF');
+      heading.append(mirrorInput,label,mirrorState);
+      const guide=element('p','studio-note',
+        'Mirror Loop menyambung musik maju–mundur dengan crossfade. Aktif saat REPEAT ON. Klik SAVE untuk sinkronisasi desktop dan iPhone.');
+      const fadeRow=element('label','studio-mirror-fade');
+      const fadeTitle=element('strong',null,'MIRROR CROSSFADE');
+      mirrorSlider=element('input','studio-range');
+      mirrorSlider.type='range';mirrorSlider.name='background-music-mirror-crossfade';
+      mirrorSlider.min='0';mirrorSlider.max='1000';mirrorSlider.step='10';
+      mirrorSlider.value='140';mirrorSlider.disabled=true;
+      mirrorSlider.setAttribute('aria-label','MIRROR CROSSFADE ms');
+      mirrorNumber=element('output','studio-slider-value','140 ms');
+      mirrorSlider.addEventListener('input',()=>{mirrorNumber.textContent=mirrorSlider.value+' ms';});
+      mirrorInput.addEventListener('change',()=>{
+        mirrorState.textContent=mirrorInput.checked?'ON':'OFF';
+        setStatus('Mirror '+(mirrorInput.checked?'ON':'OFF')+' · tekan SAVE untuk menyimpan dan publish.');
+      });
+      fadeRow.append(fadeTitle,mirrorSlider,mirrorNumber);
+      mirrorRow.append(heading,guide,fadeRow);
+    }
     let actualDuration=0;
     const updateSliderView=()=>{
       const dur=actualDuration, read=name=>Number(values[name].value)||0;
@@ -830,6 +859,8 @@ function show(host){
     const setEditorBusy=busy=>{
       Object.values(values).forEach(input=>{input.disabled=busy;});
       if(repeatInput)repeatInput.disabled=busy;
+      if(mirrorInput)mirrorInput.disabled=busy;
+      if(mirrorSlider)mirrorSlider.disabled=busy;
     };
     let paintSeq=0;
     const paint=async()=>{
@@ -852,6 +883,13 @@ function show(host){
         values.duration.value=String(decimals(r.length));
         if(repeatInput)repeatInput.checked=getDraftRepeat(key);
         if(repeatInput)repeatRow.querySelector('.studio-repeat-state').textContent=repeatInput.checked?'ON':'OFF';
+        if(mirrorInput){
+          const setting=mirrorConfig({draft:true});
+          mirrorInput.checked=setting.mirror;
+          mirrorState.textContent=setting.mirror?'ON':'OFF';
+          mirrorSlider.value=String(setting.crossfadeMs);
+          mirrorNumber.textContent=String(setting.crossfadeMs)+' ms';
+        }
         updateSliderView();
         setStatus((shared.revision?'☁ SHARED · ':'LOCAL · ')+
           (p.custom||p.source==='custom'?'CUSTOM: '+p.fileName:'DEFAULT: '+(defaultSample||'-'))+
@@ -896,6 +934,10 @@ function show(host){
     button('SAVE',async()=>{
       try{
         const args=Object.fromEntries(['start','stop','fadeIn','fadeOut'].map(k=>[k,values[k].value]));
+        if(mirrorInput){
+          args.mirror=mirrorInput.checked;
+          args.mirrorCrossfadeMs=Number(mirrorSlider.value);
+        }
         await configure(key,args);setStatus(hasAdminKey()?
           'Setting disimpan di CLOUD · otomatis untuk semua perangkat.':
           'Setting disimpan LOKAL · masukkan kunci admin dan PUBLISH untuk sinkronisasi.');
@@ -914,6 +956,7 @@ function show(host){
     });
     body.append(status,fileInput,timeline,sliderPanel,form);
     if(repeatInput)body.append(repeatRow);
+    if(mirrorInput)body.append(mirrorRow);
     body.append(buttons);details.append(body);host.append(details);
     details.addEventListener('toggle',()=>{if(details.open)paint();});
   }
