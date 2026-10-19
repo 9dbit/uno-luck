@@ -13,23 +13,38 @@
   const percent = find('boot-loading-percent');
   const game = find('game-shell');
   let released = false;
-  let splashReady=false, splashPlayed=false, splashAttempted=false;
-  let splashPlaying=false,gestureReceived=false;
+  let splashReady=false,splashPlayed=false,splashAttempted=false;
+  let splashPlaying=false,gestureReceived=false,splashRequest=0;
   const studio=()=>window.UNOLuckSoundStudio;
-  // No Sound Studio writes. iOS user activation must reach media.play()
-  // synchronously from the trusted pointer/keyboard event.
+  // Only a genuine tap can guarantee WebKit media activation. A retry from
+  // that gesture MUST override an in-flight rejected autoplay promise.
   function trySplashSound(fromGesture=false){
-    if(released||splashPlayed||splashPlaying||!splashReady)return;
-    if(!fromGesture&&splashAttempted)return;
-    splashAttempted=true;
-    splashPlaying=true;
-    const result=studio()?.playSplashGesture?.();
+    if(released||splashPlayed||!splashReady)return;
+    if(!fromGesture&&(splashAttempted||splashPlaying))return;
+    splashAttempted=true;splashPlaying=true;
+    const serial=++splashRequest;
+    const result=studio()?.playSplashGesture?.(); // synchronous media.play()
     if(!result){splashPlaying=false;return;}
     void Promise.resolve(result).then(played=>{
+      if(serial!==splashRequest)return;
       splashPlayed=Boolean(played);
-      if(!played&&fromGesture)console.warn('[UNO SPLASH] iOS did not start custom audio');
-    }).catch(error=>console.warn('[UNO SPLASH] playback blocked',error))
-      .finally(()=>{splashPlaying=false;});
+      if(!played&&fromGesture)console.warn('[UNO SPLASH] iPhone blocked sound; awaiting another user gesture');
+    }).catch(error=>{
+      if(serial===splashRequest)console.warn('[UNO SPLASH] autoplay rejected',error);
+    }).finally(()=>{if(serial===splashRequest)splashPlaying=false;});
+  }
+  function splashAfterPrewarm(){
+    if(!gestureReceived||!splashReady||released||splashPlayed)return;
+    // If the user tapped before the network file arrived, the AudioContext
+    // can now play the exact cloud cue without a second tap once running.
+    if(window.UNOLuckSound?.webAudioState==='running'){
+      const serial=++splashRequest;
+      splashPlaying=true;
+      void Promise.resolve(studio()?.play?.('soft-tech-splash-screen')).then(ok=>{
+        if(serial===splashRequest)splashPlayed=Boolean(ok);
+      }).catch(error=>console.warn('[UNO SPLASH] Web Audio playback',error))
+        .finally(()=>{if(serial===splashRequest)splashPlaying=false;});
+    }
   }
   function onSplashGesture(){
     if(released)return;
@@ -37,9 +52,10 @@
     if(splashReady){
       trySplashSound(true);
     }else{
-      // This is a prewarm, not fake playback. The real splash sound still
-      // requires a gesture once the network audio file becomes available.
-      void window.UNOLuckSound?.unlock?.();
+      // Prime WebAudio synchronously inside the trusted gesture, then play
+      // when the published splash clip finishes preloading.
+      const unlocking=window.UNOLuckSound?.unlock?.();
+      void Promise.resolve(unlocking).then(splashAfterPrewarm);
     }
   }
   // Entire visible splash is tappable. No extra SOUND button or message.
@@ -89,11 +105,15 @@
     void studio()?.prepareSplashMedia?.().then(ready=>{
       splashReady=Boolean(ready);
       if(splashReady){
-        // Desktop/previously allowed browsers may autoplay. iOS generally
-        // blocks it; a real screen tap retriggers media.play() synchronously.
-        trySplashSound(false);
+        // Preserve current custom cue settings. iOS taps before readiness
+        // resume the decoder and queue this file through Web Audio.
+        if(gestureReceived&&window.UNOLuckSound?.webAudioState==='running')
+          splashAfterPrewarm();
+        else trySplashSound(false);
       }
     }).catch(error=>console.warn('[UNO SPLASH] custom file unavailable',error));
+    // Separate player: loading BGM cannot replace the preloaded splash src.
+    void studio()?.prepareMusicMedia?.();
     await Promise.race([preloadImage(soft),wait(2500)]);
     logo.classList.add('is-zooming');
     await wait(reducedMotion?350:1480);
