@@ -54,7 +54,12 @@
   window.addEventListener('pageshow',schedule);
   window.addEventListener('uno:boot-finished',schedule);
   if(document.readyState==='loading')
-    document.addEventListener('DOMContentLoaded',schedule,{once:true});
-  else schedule();
-  window.UNOLuckViewport={refresh:schedule};
+    document.addEventListener('DOMContentLoaded',update,{once:true});
+  else update(); // First paint must not wait for a Safari/WebKit animation frame.
+  window.UNOLuckViewport={
+    refresh(){
+      if(raf){cancelAnimationFrame(raf);raf=0;}
+      update(); // Manual/boot refresh is synchronous even in a throttled PWA.
+    }
+  };
 })();
