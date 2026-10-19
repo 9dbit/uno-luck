@@ -1,133 +1,121 @@
-/* UNO LUCK v1.1: hands-free visual boot. iOS audio unlock happens on the
- * player's first trusted gameplay interaction, never during autoplay.
- * No dialog, mute confirmation, hidden gate, or stuck audio failure state. */
+/* UNO LUCK v1.1: reliable splash audio on iPhone.
+ * PLAY WITH SOUND is the single explicit iOS activation gesture.
+ * Custom Sound Cloud trim/fade/repeat/mixer remain authoritative.
+ */
 (() => {
   'use strict';
-  const find = id => document.getElementById(id);
-  const cover = find('boot-overlay');
-  const logo = find('boot-softtech');
-  const banner = find('boot-banner');
-  const loadingText = find('boot-loading-label');
-  const track = find('boot-loading-track');
-  const fill = find('boot-loading-fill');
-  const percent = find('boot-loading-percent');
-  const game = find('game-shell');
-  let released = false;
-  let splashReady=false,splashPlayed=false,splashAttempted=false;
-  let splashPlaying=false,gestureReceived=false,splashRequest=0;
+  const find=id=>document.getElementById(id);
+  const cover=find('boot-overlay'),logo=find('boot-softtech');
+  const banner=find('boot-banner'),button=find('boot-play-sound');
+  const buttonText=find('boot-play-label'),game=find('game-shell');
+  const loadingText=find('boot-loading-label'),track=find('boot-loading-track');
+  const fill=find('boot-loading-fill'),percent=find('boot-loading-percent');
   const studio=()=>window.UNOLuckSoundStudio;
-  // Only a genuine tap can guarantee WebKit media activation. A retry from
-  // that gesture MUST override an in-flight rejected autoplay promise.
-  function trySplashSound(fromGesture=false){
-    if(released||splashPlayed||!splashReady)return;
-    if(!fromGesture&&(splashAttempted||splashPlaying))return;
-    splashAttempted=true;splashPlaying=true;
-    const serial=++splashRequest;
-    const result=studio()?.playSplashGesture?.(); // synchronous media.play()
-    if(!result){splashPlaying=false;return;}
-    void Promise.resolve(result).then(played=>{
-      if(serial!==splashRequest)return;
-      splashPlayed=Boolean(played);
-      if(!played&&fromGesture)console.warn('[UNO SPLASH] iPhone blocked sound; awaiting another user gesture');
-    }).catch(error=>{
-      if(serial===splashRequest)console.warn('[UNO SPLASH] autoplay rejected',error);
-    }).finally(()=>{if(serial===splashRequest)splashPlaying=false;});
-  }
-  function splashAfterPrewarm(){
-    if(!gestureReceived||!splashReady||released||splashPlayed||splashPlaying)return;
-    // If the user tapped before the network file arrived, the AudioContext
-    // can now play the exact cloud cue without a second tap once running.
-    if(window.UNOLuckSound?.webAudioState==='running'){
-      const serial=++splashRequest;
-      splashPlaying=true;
-      void Promise.resolve(studio()?.play?.('soft-tech-splash-screen')).then(ok=>{
-        if(serial===splashRequest)splashPlayed=Boolean(ok);
-      }).catch(error=>console.warn('[UNO SPLASH] Web Audio playback',error))
-        .finally(()=>{if(serial===splashRequest)splashPlaying=false;});
-    }
-  }
-  function onSplashGesture(){
-    if(released)return;
-    gestureReceived=true;
-    // A splash tap is also permission for the upcoming gameplay BGM. Call
-    // AudioContext.resume synchronously in this same trusted event instead
-    // of losing the privilege when the splash transitions to gameplay.
-    if(splashReady)trySplashSound(true);
-    const unlocking=window.UNOLuckSound?.unlock?.();
-    void Promise.resolve(unlocking).then(splashAfterPrewarm);
-  }
-  // Entire visible splash is tappable. No extra SOUND button or message.
-  cover.addEventListener('pointerdown',onSplashGesture,{passive:true});
-  cover.addEventListener('keydown',event=>{
-    if(event.key==='Enter'||event.key===' '){event.preventDefault();onSplashGesture();}
-  });
+  const wantMusic=()=>localStorage.getItem('uno_orbit_music')!=='off';
+  const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  let released=false,accepted=false,current=0;
+  let splashReady=false,bgmReady=false,preparing=null;
+  let resolveStart;
+  const started=new Promise(resolve=>{resolveStart=resolve;});
 
-  let current = 0;
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-  function progress(value,message) {
-    const safe = Math.min(100,Math.max(current,Math.round(value)));
-    current=safe;
-    fill.style.width=safe+'%';
-    track.setAttribute('aria-valuenow',String(safe));
-    percent.textContent=safe+'%';
+  function label(value){buttonText.textContent=value;}
+  function progress(value,message){
+    current=Math.min(100,Math.max(current,Math.round(value)));
+    fill.style.width=current+'%';
+    track.setAttribute('aria-valuenow',String(current));
+    percent.textContent=current+'%';
     if(message)loadingText.textContent=message;
   }
-  function preloadImage(img) {
+  function preloadImage(img){
     if(img.complete&&img.naturalWidth)return Promise.resolve(true);
-    const pending=new Promise(resolve=>{
+    return new Promise(resolve=>{
       img.addEventListener('load',()=>resolve(true),{once:true});
       img.addEventListener('error',()=>resolve(false),{once:true});
+      if(typeof img.decode==='function')img.decode().catch(()=>{});
     });
-    if(typeof img.decode==='function')img.decode().catch(()=>{});
-    return pending;
   }
-  async function release() {
+  async function prepareSound(){
+    if(preparing)return preparing;
+    button.disabled=true;label('MEMUAT SOUND...');
+    preparing=(async()=>{
+      // Cloud file is staged into HTML5 Audio BEFORE a user clicks.
+      // Do not await inside the click: iOS discards the trusted activation.
+      const results=await Promise.allSettled([
+        studio()?.prepareSplashMedia?.(),
+        wantMusic()?studio()?.prepareMusicMedia?.():Promise.resolve(true)
+      ]);
+      splashReady=results[0].status==='fulfilled'&&results[0].value===true;
+      bgmReady=results[1].status==='fulfilled'&&results[1].value===true;
+      if(splashReady&&bgmReady){
+        label('PLAY WITH SOUND');
+        button.disabled=false;
+        return true;
+      }
+      label('COBA MUAT SOUND LAGI');
+      button.disabled=false;
+      console.warn('[UNO BOOT] Audio not ready',results.map(x=>x.status));
+      return false;
+    })().finally(()=>{preparing=null;});
+    return preparing;
+  }
+  // The only entry action. Both media.play() calls are started synchronously
+  // inside this same trusted button click, before any Promise or await.
+  button.addEventListener('click',()=>{
+    if(accepted||released)return;
+    if(!splashReady||(wantMusic()&&!bgmReady)){
+      void prepareSound();return;
+    }
+    accepted=true;
+    button.disabled=true;
+    button.hidden=true;
+    const splash=studio()?.playSplashGesture?.();
+    if(splash){
+      void Promise.resolve(splash).then(ok=>{
+        if(!ok)console.warn('[UNO BOOT] Safari could not play the splash soundtrack');
+      }).catch(error=>console.warn('[UNO BOOT] Splash audio',error));
+    }
+    // Prime both engines in one activation: Web Audio for desktop/modern
+    // Safari and muted HTML5 BGM for interrupted WhatsApp/PWA WebKit.
+    void window.UNOLuckSound?.unlock?.();
+    if(wantMusic()){
+      const armed=studio()?.armMusicOnSplashGesture?.();
+      if(armed)void Promise.resolve(armed).catch(
+        error=>console.warn('[UNO BOOT] Music priming',error));
+    }
+    resolveStart();
+  });
+
+  async function release(){
     if(released)return;
     released=true;
     banner.classList.add('is-fading');
     cover.classList.add('is-dismissing');
-    await wait(reducedMotion?120:420);
+    await wait(reducedMotion?110:420);
     game.classList.remove('is-booting');
     game.removeAttribute('aria-hidden');
     cover.hidden=true;
     window.dispatchEvent(new Event('uno:boot-finished'));
   }
-  async function runBoot() {
+  async function runBoot(){
     const soft=find('boot-softtech-img'),bannerImage=find('boot-banner-img');
-    // Read-only fetch: never change profiles, trim/fade or saved mixer.
-    // Prefetch the exact published splash cue while the visual intro starts.
-    // Browsers that permit autoplay can hear it immediately. iOS requires
-    // the direct splash touch handler above for audible media playback.
-    void studio()?.prepareSplashMedia?.().then(ready=>{
-      splashReady=Boolean(ready);
-      if(splashReady){
-        // Preserve current custom cue settings. iOS taps before readiness
-        // resume the decoder and queue this file through Web Audio.
-        if(gestureReceived&&window.UNOLuckSound?.webAudioState==='running')
-          splashAfterPrewarm();
-        else trySplashSound(false);
-      }
-    }).catch(error=>console.warn('[UNO SPLASH] custom file unavailable',error));
-    // Separate player: loading BGM cannot replace the preloaded splash src.
-    void studio()?.prepareMusicMedia?.();
-    await Promise.race([preloadImage(soft),wait(2500)]);
+    // Load real cloud clips, never change profiles or write Sound Cloud data.
+    void prepareSound();
+    await Promise.race([preloadImage(soft),wait(3000)]);
+    // Remain on the Soft Tech splash until the person presses PLAY.
+    // This ensures WebKit has the actual audio gesture before entering game.
+    await started;
     logo.classList.add('is-zooming');
-    await wait(reducedMotion?350:1480);
+    await wait(reducedMotion?300:1480);
     logo.classList.add('is-fading');
-    await wait(reducedMotion?130:450);
+    await wait(reducedMotion?120:450);
     logo.hidden=true;
-    await wait(reducedMotion?70:170);
+    await wait(reducedMotion?50:170);
     banner.hidden=false;
     requestAnimationFrame(()=>banner.classList.add('is-visible'));
-    // Play the EXISTING custom loading cue only after audio has been unlocked.
-    // It is not a new default, does not overwrite cue settings or force
-    // forbidden Safari autoplay.
-    if(splashPlayed||studio()?.mediaUnlocked){
-      void window.UNOLuckSound?.playCue?.('loading-scene');
-    }
-    progress(7,'Memuat aset game…');
+    // Do not replace the splash track with LOADING SCENE on the shared
+    // Safari HTML5 cue player. The existing splash may still be playing.
+    progress(7,'Memuat aset game...');
     let loaded=false;
     const readyAssets=Promise.all([
       Promise.race([preloadImage(bannerImage),wait(5000)]),
@@ -149,13 +137,13 @@
     if(released)return;
     await Promise.race([readyAssets,wait(75)]);
     progress(100,'loading game system');
-    await wait(reducedMotion?180:560);
+    await wait(reducedMotion?160:500);
     await release();
   }
-  // A denied autoplay is normal on Safari. The first game interaction still
-  // unlocks the existing Sound Studio mixer, without changing its settings.
   void runBoot().catch(error=>{
-    console.warn('[UNO BOOT] visual boot fallback',error);
-    void release();
+    console.warn('[UNO BOOT] visual fallback',error);
+    // Do not bypass the audio gesture with an automatic silent start.
+    if(accepted)void release();
+    else{button.disabled=false;label('COBA MUAT SOUND LAGI');}
   });
 })();
