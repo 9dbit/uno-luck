@@ -121,9 +121,14 @@ with sync_playwright() as p:
     assert state["idleOthersMove"],"Non-winning LED faces must continue moving during idle"
     assert state["previewVariety"]>=4,"Spinning must visibly randomize the UNO card faces"
     assert len(state["syncedSteps"])>=12,state
-    assert all(row["ledMoves"] and row["faceMoves"] and row["matches"]>=8 and
-               row["changed"]>=7 and row["lit"]==1 for row in state["syncedSteps"]),\
-        "Each LED step must advance ALL faces one clockwise position and inject a new random UNO card"
+    # Final LED frame is immediately overwritten with the server card and its
+    # illuminated class is cleared by complete() before MutationObserver runs.
+    assert all(
+        row["ledMoves"] and row["faceMoves"] and row["changed"]>=7 and
+        row["matches"] >= (7 if i==len(state["syncedSteps"])-1 else 8) and
+        row["lit"] == (0 if i==len(state["syncedSteps"])-1 else 1)
+        for i,row in enumerate(state["syncedSteps"])
+    ), "All number frames must follow the LED step; last frame is server-authoritative"
     assert state["lit"]==0,state
     assert state["unchanged"],"Visual-only LED test must never change balance"
     assert state["finalStep"]==4,state
