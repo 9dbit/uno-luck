@@ -150,3 +150,34 @@ body::before{
 @media(prefers-reduced-motion:reduce){
   .game-header .uno-logo{animation:none!important;will-change:auto}
 }
+
+/* PLAY WITH SOUND is a real iOS audio-unlock gesture. Keep the rest of
+   the splash clean: no 'without sound' choice or audio status card. */
+.boot-softtech .boot-play-sound{
+  position:absolute;z-index:5;
+  left:50%;bottom:calc(max(8%,48px) + env(safe-area-inset-bottom,0px));
+  transform:translateX(-50%);
+  width:max-content;min-width:min(75vw,255px);max-width:calc(100vw - 36px);
+  min-height:clamp(49px,8dvh,64px);padding:11px 25px;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  border-radius:999px;border:2px solid #ffe6a2;
+  background:linear-gradient(140deg,#ffdd70,#ee951a 35%,#bc3315 98%);
+  color:#240307;text-shadow:0 1px 0 #fff9ad;
+  box-shadow:0 4px 0 #7d270d,0 0 23px #ffbc446f,inset 0 2px 3px #fff7c6;
+  font-size:clamp(14px,4.2vw,19px);font-weight:1000;letter-spacing:.055em;
+  font-family:inherit;cursor:pointer;touch-action:manipulation;
+  animation:unoPlaySoundPulse 1.85s ease-in-out infinite;
+}
+.boot-softtech .boot-play-sound:disabled{
+  opacity:.58;cursor:wait;animation:none;
+}
+.boot-softtech .boot-play-sound[hidden]{display:none!important}
+.boot-softtech .boot-play-sound:focus-visible{outline:3px solid #fff;outline-offset:5px}
+.boot-softtech .boot-play-icon{font-size:clamp(15px,5vw,22px);line-height:1}
+@keyframes unoPlaySoundPulse{
+  0%,100%{filter:brightness(1);box-shadow:0 4px 0 #7d270d,0 0 13px #ffbc4470}
+  50%{filter:brightness(1.17);box-shadow:0 4px 0 #7d270d,0 0 31px #ffce58bd}
+}
+@media (prefers-reduced-motion:reduce){
+  .boot-softtech .boot-play-sound{animation:none!important}
+}
