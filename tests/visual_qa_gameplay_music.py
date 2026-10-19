@@ -32,7 +32,7 @@ INTERCEPT="""
   HTMLMediaElement.prototype.play=function(...args){
     const gesture=Boolean(window.__musicGesture);
     const src=this.getAttribute('src')||'';
-    if(src.includes('music-loop.mp3'))
+    if(this.dataset.unoMusic==='background-music')
       window.__musicCalls.push({gesture,muted:this.muted,src,at:performance.now()});
     if(!gesture)
       return Promise.reject(new DOMException('iPhone requires user activation','NotAllowedError'));
@@ -75,7 +75,7 @@ with sync_playwright() as p:
   page.evaluate("window.UNOLuckSoundStudio.play('push-button')")
   assert page.evaluate("window.UNOLuckSoundStudio.isMusicMediaPlaying()")
   assert page.evaluate("""() => document.querySelector('audio[data-uno-music]')
-    .getAttribute('src').includes('music-loop.mp3')""")
+     .getAttribute('src').includes('background-music')""")
   # Muting SFX is distinct from muting music; preserve the user's saved mixer.
   page.evaluate("window.UNOLuckSound.setEnabled(false)")
   assert page.evaluate("window.UNOLuckSoundStudio.isMusicMediaPlaying()")
