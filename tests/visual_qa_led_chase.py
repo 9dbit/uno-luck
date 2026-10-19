@@ -17,6 +17,7 @@ with sync_playwright() as p:
     page=browser.new_page(viewport={"width":390,"height":844},device_scale_factor=1)
     page.on("pageerror",lambda exc:errors.append(str(exc)))
     page.goto(BASE,wait_until="domcontentloaded")
+    page.locator("#boot-play-sound").click(timeout=15000)
     page.locator("#game-shell").wait_for(state="visible",timeout=28000)
     ring=page.locator("#orbit-ring")
     assert ring.locator(".led-slot").count()==9
