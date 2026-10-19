@@ -22,7 +22,7 @@ def test_auto_boot_removes_sound_confirmation_card_and_buttons():
     assert "studio()?.prepareSplashMedia?.()" in BOOT
     assert "trySplashSound(false)" in BOOT
     assert "cover.addEventListener('pointerdown'" in BOOT
-    assert "void window.UNOLuckSound?.unlock?.()" in BOOT
+    assert "window.UNOLuckSound?.unlock?.()" in BOOT
 
 
 def test_softtech_zoom_loading_height_and_logo_pulse():
@@ -31,7 +31,7 @@ def test_softtech_zoom_loading_height_and_logo_pulse():
     assert '5.6dvh' in LAYOUT
     assert 'height:clamp(34px,5.6dvh,52px)!important' in LAYOUT
     assert 'is-zooming' in BOOT
-    assert 'boot.js?v=1126' in HTML
+    assert 'boot.js?v=1130' in HTML
 
 
 def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():

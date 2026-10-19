@@ -75,6 +75,9 @@
       source.start(0);
     }catch(error){console.warn('[UNO AUDIO] Safari prime:',error);}
   }
+  // Creating a suspended decoder before a gesture is safe. Never resume or
+  // start sound here: Safari's actual unlock remains bound to a trusted event.
+  function prepareContext(){return makeCtx()?ctx:null;}
   async function unlock(){
     try{
       if(!makeCtx()){
@@ -152,16 +155,25 @@
     if(!playIt)studio?.stopLoop();
     if(!isActive()){
       if(!playIt)return false;
-      if(!audioEnabled||document.hidden)return false;
+      // Music has its own mute preference. SFX OFF must not mute music.
+      if(document.hidden)return false;
+      // An iPhone gesture may already have started the dedicated music
+      // element while Web Audio remains "interrupted". Never stop it and
+      // restart asynchronously outside the user's activation window.
+      if(studio?.isMusicMediaPlaying?.())return true;
       return Boolean(await studio?.play('background-music',{looping:true}));
     }
     if(playIt&&studio?.isCustomized('background-music')){
-      if(!isActive()||document.hidden)return;
+      if(!isActive()||document.hidden)return false;
+      if(studio?.isMusicWebAudioPlaying?.())return true;
       if(playingMusic){try{playingMusic.stop();}catch(_){}playingMusic.disconnect();playingMusic=null;}
       return studio.play('background-music',{looping:true});
     }
     if(!playIt){if(playingMusic){try{playingMusic.stop();}catch(_){}playingMusic.disconnect();playingMusic=null;}return;}
     if(playingMusic||!isActive()||document.hidden)return;
+    // Default bundled sample must not overlap an HTML5 music lane that was
+    // started while Safari Web Audio was interrupted.
+    studio?.stopLoop?.();
     const buffer=await sample('music');
     if(!buffer||!isActive()||playingMusic||document.hidden)return;
     const src=ctx.createBufferSource();src.buffer=buffer;src.loop=true;src.connect(musicBus);src.start();playingMusic=src;
@@ -237,7 +249,7 @@
   function setEnabled(v){audioEnabled=Boolean(v);}
   document.addEventListener('visibilitychange',()=>{if(document.hidden)music(false);});
   window.UNOLuckSound={unlock,play,music,celebration,testSound,ledTick,setVolume,setMasterVolume,setMusicVolume,setEnabled,
-    installStudio,channels,playCue,result,refreshMusic,stopCelebration,
+    installStudio,channels,prepareContext,playCue,result,refreshMusic,stopCelebration,
     get volume(){return fxLevel;},get masterVolume(){return masterLevel;},
     get musicVolume(){return musicLevel;},get lastError(){return lastError;},
     get state(){return isActive()?'running':studio?.mediaUnlocked?'media-fallback':
