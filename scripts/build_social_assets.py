@@ -20,7 +20,7 @@ def cover(image: Image.Image, width: int, height: int) -> Image.Image:
     return scaled.crop((x, y, x + width, y + height))
 
 
-def artwork(source: Image.Image, width: int, height: int, icon: bool = False):
+def artwork(source: Image.Image, width: int, height: int, icon: bool = False, maskable: bool = False):
     src_w, src_h = source.size
     # Logo and its three stars occupy the upper part of the original vertical
     # game banner. The lower figure/character is intentionally excluded.
@@ -47,8 +47,8 @@ def artwork(source: Image.Image, width: int, height: int, icon: bool = False):
     canvas.alpha_composite(shade)
 
     # Keep the entire emblem in the safe center crop for messaging apps.
-    scale = min((width * (.94 if icon else .84)) / src_w,
-                (height * (.90 if icon else .93)) / crop_h)
+    scale = min((width * (.74 if maskable else .94 if icon else .84)) / src_w,
+                (height * (.74 if maskable else .90 if icon else .93)) / crop_h)
     size = max(1, round(src_w * scale)), max(1, round(crop_h * scale))
     foreground = emblem.resize(size, Image.Resampling.LANCZOS)
     x = (width - size[0]) // 2
@@ -73,9 +73,13 @@ def build(root: Path):
     for size in (512, 192, 180, 48, 32):
         icon = artwork(src, size, size, icon=True)
         icon.save(out / f"uno-luck-icon-{size}.png", "PNG", optimize=True)
+    artwork(src, 512, 512, icon=True, maskable=True).save(
+        out / "uno-luck-icon-512-maskable.png", "PNG", optimize=True
+    )
     for name, dims in [
         ("uno-luck-og-1200x630.jpg", (1200, 630)),
         ("uno-luck-icon-512.png", (512, 512)),
+        ("uno-luck-icon-512-maskable.png", (512, 512)),
         ("uno-luck-icon-192.png", (192, 192)),
         ("uno-luck-icon-180.png", (180, 180)),
         ("uno-luck-icon-48.png", (48, 48)),
@@ -83,7 +87,7 @@ def build(root: Path):
     ]:
         with Image.open(out / name) as img:
             assert img.size == dims
-    print("UNO_LUCK_SOCIAL_ASSETS_READY: 1200x630 OG + 512/192/180/48/32 PWA/Apple icons")
+    print("UNO_LUCK_SOCIAL_ASSETS_READY: 1200x630 OG + 512/512-maskable/192/180/48/32 PWA/Apple icons")
     return out
 
 
