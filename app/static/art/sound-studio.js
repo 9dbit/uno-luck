@@ -244,12 +244,14 @@ async function prepareSplashMedia(){
   }).finally(()=>{splashPreparation=null;});
   return splashPreparation;
 }
-function applyMediaBounds(key,player,previewMode=false,looping=false){
+function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDuration=0){
   clearFallbackTiming();
   const serial=++fallbackSerial;
   const p=previewMode?editProfile(key):liveProfile(key);
   const duration=Math.max(.05,Number(p.fileDuration)||player.duration||5);
-  const bounds=limits(key,duration,{draft:previewMode});
+  const bounds=mirrorDuration?
+    {start:0,stop:mirrorDuration,length:mirrorDuration,fadeIn:0,fadeOut:0}:
+    limits(key,duration,{draft:previewMode});
   const start=Math.max(0,bounds.start);
   const stop=Math.max(start+.02,bounds.stop);
   const gain=()=>{
@@ -261,13 +263,14 @@ function applyMediaBounds(key,player,previewMode=false,looping=false){
   const tick=()=>{
     if(serial!==fallbackSerial||player.paused)return;
     const t=player.currentTime;
-    if(t>=stop-.025){
+    if(t>=stop-.025&&!mirrorDuration){
       if(looping&&getRepeat(key)){
         try{player.currentTime=start;}catch(_){}
         fallbackRaf=requestAnimationFrame(tick);return;
       }
       stopFallback(key);return;
     }
+    if(mirrorDuration&&!looping&&t>=stop-.025){stopFallback(key);return;}
     const elapsed=Math.max(0,t-start),remaining=Math.max(0,stop-t);
     const fadeIn=bounds.fadeIn>0?Math.min(1,elapsed/bounds.fadeIn):1;
     const fadeOut=bounds.fadeOut>0?Math.min(1,remaining/bounds.fadeOut):1;
@@ -280,7 +283,7 @@ function applyMediaBounds(key,player,previewMode=false,looping=false){
     if(fallbackRaf===null)fallbackRaf=requestAnimationFrame(tick);};
   if(player.readyState>=1)seek();
   else player.addEventListener('loadedmetadata',seek,{once:true});
-  player.loop=false;
+  player.loop=Boolean(mirrorDuration&&looping&&getRepeat(key));
   fallbackKey=key;
   fallbackPreview=previewMode;
   return {player,bounds};
@@ -307,6 +310,7 @@ function playSplashGesture(){
 }
 async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
   const entry=known.get(key);if(!entry)return false;
+  const serialAtFallback=loopSerial;
   try{
     if(key==='soft-tech-splash-screen'&&!splashUrl&&!forPreview)await prepareSplashMedia();
     const cfg=forPreview?editProfile(key):liveProfile(key);
@@ -322,13 +326,35 @@ async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
       if(!entry[2])return false;
       url='/assets/audio/'+entry[2]+'.mp3';
     }
+    // Safari WebAudio may remain "interrupted". Render mirrored stereo PCM
+    // into a native looping WAV once; never seek back at the old START/STOP
+    // boundary. Reuse this same engine for Sound Studio preview.
+    const mirror=key==='background-music'&&mirrorConfig({draft:forPreview}).mirror&&
+      (forPreview||(looping&&getRepeat(key)));
+    let mirrorDuration=0;
+    if(mirror){
+      const original=await getBuffer(key,{draft:forPreview});
+      if(!original)throw Error('Mirror Loop audio belum dimuat');
+      const cfg=mirrorConfig({draft:forPreview});
+      const span=limits(key,original.duration,{draft:forPreview});
+      const made=window.UNOLuckMirrorLoop.render(
+        window.UNOLuckSound.channels().context,original,span.start,span.stop,
+        cfg.crossfadeMs,90);
+      mirrorDuration=made.duration;
+      if(url?.startsWith('blob:')&&url!==splashUrl)URL.revokeObjectURL(url);
+      url=URL.createObjectURL(window.UNOLuckMirrorLoop.wavBlob(made.buffer));
+    }
     if(token!==null&&token!==celebrationRequest){
+      if(url?.startsWith('blob:')&&url!==splashUrl)URL.revokeObjectURL(url);
+      return false;
+    }
+    if(looping&&serialAtFallback!==loopSerial){
       if(url?.startsWith('blob:')&&url!==splashUrl)URL.revokeObjectURL(url);
       return false;
     }
     stopFallback();
     const player=useFallbackSource(key,url);
-    const end=applyMediaBounds(key,player,forPreview,looping);
+    const end=applyMediaBounds(key,player,forPreview,looping,mirrorDuration);
     // Release temporary URLs once a subsequent cue replaces the source.
     // Keeping the current URL intact is required for seeking/repeating.
     const promise=player.play();
@@ -527,7 +553,7 @@ async function segmentDuration(key){
 function stopLoop(){
   if(fallbackKey==='background-music')stopFallback();
   loopSerial++;
-  if(loop){stopNode(loop,loop.bounds.fadeOut);loop=null;}
+  if(loop){stopNode(loop,Math.max(.08,loop.bounds.fadeOut));loop=null;}
 }
 async function play(key,{looping=false,forPreview=false}={}){
   if(!known.has(key))return false;
@@ -548,11 +574,21 @@ async function play(key,{looping=false,forPreview=false}={}){
     if(!buffer)return false;
     if(looping&&serial!==loopSerial)return false;
     if(isJackpot&&jackpotToken!==celebrationRequest)return false;
-    const bounds=limits(key,buffer.duration,{draft:forPreview});
+    let bounds=limits(key,buffer.duration,{draft:forPreview});
+    const mirror=key==='background-music'&&mirrorConfig({draft:forPreview}).mirror&&
+      (forPreview||(looping&&getRepeat(key)));
+    let playback=buffer;
+    if(mirror){
+      const made=window.UNOLuckMirrorLoop.render(
+        context,buffer,bounds.start,bounds.stop,
+        mirrorConfig({draft:forPreview}).crossfadeMs);
+      playback=made.buffer;
+      bounds={start:0,stop:playback.duration,length:playback.duration,fadeIn:0,fadeOut:0};
+    }
     const source=context.createBufferSource(),envelope=context.createGain();
     const now=context.currentTime+.012;
     const repeat=looping && getRepeat(key);
-    source.buffer=buffer;
+    source.buffer=playback;
     source.loop=repeat;
     if(repeat){source.loopStart=bounds.start;source.loopEnd=bounds.stop;}
     source.connect(envelope).connect(looping||key==='background-music'?music:fx);
@@ -887,7 +923,7 @@ window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(t
   prepareSplashMedia,playSplashGesture,isIOS,
   syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
-  profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,
+  profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
   get lastError(){return lastError;},get splashError(){return splashError;},
   get mediaUnlocked(){return mediaUnlocked;},
