@@ -15,6 +15,7 @@ OUT.mkdir(parents=True,exist_ok=True)
 MODES=[
     ("safari-visible",393,659),
     ("pwa-fullscreen",393,852),
+    ("pwa-physical-safe-area",393,852),
     ("portrait-small",320,700),
     ("portrait-short",320,568),
     ("portrait-large",430,932),
@@ -68,6 +69,14 @@ with sync_playwright() as p:
         errors=[]
         page.on('pageerror',lambda e:errors.append(str(e)))
         page.goto(BASE,wait_until='domcontentloaded',timeout=25000)
+        if name=='pwa-physical-safe-area':
+            # Linux WebKit emulation reports zero iOS hardware safe insets.
+            # Mimic the iPhone 15 Pro dynamic island (59+9px) and home bar
+            # (34px) so the actual available game grid is also exercised.
+            page.add_style_tag(content=(
+                ".game-shell{padding-top:68px!important;"
+                "padding-bottom:34px!important}"
+            ))
         page.wait_for_function("() => !!window.UNOLuckViewport && !!window.UNOLuckLEDWheel",
                                timeout=16000)
         # The audio gate is tested separately. This is geometry-only QA.
@@ -87,6 +96,8 @@ with sync_playwright() as p:
         assert "lava-temple.webp" in data['htmlBackground'],(name,data)
         assert "lava-temple.webp" in data['pseudoBackground'],(name,data)
         assert data['safeBottom']>=3,(name,data)
+        if name=='pwa-physical-safe-area':
+            assert data['safeTop']>=67 and data['safeBottom']>=34,(name,data)
         assert data['scrollWidth']<=width+2,(name,data)
         assert data['scrollHeight']<=data['innerHeight']+2,(name,data)
         assert data['caption']['bottom']<=data['game']['bottom']+2,(name,data)
