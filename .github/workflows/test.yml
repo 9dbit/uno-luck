@@ -1,8 +1,9 @@
 name: Test UNO LUCK Spin
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/uno-v13-solid-uno-led-emissive-20261019']
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
