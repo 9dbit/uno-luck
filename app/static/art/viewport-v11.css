@@ -29,14 +29,30 @@ html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behav
   height:auto!important;
   aspect-ratio:1!important;
 }
-/* Only LED face graphics drift. The 9 metal placeholders and pointer stay fixed. */
-.wheel-led-ring.led-ambient .led-symbol{
-  animation:unoLedIdleGlide 480ms linear infinite;
+/* Panel illumination, not translated card numbers. The 9 metal
+   placeholders, symbols and fixed gold pointer never animate position. */
+.wheel-led-ring .led-symbol{
+  animation:none!important;
+  transform:none!important;
+  transition:none!important;
 }
-@keyframes unoLedIdleGlide{
-  0%{transform:translate3d(-8px,-5%,0) scaleX(1.08);opacity:.72}
-  40%{transform:translate3d(0,-5%,0) scaleX(1.08);opacity:1}
-  100%{transform:translate3d(7px,-5%,0) scaleX(1.08);opacity:.82}
+.wheel-led-ring .led-slot .led-screen{
+  transition:filter .19s ease-out,opacity .19s ease-out,box-shadow .19s ease-out!important;
+}
+.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-dimmed .led-screen{
+  filter:brightness(.37) saturate(.55)!important;
+  opacity:.82;
+}
+.wheel-led-ring:is(.led-ambient,.led-running) .led-slot.led-illuminated .led-screen{
+  filter:brightness(1.65) saturate(1.28) drop-shadow(0 0 7px #ffb927)!important;
+  opacity:1;
+  box-shadow:inset 0 0 5px #fff3bb,0 0 14px #ffb52aa8!important;
+}
+.wheel-led-ring .led-slot.led-illuminated{
+  box-shadow:0 0 14px #ffb83ec9,inset 0 1px 3px #fff7ca!important;
+}
+.wheel-led-ring.led-running .led-slot:not(.led-illuminated) .led-sheen{
+  animation:none!important;
 }
 .boot-overlay{
   height:var(--uno-viewport-height,100dvh)!important;
@@ -74,6 +90,27 @@ html,body{width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behav
 }
 @media(prefers-reduced-motion:reduce){
   .game-header .uno-logo,.boot-softtech-logo,
-  .wheel-led-ring.led-ambient .led-symbol{animation:none!important}
+  .wheel-led-ring .led-symbol{animation:none!important}
   .boot-softtech-logo{opacity:1!important;transform:none!important}
+}
+/* Mobile-only Soft Tech asset is 30% smaller; retain cinematic zoom curve. */
+@media (max-width:600px){
+  .boot-softtech-logo{
+    width:min(56vw,441px)!important;
+    max-height:36.4dvh!important;
+  }
+}
+/* Full-bleed cinematic backdrop behind the safe-area bounded HUD. This
+   continues to the home-indicator strip without moving any controls. */
+html,body{background-color:#120004!important}
+body{
+  background-image:linear-gradient(180deg,rgba(13,0,5,.57),rgba(19,0,4,.28)),
+    url('/assets/art/v4/lava-temple.webp')!important;
+  background-position:center center,center bottom!important;
+  background-size:100% 100%,cover!important;
+  background-repeat:no-repeat!important;
+}
+.game-shell{
+  background-position:center center,center bottom!important;
+  background-size:100% 100%,cover!important;
 }
