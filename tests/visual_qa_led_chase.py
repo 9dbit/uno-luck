@@ -26,7 +26,11 @@ with sync_playwright() as p:
       content:Array.from(document.querySelectorAll('#orbit-ring .led-slot')).map(n=>n.querySelector('.led-symbol').textContent),
       rects:Array.from(document.querySelectorAll('#orbit-ring .led-slot')).map(n=>{let r=n.getBoundingClientRect();return [r.x,r.y,r.width,r.height];})
     })""")
-    assert first["content"]==["1"]*9,first
+    # Visuals are UNO-like: 9 distinct numbers/actions/Wilds rather than nine "1".
+    assert first["content"] != ["1"]*9,first
+    assert len(set(first["content"]))==9,first
+    assert any(x in first["content"] for x in ("⊘","⇄","+2")),first
+    assert any(x in first["content"] for x in ("◉","+4")),first
     assert ring.locator(".led-illuminated").count()==1
     page.wait_for_timeout(1050)
     second=page.evaluate("""() => ({
@@ -57,7 +61,8 @@ with sync_playwright() as p:
         const index=Number(el.dataset.ledFrame);
         if(index!==previous){
           previous=index;
-          timeline.push({t:performance.now(),index,phase:el.dataset.spinPhase});
+          timeline.push({t:performance.now(),index,phase:el.dataset.spinPhase,
+            face:w.nodes[index]?.dataset.face,color:w.nodes[index]?.dataset.color});
         }
       });
       observer.observe(el,{attributes:true,attributeFilter:['data-led-frame']});
@@ -69,6 +74,10 @@ with sync_playwright() as p:
       const center=w.nodes[4].querySelector('.led-symbol').textContent;
       const lit=Array.from(w.nodes).filter(n=>n.classList.contains('led-illuminated')).length;
       const unchanged=document.getElementById('wallet-balance').textContent===coin;
+      const previewVariety=new Set(timeline.map(row=>row.face).filter(Boolean)).size;
+      w.startIdle();
+      const centerAfterIdle=w.nodes[4].querySelector('.led-symbol').textContent;
+      const variedAfterIdle=new Set(w.nodes.map(n=>n.dataset.face)).size;
       const intervals=timeline.slice(1).map((row,i)=>({
         ms:row.t-timeline[i].t,phase:row.phase,index:row.index
       }));
@@ -76,13 +85,16 @@ with sync_playwright() as p:
       const brake=intervals.filter(x=>x.phase==='decelerate').map(x=>x.ms);
       const finalStep=timeline.length?timeline[timeline.length-1].index:-1;
       w.cancel();el.remove();
-      return {finished,choice,center,lit,unchanged,finalStep,
+      return {finished,choice,center,centerAfterIdle,variedAfterIdle,previewVariety,lit,unchanged,finalStep,
         cruise:cruise.slice(0,8),brake:brake.slice(-6)};
 
     }""")
     assert state["finished"] is True,state
     assert state["choice"]=={"color":"red","face":"1"},state
     assert state["center"]=="1",state
+    assert state["centerAfterIdle"]=="1","Idle must preserve exact server-picked fifth card"
+    assert state["variedAfterIdle"]>=8,state
+    assert state["previewVariety"]>=4,"Spinning must visibly randomize the UNO card faces"
     assert state["lit"]==0,state
     assert state["unchanged"],"Visual-only LED test must never change balance"
     assert state["finalStep"]==4,state
@@ -93,4 +105,4 @@ with sync_playwright() as p:
 
     assert not errors,errors
     browser.close()
-print("PASS: fixed LEDs idle A->I; fast chase decelerates smoothly and locks fifth card from server ACK only")
+print("PASS: diverse UNO card faces, stationary panels, random spin previews, fast-to-slow light and fifth-card server lock")

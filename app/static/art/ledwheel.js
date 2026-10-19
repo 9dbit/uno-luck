@@ -1,12 +1,16 @@
-/* UNO LUCK v0.9: fixed 9-position LED marquee. Only the face data moves.
-   Backend /api/orbit/pick is the exclusive authority for cards, credit, payout.
-   No second spin wheel or frontend prize generation. */
+/* UNO LUCK v1.2: nine fixed, full-color UNO-inspired LED cards.
+   Preview symbols/colors change independently inside the fixed panels; only
+   the LED highlight runs clockwise and decelerates at card five.
+   Backend /api/orbit/pick alone chooses the settled card, credit and payout. */
 (() => {
   'use strict';
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const PICKS = 4; // top-center fixed golden pointer
   const COLORS = ['red','blue','yellow','green'];
-  const FACES = ['0','1','2','3','4','5','6','7','8','9','SKIP','REVERSE','+2'];
+  const NUMBERS = ['0','1','2','3','4','5','6','7','8','9'];
+  const ACTIONS = ['SKIP','REVERSE','+2'];
+  const WILDS = ['WILD','+4'];
+  const FACES = [...NUMBERS,...ACTIONS,...WILDS];
   const SYMBOL = {SKIP:'⊘',REVERSE:'⇄','+2':'+2','+4':'+4',WILD:'◉'};
   const GEOMETRY = [
     {x:14.4,y:64.0,w:13.2,h:19.0,angle:-67},
@@ -19,8 +23,26 @@
     {x:80.6,y:52.2,w:12.6,h:19.9,angle:51},
     {x:85.5,y:64.3,w:12.8,h:19.0,angle:67}
   ];
+  // These visual-only draws NEVER affect /api/orbit/pick or winning odds.
   const random = array => array[Math.floor(Math.random()*array.length)];
-  const preview = () => ({color:random(COLORS),face:random(FACES)});
+  const shuffle = cards => {
+    const items=[...cards];
+    for(let i=items.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [items[i],items[j]]=[items[j],items[i]];
+    }
+    return items;
+  };
+  const preview = (face=random(FACES)) => ({
+    color:WILDS.includes(face)?'wild':random(COLORS),face
+  });
+  const previewPack = () => {
+    // Nine different card faces per wheel, including a colored action card
+    // and a Wild/+4. Avoid nine identical 1s or a fake "winning" display.
+    const feature=[random(ACTIONS),random(WILDS)];
+    const rest=shuffle(FACES.filter(face=>!feature.includes(face))).slice(0,7);
+    return shuffle([...feature,...rest]).map(face=>preview(face));
+  };
   const describe = card => `${card.color} ${card.face}`;
   const numeric = card => SYMBOL[card.face] || String(card.face || '?');
 
@@ -51,15 +73,32 @@
       this.idleInterval=480;
       this.chaseIndex=-1;
     }
-    // LED Chase: fixed metal sockets and fixed glyph positions. Only one
-    // panel's electrical illumination advances A -> I -> A. This is visual
-    // only and never calls /api/orbit/pick or touches the selected card data.
+    // LED Chase: metal frames never move. When idle, nine assorted UNO card
+    // faces stand still and only the LED light advances. On SPIN, each newly
+    // lit panel can flicker to another colored UNO card without shifting slots.
     chaseFace(){
-      for(const node of this.nodes) {
-        node.querySelector('.led-symbol').textContent='1';
-      }
+      this.displays=previewPack();
+      // The center card is the real server result after a finished SPIN.
+      // Never replace that card with a decorative preview during idle/reload.
+      if(!this.active && this.cardConfirmed && this.lastSelected)
+        this.displays[PICKS]={...this.lastSelected};
+      this.updateAll();
+    }
+    flashPreview(index){
+      if(!this.active)return;
+      const shown=new Set(this.displays
+        .filter((_,i)=>i!==index).map(card=>card.face));
+      const prior=this.displays[index]?.face;
+      // Keep all nine symbols varied, and make the lit preview change on each
+      // pass. Math.random here is ONLY presentation, not game result RNG.
+      const candidates=FACES.filter(face=>face!==prior&&!shown.has(face));
+      if(!candidates.length)return;
+      const card=preview(random(candidates));
+      this.displays[index]=card;
+      this.paint(index,card);
     }
     illuminate(index){
+      if(this.active)this.flashPreview(index);
       this.chaseIndex=index;
       this.nodes.forEach((node,i)=>{
         node.classList.toggle('led-illuminated',i===index);
@@ -117,6 +156,7 @@
       if(!node)return;
       const color=COLORS.includes(card.color)?card.color:'wild';
       node.dataset.color=color;
+      node.dataset.face=String(card.face);
       node.querySelector('.led-symbol').textContent=numeric(card);
       node.setAttribute('aria-label',describe(card));
       node.classList.toggle('led-selected',!this.active&&index===PICKS);
