@@ -224,6 +224,7 @@ function useFallbackSource(key,url){
 // to pause background music and could discard an in-flight splash attempt.
 let bgmPlayer=null,bgmPrepared=false,bgmPreparation=null,bgmRevision='';
 let bgmObjectUrl=null,bgmMirrorDuration=0,bgmRaf=null,bgmSerial=0,bgmStarting=false;
+let bgmHeldForGameplay=false,bgmGameplayReleased=false;
 function bgmElement(){
   if(!bgmPlayer){
     bgmPlayer=document.createElement('audio');
@@ -237,6 +238,7 @@ function bgmElement(){
   return bgmPlayer;
 }
 function stopMusicMedia({invalidate=false}={}){
+  bgmHeldForGameplay=false;bgmGameplayReleased=false;
   ++bgmSerial;
   bgmStarting=false;
   if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
@@ -354,6 +356,7 @@ function playMusicMedia(){
   return Promise.resolve(pending).then(()=>{
     if(serial!==bgmSerial)return false;
     bgmStarting=false;
+    if(bgmGameplayReleased)player.muted=false;
     mediaUnlocked=true;lastError='';
     if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
     bgmRaf=requestAnimationFrame(monitor);
@@ -367,6 +370,32 @@ function playMusicMedia(){
 function playMusicGesture(){
   if(!bgmPrepared||document.hidden)return false;
   return playMusicMedia(); // synchronously invokes player.play() on first tap
+}
+// The splash PLAY button is the trusted iOS gesture. Prime a separate
+// background music element *muted* during intro, then unmute on gameplay
+// entry without a new play() call outside user activation.
+function armMusicOnSplashGesture(){
+  if(!bgmPrepared||document.hidden)return false;
+  bgmHeldForGameplay=true;
+  bgmGameplayReleased=false;
+  bgmElement().muted=true;
+  return playMusicMedia(); // call from the click itself, not after await
+}
+function activateMusicAtGameplay(){
+  if(!bgmHeldForGameplay)return false;
+  bgmGameplayReleased=true;
+  const player=bgmElement();
+  if(player.paused&&!bgmStarting){
+    bgmHeldForGameplay=false;
+    return false;
+  }
+  const p=liveProfile('background-music');
+  const bounds=bgmMirrorDuration?
+    {start:0}:limits('background-music',
+      bgmMirrorDuration||Math.max(.05,Number(p.fileDuration)||player.duration||5));
+  try{player.currentTime=bounds.start;}catch(_){}
+  player.muted=false;
+  return true;
 }
 function isMusicMediaPlaying(){
   return bgmStarting||Boolean(bgmPlayer&&!bgmPlayer.paused&&!bgmPlayer.ended);
@@ -1122,7 +1151,9 @@ function show(host){
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
-  prepareSplashMedia,playSplashGesture,prepareMusicMedia,playMusicGesture,isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
+  prepareSplashMedia,playSplashGesture,prepareMusicMedia,playMusicGesture,
+  armMusicOnSplashGesture,activateMusicAtGameplay,
+  isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
   syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
