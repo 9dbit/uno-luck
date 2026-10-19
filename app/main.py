@@ -20,11 +20,13 @@ from fastapi.staticfiles import StaticFiles
 from .engine import COLORS, RuleError, UnoGame
 from .spin import router as spin_router
 from .orbit import router as orbit_router
+from .sound_cloud import router as sound_cloud_router, sound_health
 
 APP_ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
 app.include_router(spin_router)
 app.include_router(orbit_router)
+app.include_router(sound_cloud_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")
 
 
@@ -46,6 +48,11 @@ async def classic_home():
 
 @app.get("/health")
 async def health():
+    # Keep the game health contract unchanged, but when Sound Cloud is enabled
+    # ensure Railway's healthcheck also detects an unreadable/unwritable volume.
+    # Otherwise a broken audio catalog can misleadingly deploy as SUCCESS.
+    if os.getenv("UNO_SOUND_STORAGE_DIR"):
+        sound_health()
     return {"ok": True, "version": "0.6.0", "game": "UNO LUCK SPIN", "money_enabled": False, "main_mode": "spin"}
 
 

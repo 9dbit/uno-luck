@@ -214,3 +214,74 @@
   .sound-studio .studio-slider-panel{padding:9px 7px}
   .sound-studio .studio-repeat-row{gap:6px;padding:9px 7px}
 }
+
+/* Cloud publication lives in the existing Sound Studio scroll pane and keeps
+   all controls reachable at 320px without horizontal overflow. */
+.sound-studio .studio-cloud-panel{
+  display:flex;flex-direction:column;gap:9px;width:100%;min-width:0;
+  margin:3px 0 12px;padding:12px;
+  border:1px solid #ffe0a199;border-radius:16px;
+  background:linear-gradient(165deg,#482413,#120a14 72%);
+  box-shadow:inset 0 1px #ffecbe3b;
+}
+.sound-studio .studio-cloud-heading{
+  font-size:clamp(13px,3.1vw,16px);letter-spacing:.055em;color:#ffe09a;
+}
+.sound-studio .studio-cloud-status{
+  color:#fff0cc;font-size:12px;line-height:1.4;margin:0;
+  overflow-wrap:anywhere;min-width:0;
+}
+.sound-studio .studio-cloud-button{
+  display:block;box-sizing:border-box;width:100%;min-width:0;
+  min-height:42px;margin:0!important;padding:9px 11px!important;
+  border-radius:999px;border:1px solid #ffdc89;background:#8b3a24;
+  color:#fff6df;font-size:clamp(11px,2.9vw,13px);font-weight:800;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.25;
+}
+.sound-studio .studio-cloud-button:disabled{opacity:.56;cursor:wait}
+.sound-studio .studio-cloud-admin{
+  min-width:0;overflow:visible;border-top:1px solid #ffcc8040;padding-top:6px;
+}
+.sound-studio .studio-cloud-admin summary{
+  color:#ffdc9e;font-size:12px;font-weight:800;
+  cursor:pointer;overflow-wrap:anywhere;padding:10px 3px;
+}
+.sound-studio .studio-cloud-admin[open]{
+  display:flex;flex-direction:column;gap:9px;
+}
+.sound-studio .studio-admin-key{
+  display:block!important;box-sizing:border-box!important;
+  width:100%!important;max-width:100%;min-width:0!important;
+  min-height:42px!important;background:#220710!important;color:#fff9df!important;
+  padding:10px!important;border:1px solid #ad754f!important;
+  border-radius:10px!important;font-size:14px!important;
+}
+@media(max-width:350px){
+  .sound-studio .studio-cloud-panel{padding:9px;gap:7px}
+  .sound-studio .studio-cloud-button{padding:8px!important}
+}
+
+/* Mirror Loop controls stay in Sound Studio's existing scrollable panel. */
+.sound-studio .studio-mirror-panel{
+  display:flex;flex-direction:column;gap:9px;box-sizing:border-box;
+  width:100%;min-width:0;padding:12px;margin-top:7px;
+  border:1px solid #f4ca7f88;border-radius:13px;
+  background:linear-gradient(135deg,#2b1713,#110f16);
+}
+.sound-studio .studio-mirror-panel .studio-note{
+  margin:0;font-size:12px;line-height:1.35;color:#f5dfb4;
+}
+.sound-studio .studio-mirror-fade{
+  display:flex;flex-wrap:wrap;align-items:center;
+  gap:8px;min-width:0;color:#ffe1a5;font-size:12px;
+}
+.sound-studio .studio-mirror-fade .studio-range{
+  min-width:80px;flex:1 1 140px;width:auto;max-width:100%;
+}
+.sound-studio .studio-mirror-fade output{
+  white-space:nowrap;min-width:58px;text-align:right;
+}
+@media(max-width:350px){
+  .sound-studio .studio-mirror-panel{padding:9px}
+  .sound-studio .studio-mirror-fade{gap:6px}
+}

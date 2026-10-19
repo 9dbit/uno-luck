@@ -29,13 +29,14 @@ def test_editing_is_real_and_persistent_without_server_upload():
             "if(![start,stop,fi,fo].every(Number.isFinite)"]:
         assert contract in A, contract
     assert "UNO_SPIN_DB_PATH" not in A
-    assert "/api/" not in A
+    assert "/api/orbit/pick" not in A
+    assert "/api/sounds/manifest" in A
     assert "function stopLoop()" in A and "function stopPreview()" in A
 
 def test_real_game_events_and_boot_use_studio_cues():
-    assert 'sound-studio.js?v=1117' in H
-    assert 'sound-studio.css?v=1114' in H
-    assert H.index('sound.js?v=1117') < H.index('sound-studio.js?v=1117') < H.index('orbit.js?v=1116')
+    assert 'sound-studio.js?v=1120' in H
+    assert 'sound-studio.css?v=1120' in H
+    assert H.index('sound.js?v=1117') < H.index('sound-studio.js?v=1120') < H.index('orbit.js?v=1119')
     assert "installStudio,channels,playCue,result" in S
     assert "studio?.isCustomized(cue)" in S
     assert "studio?.isCustomized('background-music')" in S
@@ -75,9 +76,9 @@ def test_music_repeat_off_and_on_end_to_end_wiring():
     assert "function getRepeat(key)" in A
     assert "function setRepeat(key,enabled)" in A
     assert "repeatInput.type='checkbox'" in A
-    assert "repeatInput.checked=getRepeat(key)" in A
+    assert "repeatInput.checked=getDraftRepeat(key)" in A
     assert "setRepeat(key,repeatInput.checked)" in A
-    assert "repeat: getRepeat(key)" in A or "repeat:getRepeat(key)" in A
+    assert "repeat:getDraftRepeat(key)" in A
     assert "const repeat=looping && getRepeat(key)" in A
     assert "source.loop=repeat" in A
     assert "if(repeat)source.start(now,bounds.start)" in A

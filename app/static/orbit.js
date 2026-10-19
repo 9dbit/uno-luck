@@ -243,7 +243,7 @@ async function testSound(){
 }
 function showSoundVolume(){
   const area=modal('Audio Mixer · UNO LUCK');
-  paragraph(area,'Atur Master, Musik, dan Efek secara terpisah. Nilai tersimpan pada perangkat. Volume media iPhone tetap diatur melalui iOS.');
+  paragraph(area,'Master, Musik dan SFX mengikuti pengaturan Sound Cloud yang dipublikasikan. Admin dapat mengubah di desktop dan perubahan akan tersinkron. Volume fisik iPhone tetap mengikuti iOS.');
   for(const [title,property,setter] of [
     ['MASTER','masterVolume','setMasterVolume'],
     ['MUSIC','musicVolume','setMusicVolume'],
@@ -258,6 +258,7 @@ function showSoundVolume(){
       window.UNOLuckSound?.[setter](n/100);
       label.textContent=title+' · '+n+'%';
       if(title==='SFX'&&n>0){sfxEnabled=true;localStorage.setItem(MUTE_EFFECTS,'on');window.UNOLuckSound?.setEnabled(true);}
+      window.UNOLuckSoundStudio?.schedulePublishMixer?.();
     });
     area.append(input);
   }

@@ -10,8 +10,8 @@ def test_splash_has_audio_choice_and_no_autoplay_skip():
     for fragment in ("id=\"boot-sound-gate\"","id=\"boot-start-sound\"",
                      "id=\"boot-start-muted\"","id=\"boot-sound-status\""):
         assert fragment in H
-    assert "boot.js?v=1117" in H
-    assert "sound-studio.css?v=1114" in H
+    assert "boot.js?v=1119" in H
+    assert "sound-studio.css?v=1120" in H
     assert "runBoot().catch(() => release(false))" not in B
     assert "soundStart.addEventListener('click'" in B
     assert "silentStart.addEventListener('click'" in B
@@ -28,5 +28,7 @@ def test_uploaded_splash_persists_across_reload():
     assert "await writeFile(key,file)" in S
     assert "const file=await readFile(key)" in S
     assert "profiles[key]={custom:true" in S
-    assert "if(!file)throw Error('File audio lokal tidak ditemukan. Upload ulang.')" in S
+    assert "if(!file)throw Error('File audio lokal tidak ditemukan. Upload ulang dari desktop.')" in S
+    assert "const response=await fetch(cfg.url" in S
+    assert "await syncCloud()" in S
     assert "source.start(now,bounds.start,bounds.length)" in S

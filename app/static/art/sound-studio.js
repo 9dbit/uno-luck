@@ -16,6 +16,164 @@ const known=new Map(KEYS.map(x=>[x[0],x]));
 const KEY='uno_sound_studio_profiles_v1',DB='uno-luck-custom-sound-v1',MAX_BYTES=16*1024*1024;
 const profiles=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(_){return {};}})();
 const bufferCache=new Map();
+let cloudProfiles=new Map(), cloudRevision='', cloudReady=false, cloudError='';
+let cloudMixer=null, mixerPublishTimer=null;
+let cloudFetch=null, adminKey=sessionStorage.getItem('uno-sound-admin-key')||'';
+const liveProfile=key=>cloudProfiles.get(key)||profiles[key]||{};
+const editProfile=key=>profiles[key]||cloudProfiles.get(key)||{};
+async function syncCloud(force=false){
+  if(cloudFetch){
+    if(!force)return cloudFetch;
+    // Serialize forced refreshes; older in-flight manifests must never
+    // overwrite a freshly published desktop edit on a different device.
+    await cloudFetch;
+  }
+  cloudFetch=(async()=>{
+    const response=await fetch('/api/sounds/manifest',{cache:'no-store'});
+    if(!response.ok)throw Error('Cloud catalog HTTP '+response.status);
+    const data=await response.json();
+    if(data.ready!==true){cloudReady=false;cloudError='Cloud storage belum siap';return false;}
+    cloudReady=true;cloudError='';
+    if(data.revision!==cloudRevision){
+      const oldSplash=cloudProfiles.get('soft-tech-splash-screen')?.revision;
+      cloudRevision=data.revision;
+      cloudProfiles=new Map(Object.entries(data.cues||{}).filter(([key])=>known.has(key)));
+      cloudMixer=data.mixer&&typeof data.mixer==='object'?data.mixer:null;
+      if(cloudMixer&&window.UNOLuckSound){
+        window.UNOLuckSound.setMasterVolume(cloudMixer.master);
+        window.UNOLuckSound.setMusicVolume(cloudMixer.music);
+        window.UNOLuckSound.setVolume(cloudMixer.sfx);
+      }
+      bufferCache.clear();
+      if(document.visibilityState==='visible'&&cloudProfiles.has('background-music'))
+        void window.UNOLuckSound?.refreshMusic?.();
+      if(oldSplash!==cloudProfiles.get('soft-tech-splash-screen')?.revision){
+        if(splashUrl?.startsWith('blob:'))URL.revokeObjectURL(splashUrl);
+        splashUrl=null;
+      }
+      window.dispatchEvent(new CustomEvent('uno:sound-cloud-synced',
+        {detail:{revision:cloudRevision,cues:cloudProfiles.size}}));
+    }
+    return true;
+  })().catch(error=>{
+    cloudReady=false;
+    cloudError=String(error?.message||error);
+    console.warn('[UNO SOUND CLOUD]',cloudError);
+    return false;
+  }).finally(()=>{cloudFetch=null;});
+  return cloudFetch;
+}
+function hasAdminKey(){return adminKey.length>=32;}
+async function verifyAdminKey(value){
+  const entered=String(value||'').trim();
+  if(entered.length<32)throw Error('Masukkan kunci admin Sound Studio dari Railway (minimal 32 karakter).');
+  const response=await fetch('/api/sounds/admin/check',
+    {headers:{'X-UNO-Sound-Admin':entered},cache:'no-store'});
+  if(!response.ok)throw Error(response.status===403?
+    'Kunci admin salah. Salin dari Railway → Variables → UNO_SOUND_ADMIN_TOKEN.':
+    'Verifikasi admin gagal: HTTP '+response.status);
+  adminKey=entered;sessionStorage.setItem('uno-sound-admin-key',entered);
+  return true;
+}
+function cloudStatus(){return {ready:cloudReady,revision:cloudRevision,
+  online:cloudProfiles.size,error:cloudError,admin:hasAdminKey()};}
+async function publishCue(key,{remove=false}={}){
+  if(!known.has(key))throw Error('Sound cue tidak dikenal');
+  if(!hasAdminKey())throw Error('Kunci admin diperlukan untuk publish sound ke semua perangkat.');
+  const headers={'X-UNO-Sound-Admin':adminKey};
+  let method='PATCH',body=null,expected=null;
+  if(remove){method='DELETE';}
+  else{
+    const local=profiles[key]||{};
+    if(!local.custom&&!local.edited)throw Error('Belum ada perubahan lokal untuk '+key);
+    const duration=Number(local.fileDuration)||(await measure(key));
+    const meta={
+      start:Number(local.start??0),stop:Number(local.stop??duration),
+      fadeIn:Number(local.fadeIn??0),fadeOut:Number(local.fadeOut??0),
+      fileDuration:duration,repeat:local.repeat!==false,
+      ...(key==='background-music'?{
+        mirror:local.mirror===true,
+        mirrorCrossfadeMs:Math.round(clamp(local.mirrorCrossfadeMs??140,0,1000))
+      }:{}),
+    };
+    expected=meta;
+    if(local.custom){
+      const file=await readFile(key);
+      if(!file)throw Error('File '+key+' tidak ditemukan di desktop. Upload ulang.');
+      method='PUT';body=file;
+      headers['Content-Type']=file.type||mimeFor(file);
+      headers['X-UNO-Sound-Name']=encodeURIComponent(local.fileName||file.name||'sound.mp3');
+      headers['X-UNO-Sound-Settings']=JSON.stringify(meta);
+    }else{
+      headers['Content-Type']='application/json';
+      body=JSON.stringify(meta);
+    }
+  }
+  const res=await fetch('/api/sounds/cues/'+encodeURIComponent(key),
+    {method,headers,body,cache:'no-store'});
+  if(!res.ok){
+    let message='HTTP '+res.status;
+    try{const error=await res.json();message=error.detail||message;}catch(_){}
+    throw Error('Gagal publish '+key+': '+message);
+  }
+  if(!(await syncCloud(true)))throw Error('Sound tersimpan tetapi cloud belum bisa diverifikasi: '+cloudError);
+  const published=cloudProfiles.get(key);
+  if(remove){
+    if(published)throw Error('Sound reset belum terkonfirmasi oleh server');
+  }else{
+    if(!published)throw Error('Sound tidak ditemukan pada manifest setelah publish');
+    for(const field of ['start','stop','fadeIn','fadeOut','fileDuration']){
+      if(Math.abs(Number(published[field])-expected[field])>.011)
+        throw Error('Cloud belum memakai '+field+' terbaru. Refresh dan ulangi SAVE.');
+    }
+    if(Boolean(published.repeat)!==expected.repeat)
+      throw Error('Repeat di cloud belum sesuai dengan setting desktop');
+    if(key==='background-music'){
+      if(Boolean(published.mirror)!==expected.mirror)
+        throw Error('Mirror Loop di cloud belum sesuai dengan setting desktop');
+      if(Number(published.mirrorCrossfadeMs??140)!==expected.mirrorCrossfadeMs)
+        throw Error('Mirror Crossfade di cloud belum sesuai dengan setting desktop');
+    }
+  }
+  return true;
+}
+async function publishMixer(){
+  if(!hasAdminKey())throw Error('Kunci admin diperlukan untuk publish mixer.');
+  const sound=window.UNOLuckSound;
+  if(!sound)throw Error('Audio mixer belum aktif');
+  const levels={master:sound.masterVolume,music:sound.musicVolume,sfx:sound.volume};
+  const response=await fetch('/api/sounds/mixer',{
+    method:'PATCH',cache:'no-store',
+    headers:{'Content-Type':'application/json','X-UNO-Sound-Admin':adminKey},
+    body:JSON.stringify(levels)
+  });
+  if(!response.ok)throw Error('Gagal publish mixer: HTTP '+response.status);
+  await syncCloud(true);
+  return true;
+}
+function schedulePublishMixer(){
+  if(!hasAdminKey())return false;
+  if(mixerPublishTimer)clearTimeout(mixerPublishTimer);
+  mixerPublishTimer=setTimeout(()=>{
+    mixerPublishTimer=null;void publishMixer().catch(error=>{
+      cloudError=error.message;console.warn('[UNO SOUND CLOUD]',cloudError);
+    });
+  },650);
+  return true;
+}
+async function publishAll(progress=()=>{}){
+  if(!hasAdminKey())throw Error('Masukkan kunci admin sebelum mempublikasikan audio desktop.');
+  const entries=KEYS.map(([key])=>key).filter(key=>{
+    const p=profiles[key];return Boolean(p&&(p.custom||p.edited));
+  });
+  if(!entries.length)throw Error('Tidak ada audio lokal untuk dipublikasikan.');
+  for(let i=0;i<entries.length;i++){
+    progress(i+1,entries.length,entries[i]);
+    await publishCue(entries[i]);
+  }
+  await publishMixer();
+  return entries.length;
+}
 let database=null, preview=null, loop=null, loopSerial=0, lastError='';
 let celebrationNode=null, celebrationRequest=0;
 // Keep one media element already activated by the splash tap. Reusing the element
@@ -57,19 +215,25 @@ function stopFallback(key=null){
 }
 function useFallbackSource(key,url){
   const player=mediaPlayer();
-  if(player.src!==url){player.pause();player.src=url;player.load();}
+  if(player.getAttribute('src')!==url){player.pause();player.src=url;player.load();}
   if(url.startsWith('blob:')&&url!==splashUrl)activeTemporaryUrl=url;
   return player;
 }
 async function prepareSplashMedia(){
-  if(!profiles['soft-tech-splash-screen']?.custom)return false;
+  await syncCloud();
+  const cfg=liveProfile('soft-tech-splash-screen');
+  if(!cfg.custom&&cfg.source!=='custom')return false;
   if(splashUrl)return true;
   if(splashPreparation)return splashPreparation;
   splashPreparation=(async()=>{
-    const file=await readFile('soft-tech-splash-screen');
-    if(!file)throw Error('File splash tidak ditemukan di browser ini. Upload ulang.');
-    const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
-    splashUrl=URL.createObjectURL(typed);
+    if(cfg.source==='custom'&&cfg.url){
+      splashUrl=cfg.url;
+    }else{
+      const file=await readFile('soft-tech-splash-screen');
+      if(!file)throw Error('File splash lokal tidak ditemukan. Publikasikan dari desktop.');
+      const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
+      splashUrl=URL.createObjectURL(typed);
+    }
     useFallbackSource('soft-tech-splash-screen',splashUrl);
     splashError='';
     return true;
@@ -80,12 +244,14 @@ async function prepareSplashMedia(){
   }).finally(()=>{splashPreparation=null;});
   return splashPreparation;
 }
-function applyMediaBounds(key,player,previewMode=false,looping=false){
+function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDuration=0){
   clearFallbackTiming();
   const serial=++fallbackSerial;
-  const p=profiles[key]||{};
+  const p=previewMode?editProfile(key):liveProfile(key);
   const duration=Math.max(.05,Number(p.fileDuration)||player.duration||5);
-  const bounds=limits(key,duration);
+  const bounds=mirrorDuration?
+    {start:0,stop:mirrorDuration,length:mirrorDuration,fadeIn:0,fadeOut:0}:
+    limits(key,duration,{draft:previewMode});
   const start=Math.max(0,bounds.start);
   const stop=Math.max(start+.02,bounds.stop);
   const gain=()=>{
@@ -97,13 +263,14 @@ function applyMediaBounds(key,player,previewMode=false,looping=false){
   const tick=()=>{
     if(serial!==fallbackSerial||player.paused)return;
     const t=player.currentTime;
-    if(t>=stop-.025){
+    if(t>=stop-.025&&!mirrorDuration){
       if(looping&&getRepeat(key)){
         try{player.currentTime=start;}catch(_){}
         fallbackRaf=requestAnimationFrame(tick);return;
       }
       stopFallback(key);return;
     }
+    if(mirrorDuration&&!looping&&t>=stop-.025){stopFallback(key);return;}
     const elapsed=Math.max(0,t-start),remaining=Math.max(0,stop-t);
     const fadeIn=bounds.fadeIn>0?Math.min(1,elapsed/bounds.fadeIn):1;
     const fadeOut=bounds.fadeOut>0?Math.min(1,remaining/bounds.fadeOut):1;
@@ -116,7 +283,7 @@ function applyMediaBounds(key,player,previewMode=false,looping=false){
     if(fallbackRaf===null)fallbackRaf=requestAnimationFrame(tick);};
   if(player.readyState>=1)seek();
   else player.addEventListener('loadedmetadata',seek,{once:true});
-  player.loop=false;
+  player.loop=Boolean(mirrorDuration&&looping&&getRepeat(key));
   fallbackKey=key;
   fallbackPreview=previewMode;
   return {player,bounds};
@@ -143,11 +310,14 @@ function playSplashGesture(){
 }
 async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
   const entry=known.get(key);if(!entry)return false;
+  const serialAtFallback=loopSerial;
   try{
-    if(key==='soft-tech-splash-screen'&&!splashUrl)await prepareSplashMedia();
+    if(key==='soft-tech-splash-screen'&&!splashUrl&&!forPreview)await prepareSplashMedia();
+    const cfg=forPreview?editProfile(key):liveProfile(key);
     let url;
-    if(key==='soft-tech-splash-screen')url=splashUrl;
-    else if(profiles[key]?.custom){
+    if(key==='soft-tech-splash-screen'&&!forPreview)url=splashUrl;
+    else if(cfg.source==='custom'&&cfg.url)url=cfg.url;
+    else if(cfg.custom){
       const file=await readFile(key);
       if(!file)throw Error('File audio lokal hilang: '+key);
       const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
@@ -156,13 +326,35 @@ async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
       if(!entry[2])return false;
       url='/assets/audio/'+entry[2]+'.mp3';
     }
+    // Safari WebAudio may remain "interrupted". Render mirrored stereo PCM
+    // into a native looping WAV once; never seek back at the old START/STOP
+    // boundary. Reuse this same engine for Sound Studio preview.
+    const mirror=key==='background-music'&&mirrorConfig({draft:forPreview}).mirror&&
+      (forPreview||(looping&&getRepeat(key)));
+    let mirrorDuration=0;
+    if(mirror){
+      const original=await getBuffer(key,{draft:forPreview});
+      if(!original)throw Error('Mirror Loop audio belum dimuat');
+      const cfg=mirrorConfig({draft:forPreview});
+      const span=limits(key,original.duration,{draft:forPreview});
+      const made=window.UNOLuckMirrorLoop.render(
+        window.UNOLuckSound.channels().context,original,span.start,span.stop,
+        cfg.crossfadeMs,90);
+      mirrorDuration=made.duration;
+      if(url?.startsWith('blob:')&&url!==splashUrl)URL.revokeObjectURL(url);
+      url=URL.createObjectURL(window.UNOLuckMirrorLoop.wavBlob(made.buffer));
+    }
     if(token!==null&&token!==celebrationRequest){
+      if(url?.startsWith('blob:')&&url!==splashUrl)URL.revokeObjectURL(url);
+      return false;
+    }
+    if(looping&&serialAtFallback!==loopSerial){
       if(url?.startsWith('blob:')&&url!==splashUrl)URL.revokeObjectURL(url);
       return false;
     }
     stopFallback();
     const player=useFallbackSource(key,url);
-    const end=applyMediaBounds(key,player,forPreview,looping);
+    const end=applyMediaBounds(key,player,forPreview,looping,mirrorDuration);
     // Release temporary URLs once a subsequent cue replaces the source.
     // Keeping the current URL intact is required for seeking/repeating.
     const promise=player.play();
@@ -218,17 +410,23 @@ function channel(){
   if(!r?.context||r.context.state!=='running')throw Error('Aktifkan audio melalui tombol game terlebih dahulu');
   return r;
 }
-async function getBuffer(key){
-  if(bufferCache.has(key))return bufferCache.get(key);
+async function getBuffer(key,{draft=false}={}){
+  const cacheKey=(draft?'draft:':'live:')+key;
+  const requestedRevision=cloudRevision;
+  if(bufferCache.has(cacheKey))return bufferCache.get(cacheKey);
   const entry=known.get(key);if(!entry)throw Error('Sound event tidak dikenal');
-  const cfg=profiles[key]||{};
+  const cfg=draft?editProfile(key):liveProfile(key);
   let bytes;
-  if(cfg.custom){
+  if(cfg.source==='custom'&&cfg.url){
+    const response=await fetch(cfg.url,{cache:'force-cache'});
+    if(!response.ok)throw Error('Cloud audio '+key+' HTTP '+response.status);
+    bytes=await response.arrayBuffer();
+  }else if(cfg.custom){
     const file=await readFile(key);
-    if(!file)throw Error('File audio lokal tidak ditemukan. Upload ulang.');
+    if(!file)throw Error('File audio lokal tidak ditemukan. Upload ulang dari desktop.');
     bytes=await file.arrayBuffer();
   }else{
-    if(!entry[2])return null; // Two opening scenes intentionally have no default sample.
+    if(!entry[2])return null;
     const response=await fetch('/assets/audio/'+entry[2]+'.mp3',{cache:'force-cache'});
     if(!response.ok)throw Error('Audio tidak tersedia: '+response.status);
     bytes=await response.arrayBuffer();
@@ -238,11 +436,14 @@ async function getBuffer(key){
   const context=window.UNOLuckSound?.channels?.()?.context;
   if(!context)throw Error('Audio decoder tidak tersedia. Mulai game lalu coba kembali.');
   const buffer=await context.decodeAudioData(bytes.slice(0));
-  bufferCache.set(key,buffer);
-  return buffer;
+  // In-flight default decoding must never overwrite a newer uploaded draft;
+  // likewise an old cloud response must not repopulate a refreshed catalog.
+  if(!draft&&requestedRevision!==cloudRevision)return buffer;
+  if(!bufferCache.has(cacheKey))bufferCache.set(cacheKey,buffer);
+  return bufferCache.get(cacheKey);
 }
-function limits(key,duration){
-  const current=profiles[key]||{};
+function limits(key,duration,{draft=false}={}){
+  const current=draft?editProfile(key):liveProfile(key);
   const start=clamp(current.start??0,0,Math.max(0,duration-.02));
   const stop=clamp(current.stop??duration,start+.01,duration);
   const length=stop-start;
@@ -251,19 +452,29 @@ function limits(key,duration){
   return {start,stop,length,fadeIn,fadeOut};
 }
 function isCustomized(key){
-  const p=profiles[key];
-  return Boolean(p&&(p.custom||p.edited));
+  const p=liveProfile(key);
+  return Boolean(p&&(p.custom||p.edited||p.source==='custom'||
+    (cloudProfiles.has(key)&&known.get(key)?.[2])));
 }
-function profile(key){return {...(profiles[key]||{})};}
-function getRepeat(key){return key==='background-music' && profiles[key]?.repeat!==false;}
+function profile(key){return {...editProfile(key)};}
+function publishedProfile(key){return {...(cloudProfiles.get(key)||{})};}
+function getRepeat(key){return key==='background-music' && liveProfile(key)?.repeat!==false;}
+function getDraftRepeat(key){return key==='background-music' && editProfile(key)?.repeat!==false;}
+function mirrorConfig({draft=false}={}){
+  const p=draft?editProfile('background-music'):liveProfile('background-music');
+  return {mirror:p?.mirror===true,crossfadeMs:clamp(p?.mirrorCrossfadeMs??140,0,1000)};
+}
 function setRepeat(key,enabled){
   if(key!=='background-music')throw Error('Repeat hanya untuk BACKGROUND MUSIC');
-  profiles[key]={...profiles[key],repeat:Boolean(enabled),edited:true};
+  profiles[key]={...editProfile(key),repeat:Boolean(enabled),edited:true};
   save();
+  if(hasAdminKey())void publishCue(key).catch(error=>{
+    lastError=error.message;console.warn('[UNO SOUND CLOUD]',lastError);
+  });
   window.UNOLuckSound?.refreshMusic?.();
-  return getRepeat(key);
+  return getDraftRepeat(key);
 }
-async function measure(key){const b=await getBuffer(key);return b?.duration||0;}
+async function measure(key){const b=await getBuffer(key,{draft:true});return b?.duration||0;}
 async function configure(key,settings){
   if(!known.has(key))throw Error('Sound event tidak dikenal');
   const length=await measure(key);
@@ -272,11 +483,16 @@ async function configure(key,settings){
   const fi=Number(settings.fadeIn),fo=Number(settings.fadeOut);
   if(![start,stop,fi,fo].every(Number.isFinite)||start<0||stop>length+.001||stop-start<.02||
       fi<0||fo<0||fi+fo>stop-start+.001)throw Error('Rentang start/stop atau fade tidak valid');
-  profiles[key]={...profiles[key],start:decimals(start),stop:decimals(Math.min(stop,length)),
-    fadeIn:decimals(fi),fadeOut:decimals(fo),edited:true};
-  save();
+  profiles[key]={...editProfile(key),start:decimals(start),stop:decimals(Math.min(stop,length)),
+    fadeIn:decimals(fi),fadeOut:decimals(fo),edited:true,
+    ...(key==='background-music'?{
+      mirror:settings.mirror===true,
+      mirrorCrossfadeMs:Math.round(clamp(settings.mirrorCrossfadeMs??140,0,1000))
+    }:{})};
+  save();bufferCache.delete('draft:'+key);
+  if(hasAdminKey())await publishCue(key);
   if(key==='background-music')window.UNOLuckSound?.refreshMusic?.();
-  return limits(key,length);
+  return limits(key,length,{draft:true});
 }
 async function upload(key,file){
   if(!known.has(key))throw Error('Sound event tidak dikenal');
@@ -289,11 +505,16 @@ async function upload(key,file){
   const decoded=await context.decodeAudioData(bytes.slice(0));
   if(!decoded.duration||!Number.isFinite(decoded.duration))throw Error('Durasi audio tidak valid');
   await writeFile(key,file);
-  bufferCache.set(key,decoded);
+  bufferCache.set('draft:'+key,decoded);
   profiles[key]={custom:true,edited:true,fileName:file.name,fileDuration:decimals(decoded.duration),
     start:0,stop:decimals(decoded.duration),fadeIn:0,fadeOut:0,
-    ...(key==='background-music'?{repeat:getRepeat(key)}:{})};
+    ...(key==='background-music'?{
+      repeat:getDraftRepeat(key),
+      mirror:mirrorConfig({draft:true}).mirror,
+      mirrorCrossfadeMs:mirrorConfig({draft:true}).crossfadeMs
+    }:{})};
   save();
+  if(hasAdminKey())await publishCue(key);
   if(key==='soft-tech-splash-screen'&&splashUrl){
     URL.revokeObjectURL(splashUrl);splashUrl=null;
   }
@@ -325,14 +546,14 @@ async function segmentDuration(key){
     const buffer=await getBuffer(key);
     return buffer?limits(key,buffer.duration).length:0;
   }catch(error){
-    const duration=Number(profiles[key]?.fileDuration)||0;
+    const duration=Number(liveProfile(key)?.fileDuration)||0;
     return duration?limits(key,duration).length:0;
   }
 }
 function stopLoop(){
   if(fallbackKey==='background-music')stopFallback();
   loopSerial++;
-  if(loop){stopNode(loop,loop.bounds.fadeOut);loop=null;}
+  if(loop){stopNode(loop,Math.max(.08,loop.bounds.fadeOut));loop=null;}
 }
 async function play(key,{looping=false,forPreview=false}={}){
   if(!known.has(key))return false;
@@ -349,15 +570,25 @@ async function play(key,{looping=false,forPreview=false}={}){
       return ok;
     }
     const {context,fx,music}=channel();
-    const buffer=await getBuffer(key);
+    const buffer=await getBuffer(key,{draft:forPreview});
     if(!buffer)return false;
     if(looping&&serial!==loopSerial)return false;
     if(isJackpot&&jackpotToken!==celebrationRequest)return false;
-    const bounds=limits(key,buffer.duration);
+    let bounds=limits(key,buffer.duration,{draft:forPreview});
+    const mirror=key==='background-music'&&mirrorConfig({draft:forPreview}).mirror&&
+      (forPreview||(looping&&getRepeat(key)));
+    let playback=buffer;
+    if(mirror){
+      const made=window.UNOLuckMirrorLoop.render(
+        context,buffer,bounds.start,bounds.stop,
+        mirrorConfig({draft:forPreview}).crossfadeMs);
+      playback=made.buffer;
+      bounds={start:0,stop:playback.duration,length:playback.duration,fadeIn:0,fadeOut:0};
+    }
     const source=context.createBufferSource(),envelope=context.createGain();
     const now=context.currentTime+.012;
     const repeat=looping && getRepeat(key);
-    source.buffer=buffer;
+    source.buffer=playback;
     source.loop=repeat;
     if(repeat){source.loopStart=bounds.start;source.loopEnd=bounds.stop;}
     source.connect(envelope).connect(looping||key==='background-music'?music:fx);
@@ -401,7 +632,8 @@ async function previewCue(key){
 async function reset(key){
   stopPreview();if(key==='background-music')stopLoop();
   try{await removeFile(key);}catch(_){/* No DB for bundled-only sound. */}
-  delete profiles[key];bufferCache.delete(key);save();
+  delete profiles[key];bufferCache.delete('draft:'+key);save();
+  if(hasAdminKey())await publishCue(key,{remove:true});
   if(key==='soft-tech-splash-screen'&&splashUrl){
     URL.revokeObjectURL(splashUrl);splashUrl=null;
   }
@@ -417,9 +649,74 @@ function show(host){
   host.replaceChildren();
   host.classList.add('sound-studio');
   host.append(element('p','studio-note',
-    '12 kanal efek. Upload audio pada perangkat ini, atur START / STOP / DURATION / FADE IN / FADE OUT, lalu PREVIEW. Audio tersimpan lokal di browser, bukan di server.'));
+    'SOUND CLOUD: Semua perangkat memainkan audio dan pengaturan yang dipublikasikan dari desktop. Upload/edit lokal tetap tersimpan sampai Anda publish.'));
   host.append(element('p','studio-note',
-    'Safari iPhone hanya mengizinkan suara splash/loading setelah ada interaksi pengguna yang membuka audio.'));
+    'Safari iPhone hanya dapat mengeluarkan suara setelah START WITH SOUND disentuh.'));
+  const cloudBox=element('section','studio-cloud-panel');
+  const cloudHeading=element('strong','studio-cloud-heading','☁ SHARED SOUND CLOUD');
+  const cloudInfo=element('p','studio-cloud-status');
+  const statusText=()=>{
+    const state=cloudStatus();
+    const unpublished=KEYS.filter(([key])=>{
+      const local=profiles[key];
+      return Boolean(local&&(local.custom||local.edited)&&
+        (!cloudProfiles.has(key)||local.fileName!==cloudProfiles.get(key)?.fileName));
+    }).length;
+    const auth=state.admin?' · ADMIN AKTIF':' · READ-ONLY';
+    cloudInfo.textContent=state.ready?
+      (state.online?
+        'TERHUBUNG · '+state.online+' / 12 kanal dipublikasikan'+auth+
+        (unpublished?' · '+unpublished+' draft lokal perlu PUBLISH':''):
+        'TERHUBUNG · CLOUD MASIH KOSONG (0/12). Audio desktop BELUM dipublikasikan. Verifikasi admin lalu pilih PUBLISH ALL.') :
+      ('SOUND CLOUD TIDAK TERHUBUNG · '+(state.error||'menunggu server')+
+        '. Setting desktop tidak dapat dipakai di mobile sampai cloud pulih.');
+  };
+  const syncButton=element('button','studio-cloud-button','↻ REFRESH CLOUD');
+  syncButton.type='button';
+  syncButton.addEventListener('click',async()=>{
+    cloudInfo.textContent='Memperbarui sound semua perangkat…';
+    await syncCloud(true);statusText();
+  });
+  const adminSection=element('details','studio-cloud-admin');
+  const adminTitle=element('summary',null,'PUBLISH SOUND DARI DESKTOP · ADMIN');
+  const adminGuide=element('p','studio-note',
+    'Kunci hanya ada di Railway → uno-luck-web → staging → Variables → UNO_SOUND_ADMIN_TOKEN. Kunci disimpan pada tab ini, tidak dikirim ke perangkat pemain.');
+  const keyInput=element('input','studio-admin-key');
+  keyInput.type='password';keyInput.autocomplete='off';
+  keyInput.placeholder='Masukkan kunci admin (32+ karakter)';
+  keyInput.setAttribute('aria-label','Kunci admin Sound Cloud');
+  const login=element('button','studio-cloud-button','VERIFIKASI KUNCI');
+  login.type='button';
+  const publish=element('button','studio-cloud-button','☁ PUBLISH ALL 12 SOUND LIST');
+  publish.type='button';
+  const publishStatus=element('p','studio-cloud-status');
+  login.addEventListener('click',async()=>{
+    publishStatus.textContent='Memverifikasi admin…';
+    try{await verifyAdminKey(keyInput.value);
+      keyInput.value='';publishStatus.textContent='Admin terverifikasi · upload & SAVE akan otomatis publish.';
+      statusText();
+    }catch(error){publishStatus.textContent='GAGAL: '+error.message;}
+  });
+  publish.addEventListener('click',async()=>{
+    publish.disabled=true;publishStatus.textContent='Menyiapkan file desktop…';
+    try{
+      const count=await publishAll((n,total,key)=>{
+        publishStatus.textContent='Mengirim '+n+' / '+total+' · '+key;
+      });
+      publishStatus.textContent=count+' sound desktop berhasil dipublikasikan. iPhone memakai versi yang sama setelah refresh.';
+      statusText();
+    }catch(error){
+      publishStatus.textContent='PUBLISH TERHENTI: '+error.message;
+    }finally{publish.disabled=false;}
+  });
+  adminSection.append(adminTitle,adminGuide,keyInput,login,publish,publishStatus);
+  cloudBox.append(cloudHeading,cloudInfo,syncButton,adminSection);
+  host.append(cloudBox);
+  statusText();
+  void syncCloud().then(()=>{if(cloudBox.isConnected)statusText();});
+  window.addEventListener('uno:sound-cloud-synced',()=>{
+    if(cloudBox.isConnected)statusText();
+  });
   for(const [key,title,defaultSample] of KEYS){
     const details=element('details','studio-cue');
     const summary=element('summary','studio-title',title);
@@ -436,6 +733,9 @@ function show(host){
       const wrap=element('label','studio-field',label);
       const input=element('input');
       input.type='number';input.step='.05';input.min='0';input.inputMode='decimal';
+      // The <details> toggle event fires asynchronously after the user opens
+      // a cue. Leave inputs locked from creation until paint() hydrates them.
+      input.disabled=true;
       input.setAttribute('aria-label',title+' '+label);
       input.name=key+'-'+field;
       values[field]=input;wrap.append(input);form.append(wrap);
@@ -485,7 +785,8 @@ function show(host){
     if(key==='background-music'){
       repeatInput=element('input','studio-repeat-input');
       repeatInput.type='checkbox';repeatInput.name='background-music-repeat';
-      repeatInput.checked=getRepeat(key);
+      repeatInput.disabled=true;
+      repeatInput.checked=getDraftRepeat(key);
       repeatInput.setAttribute('aria-label','REPEAT BACKGROUND MUSIC');
       const repeatTitle=element('span','studio-repeat-label','REPEAT BACKGROUND MUSIC');
       const repeatState=element('strong','studio-repeat-state',repeatInput.checked?'ON':'OFF');
@@ -496,6 +797,35 @@ function show(host){
           'Repeat OFF · Musik dimainkan satu kali sesuai durasi START–STOP.';
       });
       repeatRow.append(repeatInput,repeatTitle,repeatState);
+    }
+    let mirrorInput=null,mirrorSlider=null,mirrorNumber=null,mirrorState=null;
+    const mirrorRow=element('div','studio-mirror-panel');
+    if(key==='background-music'){
+      const heading=element('label','studio-repeat-row');
+      mirrorInput=element('input','studio-repeat-input');
+      mirrorInput.type='checkbox';mirrorInput.name='background-music-mirror';
+      mirrorInput.disabled=true;
+      mirrorInput.setAttribute('aria-label','MIRROR LOOP BACKGROUND MUSIC');
+      const label=element('span','studio-repeat-label','MIRROR LOOP · MAJU ↔ MUNDUR');
+      mirrorState=element('strong','studio-repeat-state','OFF');
+      heading.append(mirrorInput,label,mirrorState);
+      const guide=element('p','studio-note',
+        'Mirror Loop menyambung musik maju–mundur dengan crossfade. Aktif saat REPEAT ON. Klik SAVE untuk sinkronisasi desktop dan iPhone.');
+      const fadeRow=element('label','studio-mirror-fade');
+      const fadeTitle=element('strong',null,'MIRROR CROSSFADE');
+      mirrorSlider=element('input','studio-range');
+      mirrorSlider.type='range';mirrorSlider.name='background-music-mirror-crossfade';
+      mirrorSlider.min='0';mirrorSlider.max='1000';mirrorSlider.step='10';
+      mirrorSlider.value='140';mirrorSlider.disabled=true;
+      mirrorSlider.setAttribute('aria-label','MIRROR CROSSFADE ms');
+      mirrorNumber=element('output','studio-slider-value','140 ms');
+      mirrorSlider.addEventListener('input',()=>{mirrorNumber.textContent=mirrorSlider.value+' ms';});
+      mirrorInput.addEventListener('change',()=>{
+        mirrorState.textContent=mirrorInput.checked?'ON':'OFF';
+        setStatus('Mirror '+(mirrorInput.checked?'ON':'OFF')+' · tekan SAVE untuk menyimpan dan publish.');
+      });
+      fadeRow.append(fadeTitle,mirrorSlider,mirrorNumber);
+      mirrorRow.append(heading,guide,fadeRow);
     }
     let actualDuration=0;
     const updateSliderView=()=>{
@@ -526,25 +856,46 @@ function show(host){
         stop.toFixed(2)+' s   ·   DURATION '+span.toFixed(2)+' s';
     };
     const setStatus=text=>{status.textContent=text;};
+    const setEditorBusy=busy=>{
+      Object.values(values).forEach(input=>{input.disabled=busy;});
+      if(repeatInput)repeatInput.disabled=busy;
+      if(mirrorInput)mirrorInput.disabled=busy;
+      if(mirrorSlider)mirrorSlider.disabled=busy;
+    };
+    let paintSeq=0;
     const paint=async()=>{
+      const seq=++paintSeq;
+      setEditorBusy(true);
       setStatus('Membaca audio…');
       const p=profile(key);
+      const shared=publishedProfile(key);
       try{
-        actualDuration=await measure(key);
-        if(!details.isConnected)return;
+        const measured=await measure(key);
+        if(seq!==paintSeq||!details.isConnected)return;
+        actualDuration=measured;
         if(!actualDuration){
           updateSliderView();
           setStatus('Belum ada file default. Upload audio untuk cue ini.');
           return;
         }
-        const r=limits(key,actualDuration);
+        const r=limits(key,actualDuration,{draft:true});
         for(const name of ['start','stop','fadeIn','fadeOut'])values[name].value=String(decimals(r[name]));
         values.duration.value=String(decimals(r.length));
-        if(repeatInput)repeatInput.checked=getRepeat(key);
+        if(repeatInput)repeatInput.checked=getDraftRepeat(key);
         if(repeatInput)repeatRow.querySelector('.studio-repeat-state').textContent=repeatInput.checked?'ON':'OFF';
+        if(mirrorInput){
+          const setting=mirrorConfig({draft:true});
+          mirrorInput.checked=setting.mirror;
+          mirrorState.textContent=setting.mirror?'ON':'OFF';
+          mirrorSlider.value=String(setting.crossfadeMs);
+          mirrorNumber.textContent=String(setting.crossfadeMs)+' ms';
+        }
         updateSliderView();
-        setStatus((p.custom?'CUSTOM: '+p.fileName:'DEFAULT: '+(defaultSample||'-'))+' · File '+decimals(actualDuration)+' s');
-      }catch(error){setStatus('Audio tidak bisa dibaca: '+String(error.message));}
+        setStatus((shared.revision?'☁ SHARED · ':'LOCAL · ')+
+          (p.custom||p.source==='custom'?'CUSTOM: '+p.fileName:'DEFAULT: '+(defaultSample||'-'))+
+          ' · File '+decimals(actualDuration)+' s');
+      }catch(error){if(seq===paintSeq)setStatus('Audio tidak bisa dibaca: '+String(error.message));}
+      finally{if(seq===paintSeq)setEditorBusy(actualDuration<=0);}
     };
     let updating=false;
     const sync=(changed)=>{
@@ -565,12 +916,15 @@ function show(host){
     fileInput.setAttribute('aria-label','Upload '+title);
     fileInput.addEventListener('change',async()=>{
       if(!fileInput.files?.[0])return;
+      ++paintSeq; // cancel stale audio measurements from the open-details event
+      setEditorBusy(true);
       setStatus('Memeriksa dan menyimpan audio…');
       try{
         await window.UNOLuckSound?.unlock();
         await upload(key,fileInput.files[0]);
-        await paint();setStatus('Audio tersimpan: '+fileInput.files[0].name);
-      }catch(error){setStatus('UPLOAD GAGAL: '+error.message);}
+        await paint();setStatus('Audio tersimpan: '+fileInput.files[0].name+
+          (hasAdminKey()?' · CLOUD PUBLISHED':' · LOKAL, belum dipublikasikan'));
+      }catch(error){setEditorBusy(false);setStatus('UPLOAD GAGAL: '+error.message);}
     });
     const buttons=element('div','studio-buttons');
     const button=(label,fn)=>{
@@ -580,7 +934,13 @@ function show(host){
     button('SAVE',async()=>{
       try{
         const args=Object.fromEntries(['start','stop','fadeIn','fadeOut'].map(k=>[k,values[k].value]));
-        await configure(key,args);setStatus('Setting disimpan pada perangkat ini.');
+        if(mirrorInput){
+          args.mirror=mirrorInput.checked;
+          args.mirrorCrossfadeMs=Number(mirrorSlider.value);
+        }
+        await configure(key,args);setStatus(hasAdminKey()?
+          'Setting disimpan di CLOUD · otomatis untuk semua perangkat.':
+          'Setting disimpan LOKAL · masukkan kunci admin dan PUBLISH untuk sinkronisasi.');
       }catch(error){setStatus('GAGAL: '+error.message);}
     });
     button('▶ PREVIEW',async()=>{
@@ -589,9 +949,14 @@ function show(host){
       catch(error){setStatus('PREVIEW GAGAL: '+error.message);}
     });
     button('■ STOP',()=>{stopPreview();setStatus('Preview dihentikan.');});
-    button('RESET',async()=>{await reset(key);await paint();});
+    button('RESET',async()=>{
+      try{await reset(key);await paint();
+        setStatus(hasAdminKey()?'RESET di CLOUD selesai.':'Reset lokal saja · sound cloud tetap aktif.');
+      }catch(error){setStatus('RESET GAGAL: '+error.message);}
+    });
     body.append(status,fileInput,timeline,sliderPanel,form);
     if(repeatInput)body.append(repeatRow);
+    if(mirrorInput)body.append(mirrorRow);
     body.append(buttons);details.append(body);host.append(details);
     details.addEventListener('toggle',()=>{if(details.open)paint();});
   }
@@ -599,7 +964,9 @@ function show(host){
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
   prepareSplashMedia,playSplashGesture,isIOS,
-  profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,
+  syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
+  publishMixer,schedulePublishMixer,hasAdminKey,
+  profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
   get lastError(){return lastError;},get splashError(){return splashError;},
   get mediaUnlocked(){return mediaUnlocked;},
@@ -607,4 +974,9 @@ window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(t
     return celebrationNode?.key||fallbackKey?.startsWith('jackpot-')&&fallbackKey||null;
   }};
 window.UNOLuckSoundStudio.install();
+void syncCloud();
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden)void syncCloud(true);
+});
+setInterval(()=>{if(!document.hidden)void syncCloud(true);},45000);
 })();

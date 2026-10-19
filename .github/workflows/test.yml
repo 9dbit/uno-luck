@@ -20,6 +20,8 @@ jobs:
       - run: node --check app/static/art/ledwheel.js
       - run: node --check app/static/art/sound.js
       - run: node --check app/static/art/sound-studio.js
+      - run: node --check app/static/art/mirror-loop.js
+      - run: node tests/test_mirror_loop.cjs
       - run: node --check app/static/art/celebrations.js
       - run: node --check app/static/art/match-announce.js
 
@@ -34,14 +36,18 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - name: Verify game and Sound Studio in Chromium
         run: |
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-${GITHUB_RUN_ID}"
+          export UNO_SOUND_ADMIN_TOKEN="uno-ci-only-shared-sound-secret-for-playwright-2026"
           python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
             sleep 1
           done
+          python -m py_compile tests/visual_qa_shared_sound.py
           python tests/visual_qa_sound_studio.py
           python tests/visual_qa_jackpot_sfx.py
           python tests/visual_qa_ios_safari_audio.py
+          python tests/visual_qa_shared_sound.py
       - name: Upload QA screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,4 +57,23 @@ jobs:
             artifacts/uno-v11-sound-studio/*.png
             artifacts/uno-v11-jackpot-audio/*.png
             artifacts/uno-v11-ios-safari-audio/*.png
+            artifacts/uno-v11-shared-sound/*.png
           if-no-files-found: ignore
+
+  volume-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate mounted volume is writable by application user
+        run: |
+          docker build -t uno-volume-runtime .
+          mkdir -p "$RUNNER_TEMP/uno-sound-test"
+          chmod 0700 "$RUNNER_TEMP/uno-sound-test"
+          docker run -d --name uno-volume-test -p 127.0.0.1:18085:8080 -v "$RUNNER_TEMP/uno-sound-test:/data/uno-luck-audio" -e UNO_SOUND_STORAGE_DIR=/data/uno-luck-audio uno-volume-runtime
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:18085/api/sounds/health > /tmp/uno-sound-probe.json; then break; fi
+            sleep 1
+          done
+          python3 -c 'import json; a=json.load(open("/tmp/uno-sound-probe.json")); assert a["ready"] and a["published_cues"]==0'
+          test "$(docker exec uno-volume-test stat -c %u /data/uno-luck-audio)" = 10001
+          echo "PASS: Railway style volume is writable as UID 10001"

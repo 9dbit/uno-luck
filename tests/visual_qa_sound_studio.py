@@ -50,7 +50,7 @@ def main():
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         editor=page.locator('.sound-studio')
         assert editor.locator('details.studio-cue').count()==12
-        assert editor.locator('input[type="range"].studio-range').count()==60
+        assert editor.locator('input[type="range"].studio-range').count()==61
         fourth=editor.locator('details.studio-cue').nth(3)
         fourth.locator('summary').click()
         fourth.locator('input[type=file]').set_input_files(str(tone))
