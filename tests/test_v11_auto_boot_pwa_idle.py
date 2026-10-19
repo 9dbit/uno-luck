@@ -55,7 +55,7 @@ def test_clockwise_idle_faces_not_ledger_or_metal_frame_geometry():
     assert 'this.idleInterval=480' in WHEEL
     assert "this.host.classList.add('led-idle','led-ambient')" in WHEEL
     assert "this.stopIdle();\n      this.active=true" in WHEEL
-    assert "window.UNOLuckSound?.ledTick(slowed)" in WHEEL
+    assert "window.UNOLuckSound?.ledTick(Boolean(this.deceleration))" in WHEEL
     assert "wheel?.startIdle()" in GAME
     assert "wheel?.stopIdle()" in GAME
     assert 'led-illuminated' in LAYOUT
