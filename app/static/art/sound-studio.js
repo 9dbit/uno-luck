@@ -652,7 +652,7 @@ async function upload(key,file){
   if(!(/\.(mp3|wav|m4a|aac|ogg|webm)$/i.test(file.name)||file.type.startsWith('audio/')))
     throw Error('Gunakan MP3, WAV, M4A, AAC, OGG atau WebM yang didukung browser');
   const context=window.UNOLuckSound?.channels?.()?.context;
-  if(!context)throw Error('Audio decoder belum tersedia. Pilih START WITH SOUND dahulu.');
+  if(!context)throw Error('Audio decoder belum tersedia. Ketuk game sekali, lalu coba upload kembali.');
   const bytes=await file.arrayBuffer();
   const decoded=await context.decodeAudioData(bytes.slice(0));
   if(!decoded.duration||!Number.isFinite(decoded.duration))throw Error('Durasi audio tidak valid');
@@ -809,7 +809,7 @@ function show(host){
   host.append(element('p','studio-note',
     'SOUND CLOUD: Semua perangkat memainkan audio dan pengaturan yang dipublikasikan dari desktop. Upload/edit lokal tetap tersimpan sampai Anda publish.'));
   host.append(element('p','studio-note',
-    'Safari iPhone hanya dapat mengeluarkan suara setelah START WITH SOUND disentuh.'));
+    'Safari iPhone memerlukan sentuhan langsung untuk mengaktifkan suara; musik gameplay otomatis diminta ketika halaman siap.'));
   const cloudBox=element('section','studio-cloud-panel');
   const cloudHeading=element('strong','studio-cloud-heading','☁ SHARED SOUND CLOUD');
   const cloudInfo=element('p','studio-cloud-status');
