@@ -144,3 +144,22 @@ def test_bounded_staging_sound_history(sound_storage):
         assert len(paths) == 2, paths
         latest = browser.get(API + "/manifest").json()["cues"]["jackpot-5"]
         assert browser.get(latest["url"]).content == WAV
+
+def test_sound_health_verifies_persistent_storage(sound_storage, monkeypatch):
+    with TestClient(app) as client:
+        response = client.get("/api/sounds/health")
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "ready": True, "published_cues": 0, "revision": "initial",
+        }
+        assert response.headers["cache-control"] == "no-store"
+        assert list(sound_storage.glob(".uno-sound-health-*")) == []
+        assert list((sound_storage / "audio").glob(".uno-sound-health-*")) == []
+        monkeypatch.delenv("UNO_SOUND_STORAGE_DIR")
+        assert client.get("/api/sounds/health").status_code == 503
+
+
+def test_sound_cloud_health_does_not_change_virtual_coin_health(sound_storage):
+    with TestClient(app) as client:
+        assert client.get("/api/sounds/health").json()["ready"]
+        assert client.get("/health").json()["money_enabled"] is False
