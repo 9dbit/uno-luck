@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt httpx playwright
-      - run: python -m playwright install --with-deps chromium
+      - run: python -m playwright install --with-deps chromium webkit
       - name: Verify game and Sound Studio in Chromium
         run: |
           export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-${GITHUB_RUN_ID}"
@@ -46,9 +46,10 @@ jobs:
             if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
             sleep 1
           done
-          python -m py_compile tests/visual_qa_shared_sound.py tests/visual_qa_smooth_hud_splash.py
+          python -m py_compile tests/visual_qa_shared_sound.py tests/visual_qa_smooth_hud_splash.py tests/visual_qa_iphone15pro_fullbleed.py
           python tests/visual_qa_led_chase.py
           python tests/visual_qa_smooth_hud_splash.py
+          python tests/visual_qa_iphone15pro_fullbleed.py
           python tests/visual_qa_sound_studio.py
           python tests/visual_qa_jackpot_sfx.py
           python tests/visual_qa_ios_safari_audio.py
@@ -59,6 +60,7 @@ jobs:
         with:
           name: uno-v11-sound-studio-responsive
           path: |
+            artifacts/uno-v12-iphone15pro-fullbleed/*.png
             artifacts/uno-v11-sound-studio/*.png
             artifacts/uno-v11-jackpot-audio/*.png
             artifacts/uno-v11-ios-safari-audio/*.png

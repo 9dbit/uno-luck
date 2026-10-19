@@ -44,12 +44,12 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "window.visualViewport" in VIEWPORT
     assert "visualViewport?.addEventListener('resize'" in VIEWPORT
     assert "'--uno-wheel-size'" in VIEWPORT
-    assert "rect.height*.965" in VIEWPORT
+    assert "rect.height-shift-2" in VIEWPORT
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
-    assert '/assets/art/viewport-v11.css?v=1136' in HTML
-    assert '/assets/viewport-v11.js?v=1124' in HTML
+    assert '/assets/art/viewport-v11.css?v=1137' in HTML
+    assert '/assets/viewport-v11.js?v=1125' in HTML
     assert 'height:var(--uno-viewport-height,100dvh)!important' in LAYOUT
 
 
@@ -89,3 +89,15 @@ def test_led_previews_show_random_uno_cards_not_nine_ones():
     assert 'ledwheel.js?v=1129' in HTML
     assert 'ledwheel.css?v=10' in HTML
     assert 'Sembilan panel kartu UNO berwarna' in HTML
+
+def test_iphone15pro_pwa_background_full_bleed_and_safe_area():
+    assert "CSS.supports?.('height','100dvh')" in VIEWPORT
+    assert "--uno-wheel-drop" in VIEWPORT
+    assert 'else update(); // First paint must not wait' in VIEWPORT
+    assert 'update(); // Manual/boot refresh is synchronous' in VIEWPORT
+    assert "rect.height-shift-2" in VIEWPORT
+    assert "height:100lvh" in LAYOUT
+    assert "body::before" in LAYOUT
+    assert "url('/assets/art/v4/lava-temple.webp')!important" in LAYOUT
+    assert "@media (display-mode:standalone)" in LAYOUT
+    assert "padding-bottom:max(env(safe-area-inset-bottom,0px),5px)" in LAYOUT
