@@ -219,6 +219,149 @@ function useFallbackSource(key,url){
   if(url.startsWith('blob:')&&url!==splashUrl)activeTemporaryUrl=url;
   return player;
 }
+// Background music uses its own HTML5 Audio lane. Never share the splash/SFX
+// element: on interrupted WebKit the former singleton caused every effect
+// to pause background music and could discard an in-flight splash attempt.
+let bgmPlayer=null,bgmPrepared=false,bgmPreparation=null,bgmRevision='';
+let bgmObjectUrl=null,bgmMirrorDuration=0,bgmRaf=null,bgmSerial=0;
+function bgmElement(){
+  if(!bgmPlayer){
+    bgmPlayer=document.createElement('audio');
+    bgmPlayer.preload='auto';
+    bgmPlayer.playsInline=true;
+    bgmPlayer.setAttribute('playsinline','');
+    bgmPlayer.setAttribute('data-uno-music','background-music');
+    bgmPlayer.hidden=true;
+    document.body.append(bgmPlayer);
+  }
+  return bgmPlayer;
+}
+function stopMusicMedia({invalidate=false}={}){
+  ++bgmSerial;
+  if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
+  bgmRaf=null;
+  if(bgmPlayer){bgmPlayer.pause();bgmPlayer.loop=false;}
+  if(invalidate){
+    if(bgmPlayer){bgmPlayer.removeAttribute('src');bgmPlayer.load();}
+    if(bgmObjectUrl){URL.revokeObjectURL(bgmObjectUrl);bgmObjectUrl=null;}
+    bgmPrepared=false;bgmRevision='';bgmMirrorDuration=0;
+  }
+}
+async function prepareMusicMedia(){
+  if(bgmPrepared&&bgmRevision===cloudRevision)return true;
+  if(bgmPreparation)return bgmPreparation;
+  bgmPreparation=(async()=>{
+    await syncCloud();
+    const revision=cloudRevision;
+    const cfg=liveProfile('background-music');
+    let url,ownedUrl=null,period=0;
+    try{
+      if(cfg.source==='custom'&&cfg.url){
+        url=cfg.url;
+      }else if(cfg.custom){
+        const file=await readFile('background-music');
+        if(!file)throw Error('Background music lokal belum dipublikasikan');
+        const typed=file.type?.startsWith('audio/')?file:
+          new Blob([file],{type:mimeFor(file)});
+        url=ownedUrl=URL.createObjectURL(typed);
+      }else{
+        url='/assets/audio/music-loop.mp3';
+      }
+      if(cfg.mirror===true&&getRepeat('background-music')){
+        const context=window.UNOLuckSound?.prepareContext?.();
+        if(!context)throw Error('AudioContext belum siap untuk Mirror Loop');
+        const buffer=await getBuffer('background-music');
+        if(!buffer)throw Error('Background music tidak dapat dibaca');
+        const bounds=limits('background-music',buffer.duration);
+        const mirrored=window.UNOLuckMirrorLoop.render(
+          context,buffer,bounds.start,bounds.stop,mirrorConfig().crossfadeMs,90);
+        if(ownedUrl)URL.revokeObjectURL(ownedUrl);
+        url=ownedUrl=URL.createObjectURL(window.UNOLuckMirrorLoop.wavBlob(mirrored.buffer));
+        period=mirrored.duration;
+      }
+      if(revision!==cloudRevision){
+        if(ownedUrl)URL.revokeObjectURL(ownedUrl);
+        return false; // a newer Sound Cloud manifest superseded this fetch
+      }
+      stopMusicMedia({invalidate:true});
+      bgmObjectUrl=ownedUrl;
+      bgmMirrorDuration=period;
+      bgmRevision=revision;
+      const player=bgmElement();
+      player.src=url;
+      player.load();
+      bgmPrepared=true;
+      return true;
+    }catch(error){
+      if(ownedUrl)URL.revokeObjectURL(ownedUrl);
+      throw error;
+    }
+  })().catch(error=>{
+    lastError='Background Music preload: '+String(error?.message||error);
+    console.warn('[UNO iOS BGM]',lastError);return false;
+  }).finally(()=>{bgmPreparation=null;});
+  return bgmPreparation;
+}
+function playMusicMedia(){
+  // No await before play(): this function is also used inside a trusted iOS
+  // pointer gesture. The caller preloads the exact published file in advance.
+  if(!bgmPrepared||bgmRevision!==cloudRevision||document.hidden)
+    return Promise.resolve(false);
+  const player=bgmElement();
+  if(!player.paused)return Promise.resolve(true);
+  const profile=liveProfile('background-music');
+  const repeat=getRepeat('background-music');
+  const mirror=bgmMirrorDuration>0;
+  const duration=bgmMirrorDuration||Math.max(.05,
+    Number(profile.fileDuration)||player.duration||5);
+  const bounds=mirror?{start:0,stop:duration,length:duration,fadeIn:0,fadeOut:0}:
+    limits('background-music',duration);
+  const start=()=>{
+    try{player.currentTime=bounds.start;}catch(_){}
+  };
+  if(player.readyState>=1)start();
+  else player.addEventListener('loadedmetadata',start,{once:true});
+  player.loop=Boolean(mirror&&repeat);
+  const serial=++bgmSerial;
+  const monitor=()=>{
+    if(serial!==bgmSerial||player.paused)return;
+    const t=player.currentTime;
+    if(t>=bounds.stop-.03&&!mirror){
+      if(repeat){start();}
+      else{stopMusicMedia();return;}
+    }else if(t>=bounds.stop-.03&&!repeat){
+      stopMusicMedia();return;
+    }
+    const elapsed=Math.max(0,t-bounds.start),remaining=Math.max(0,bounds.stop-t);
+    const fadeIn=bounds.fadeIn>0?Math.min(1,elapsed/bounds.fadeIn):1;
+    const fadeOut=!repeat&&bounds.fadeOut>0?Math.min(1,remaining/bounds.fadeOut):1;
+    const volume=(window.UNOLuckSound?.masterVolume??.9)*
+      (window.UNOLuckSound?.musicVolume??.22);
+    try{player.volume=clamp(volume*Math.min(fadeIn,fadeOut),0,1);}
+    catch(_){/* hardware volume is authoritative on iOS */}
+    bgmRaf=requestAnimationFrame(monitor);
+  };
+  let pending;
+  try{pending=player.play();}
+  catch(error){
+    lastError='Background Music: '+String(error?.message||error);
+    return Promise.resolve(false);
+  }
+  return Promise.resolve(pending).then(()=>{
+    if(serial!==bgmSerial){player.pause();return false;}
+    mediaUnlocked=true;lastError='';
+    if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
+    bgmRaf=requestAnimationFrame(monitor);
+    return true;
+  }).catch(error=>{
+    lastError='Background Music: '+String(error?.message||error);
+    console.warn('[UNO iOS BGM]',lastError);return false;
+  });
+}
+function playMusicGesture(){
+  if(!bgmPrepared||document.hidden)return false;
+  return playMusicMedia(); // synchronously invokes player.play() on first tap
+}
 async function prepareSplashMedia(){
   await syncCloud();
   const cfg=liveProfile('soft-tech-splash-screen');
@@ -552,6 +695,7 @@ async function segmentDuration(key){
 }
 function stopLoop(){
   if(fallbackKey==='background-music')stopFallback();
+  stopMusicMedia();
   loopSerial++;
   if(loop){stopNode(loop,Math.max(.08,loop.bounds.fadeOut));loop=null;}
 }
@@ -565,6 +709,11 @@ async function play(key,{looping=false,forPreview=false}={}){
   const serial=loopSerial;
   try{
     if(window.UNOLuckSound?.webAudioState!=='running'){
+      if(key==='background-music'&&looping&&!forPreview){
+        const ready=await prepareMusicMedia();
+        if(!ready||serial!==loopSerial)return false;
+        return playMusicMedia();
+      }
       const ok=await playFallback(key,{looping,forPreview,
         token:isJackpot?jackpotToken:null});
       return ok;
@@ -963,7 +1112,7 @@ function show(host){
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
-  prepareSplashMedia,playSplashGesture,isIOS,
+  prepareSplashMedia,playSplashGesture,prepareMusicMedia,playMusicGesture,isIOS,
   syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
