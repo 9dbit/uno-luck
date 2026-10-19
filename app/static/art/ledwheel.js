@@ -13,6 +13,8 @@
   const WILDS = ['WILD','+4'];
   const FACES = [...NUMBERS,...ACTIONS,...WILDS];
   const SYMBOL = {SKIP:'⊘',REVERSE:'⇄','+2':'+2','+4':'+4',WILD:'◉'};
+  const TRACK_ALL=[0,1,2,3,4,5,6,7,8];
+  const TRACK_WITHOUT_CENTER=[0,1,2,3,5,6,7,8];
   const GEOMETRY = [
     {x:14.4,y:64.0,w:13.2,h:19.0,angle:-67},
     {x:19.1,y:51.7,w:13.0,h:19.9,angle:-51},
@@ -54,6 +56,7 @@
       this.resultFactory=resultFactory;
       this.count=count;
       this.nodes=[];
+      this.symbolNodes=[];  // Cache glyph DOM once; no selector queries in hot spin loop.
       this.displays=[];
       this.active=false;
       this.raf=0;
@@ -64,6 +67,7 @@
       this.ready=null;
       this.injected=false;
       this.afterInject=0;
+      this.ledDraws=0;
       this.tickNo=0;
       this.faceSteps=0;
       this.resolve=null;
@@ -90,39 +94,56 @@
     advanceFaces(index){
       if(!this.displays.length)return;
       const centerLocked=!this.active && this.cardConfirmed && Boolean(this.lastSelected);
-      const track=Array.from({length:this.count},(_,i)=>i)
-        .filter(i=>!centerLocked || i!==PICKS);
-      // Rotate actual face+color pairs, rather than flashing only one number.
-      const before=track.map(i=>({...this.displays[i]}));
-      track.forEach((slot,j)=>{
-        this.displays[slot]=before[(j+track.length-1)%track.length];
-      });
+      const track=centerLocked?TRACK_WITHOUT_CENTER:TRACK_ALL;
+      // O(9) in-place reference rotation. No new array/object clones for every
+      // frame, unlike the old map/filter/spread path that stalled iPhone Safari.
+      const last=this.displays[track[track.length-1]];
+      for(let j=track.length-1;j>0;j--)
+        this.displays[track[j]]=this.displays[track[j-1]];
+      this.displays[track[0]]=last;
       const current=index===PICKS && centerLocked ? track[3] : index;
       const at=track.indexOf(current);
-      // Every second tick rerolls the active illuminated card; alternate ticks
-      // feed a fresh card in just behind it. The whole sequence keeps moving,
-      // while the bright number visibly varies throughout fast and slow SPIN.
       const injectAt=track[this.faceSteps%2===0
         ? at : (at+track.length-1)%track.length];
-      const previousFace=this.displays[injectAt]?.face;
-      const used=new Set(this.displays
-        .filter((_,i)=>i!==injectAt).map(card=>card.face));
-      const choices=FACES.filter(face=>face!==previousFace && !used.has(face));
-      if(choices.length)this.displays[injectAt]=preview(random(choices));
-      if(centerLocked)this.displays[PICKS]={...this.lastSelected};
+      const prior=this.displays[injectAt]?.face;
+      // One random UNO face enters the spinning sequence per LED step.
+      // A direct loop avoids temporary Set/filter/map arrays in the hot path.
+      let choice=null,available=0;
+      for(const face of FACES){
+        if(face===prior)continue;
+        let used=false;
+        for(let j=0;j<this.count;j++){
+          if(j!==injectAt&&this.displays[j]?.face===face){used=true;break;}
+        }
+        if(!used&&Math.random()*++available<1)choice=face;
+      }
+      if(choice!==null)this.displays[injectAt]=preview(choice);
+      // The fifth panel is the previous server result during idle, never
+      // overwritten by a decoration or the random presentation sequence.
+      if(centerLocked)this.displays[PICKS]=this.lastSelected;
       this.faceSteps++;
       this.updateAll();
       this.host.dataset.faceFrame=String(this.faceSteps);
     }
     illuminate(index){
-      // Face rotation, random number injection and LED highlight share this
-      // single tick. No separate timer or race with the server acknowledgment.
-      if(this.nodes.length)this.advanceFaces(index);
+      // One RAF / one clock tick controls glyphs, LED glow and LED SFX.
+      this.advanceFaces(index);
+      const old=this.chaseIndex;
       this.chaseIndex=index;
-      this.nodes.forEach((node,i)=>{
-        node.classList.toggle('led-illuminated',i===index);
-        node.classList.toggle('led-dimmed',i!==index);
-      });
+      if(old<0){
+        for(let i=0;i<this.count;i++){
+          this.nodes[i].classList.toggle('led-illuminated',i===index);
+          this.nodes[i].classList.toggle('led-dimmed',i!==index);
+        }
+      }else if(old!==index){
+        // Only two sockets change light state. Previously all 9 slots
+        // invalidated styles on every 34/48ms tick (18 class toggles).
+        this.nodes[old].classList.remove('led-illuminated');
+        this.nodes[old].classList.add('led-dimmed');
+        this.nodes[index].classList.remove('led-dimmed');
+        this.nodes[index].classList.add('led-illuminated');
+      }
+      this.ledDraws++;
       this.host.dataset.ledFrame=String(index);
     }
     clearIllumination(){
@@ -163,6 +184,7 @@
         node.innerHTML='<span class="led-screen"><span class="led-symbol"></span><span class="led-sheen"></span></span>';
         return node;
       });
+      this.symbolNodes=this.nodes.map(node=>node.querySelector('.led-symbol'));
       this.host.replaceChildren(...this.nodes);
       this.updateAll();
       this.lastSelected=null;
@@ -174,11 +196,16 @@
       const node=this.nodes[index];
       if(!node)return;
       const color=COLORS.includes(card.color)?card.color:'wild';
-      node.dataset.color=color;
-      node.dataset.face=String(card.face);
-      node.querySelector('.led-symbol').textContent=numeric(card);
-      node.setAttribute('aria-label',describe(card));
-      node.classList.toggle('led-selected',!this.active&&index===PICKS);
+      const face=String(card.face);
+      const glyph=numeric(card),symbol=this.symbolNodes[index];
+      // Skip redundant style, accessibility and text mutations. textContent
+      // on 9 glyphs at 20-30Hz was causing frequent WebKit layout/paint work.
+      if(node.dataset.color!==color)node.dataset.color=color;
+      if(node.dataset.face!==face)node.dataset.face=face;
+      if(symbol.textContent!==glyph)symbol.textContent=glyph;
+      const label=describe(card);
+      if(node.getAttribute('aria-label')!==label)node.setAttribute('aria-label',label);
+      if(index===PICKS)node.classList.toggle('led-selected',!this.active);
     }
     updateAll() {this.displays.forEach((data,i)=>this.paint(i,data));}
     shift(card,{silent=false}={}) {
@@ -236,9 +263,13 @@
             // A continuous ease-out: 48ms -> ~300ms (normal), or
             // 34ms -> ~225ms (turbo). No sudden speed jump at server ACK.
             const quick=this.turbo?34:48,braking=this.turbo?191:252;
-            this.nextChaseAt=now+quick+braking*smooth;
+            const interval=quick+braking*smooth;
+            // Phase-continuous timing with a one-frame catch-up limit keeps
+            // numbers and LED pacing even when Safari drops an animation frame.
+            this.nextChaseAt=Math.max(now+12,this.nextChaseAt+interval);
           }else{
-            this.nextChaseAt=now+(this.turbo?34:48);
+            const interval=this.turbo?34:48;
+            this.nextChaseAt=Math.max(now+12,this.nextChaseAt+interval);
           }
           window.UNOLuckSound?.ledTick(Boolean(this.deceleration));
         }
@@ -274,7 +305,9 @@
       this.host.classList.remove('led-running','led-slowing');
       this.host.classList.add('led-locked');
       this.clearIllumination();
-      this.updateAll();
+      // The other eight symbols are already painted. Only the center receives
+      // a new server-authorized card during lock-in.
+      this.paint(PICKS,this.ready.card);
       window.UNOLuckSound?.play('lock');
       const finish=this.resolve;
       this.resolve=null;
