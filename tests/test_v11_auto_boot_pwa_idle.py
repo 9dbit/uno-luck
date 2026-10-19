@@ -48,7 +48,7 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
-    assert '/assets/art/viewport-v11.css?v=1135' in HTML
+    assert '/assets/art/viewport-v11.css?v=1136' in HTML
     assert '/assets/viewport-v11.js?v=1124' in HTML
     assert 'height:var(--uno-viewport-height,100dvh)!important' in LAYOUT
 
@@ -86,6 +86,6 @@ def test_led_previews_show_random_uno_cards_not_nine_ones():
     assert "this.displays[PICKS]={...this.lastSelected}" in WHEEL
     assert "this.displays[PICKS]={...this.ready.card}" in WHEEL
     assert "textContent='1'" not in WHEEL
-    assert 'ledwheel.js?v=1128' in HTML
+    assert 'ledwheel.js?v=1129' in HTML
     assert 'ledwheel.css?v=10' in HTML
     assert 'Sembilan panel kartu UNO berwarna' in HTML
