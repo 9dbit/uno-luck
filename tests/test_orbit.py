@@ -115,6 +115,7 @@ def test_probabilistic_gate_exhaustive_on_forced_rng(monkeypatch):
     import secrets
     choices=itertools.cycle(range(100))
     monkeypatch.setattr(orbit.secrets,'randbelow',lambda n:next(choices))
+    monkeypatch.setattr(orbit,'choose_tier',lambda:5)  # isolate the independent 80% gate
     winners=0
     for i in range(100):
         cards=orbit.choose_cards()
