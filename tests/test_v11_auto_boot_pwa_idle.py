@@ -48,7 +48,7 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
-    assert '/assets/art/viewport-v11.css?v=1137' in HTML
+    assert '/assets/art/viewport-v11.css?v=1138' in HTML
     assert '/assets/viewport-v11.js?v=1125' in HTML
     assert 'height:var(--uno-viewport-height,100dvh)!important' in LAYOUT
 
@@ -101,3 +101,14 @@ def test_iphone15pro_pwa_background_full_bleed_and_safe_area():
     assert "url('/assets/art/v4/lava-temple.webp')!important" in LAYOUT
     assert "@media (display-mode:standalone)" in LAYOUT
     assert "padding-bottom:max(env(safe-area-inset-bottom,0px),5px)" in LAYOUT
+
+def test_solid_uno_wheel_card_lighting():
+    assert "clip-path:none!important" in LAYOUT
+    assert "background:#e82032!important" in LAYOUT
+    assert "background:#1169e9!important" in LAYOUT
+    assert "background:#16ae50!important" in LAYOUT
+    assert "background:#f5c916!important" in LAYOUT
+    assert "led-dimmed .led-screen" in LAYOUT
+    assert "filter:brightness(.37) saturate(.72)!important" in LAYOUT
+    assert "led-illuminated .led-screen" in LAYOUT
+    assert "filter:brightness(1.35) saturate(1.25)!important" in LAYOUT
