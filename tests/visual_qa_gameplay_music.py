@@ -43,6 +43,22 @@ with sync_playwright() as p:
   page.on("pageerror",lambda error:errors.append(str(error)))
   page.goto("http://127.0.0.1:8080/",wait_until="domcontentloaded")
   page.locator("#game-shell").wait_for(state="visible",timeout=26000)
+  # Expose an actionable trace if the initial BGM request never reaches
+  # HTMLMediaElement.play (e.g., a cloud-preload/start race).
+  page.wait_for_timeout(450)
+  diagnosis=page.evaluate("""() => ({
+    calls:window.__musicCalls,
+    audio:[...document.querySelectorAll('audio')].map(a=>({
+      src:a.getAttribute('src'),paused:a.paused,ready:a.readyState
+    })),
+    cloud:window.UNOLuckSoundStudio.cloudStatus(),
+    error:window.UNOLuckSoundStudio.lastError,
+    music:window.UNOLuckSound.webAudioState,
+    musicEnabled:localStorage.getItem('uno_orbit_music'),
+    booting:document.querySelector('#game-shell').classList.contains('is-booting'),
+    hidden:document.hidden
+  })""")
+  print("BGM_ENTER_DIAGNOSTIC",diagnosis,flush=True)
   page.wait_for_function("""() => window.__musicCalls.some(c=>!c.gesture)""",timeout=14000)
   assert page.evaluate("window.UNOLuckSoundStudio.getRepeat('background-music')")
   assert page.locator("audio[data-uno-music='background-music']").count()==1
