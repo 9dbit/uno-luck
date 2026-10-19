@@ -34,7 +34,7 @@
     }).finally(()=>{if(serial===splashRequest)splashPlaying=false;});
   }
   function splashAfterPrewarm(){
-    if(!gestureReceived||!splashReady||released||splashPlayed)return;
+    if(!gestureReceived||!splashReady||released||splashPlayed||splashPlaying)return;
     // If the user tapped before the network file arrived, the AudioContext
     // can now play the exact cloud cue without a second tap once running.
     if(window.UNOLuckSound?.webAudioState==='running'){
