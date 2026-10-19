@@ -54,6 +54,7 @@ with sync_playwright() as p:
 
     # Settings must survive a real reload. Safari still needs a new sound gesture.
     page.reload(wait_until='domcontentloaded')
+    page.locator('#boot-play').click(timeout=17000)
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
     page.locator('#menu-open').click()
     page.locator('#modal-close').click()
