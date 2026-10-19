@@ -191,7 +191,7 @@ def test_music_mirror_is_validated_published_and_only_applies_to_music(sound_sto
         assert next_cue["mirror"] is False
         assert next_cue["mirrorCrossfadeMs"] == 0
         assert browser.get(next_cue["url"]).content == WAV
-        for invalid in (-1, 1001, "200", float("nan")):
+        for invalid in (-1, 1001, "200", True):
             bad = browser.patch(API + "/cues/background-music",
                 headers={"X-UNO-Sound-Admin": TOKEN},
                 json={"start": 0.1, "stop": 0.8, "fadeIn": 0, "fadeOut": 0,
