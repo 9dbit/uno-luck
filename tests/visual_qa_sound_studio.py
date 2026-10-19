@@ -30,6 +30,13 @@ def main():
         page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
         page.locator('#boot-play').click(timeout=17000)
         page.locator('#game-shell').wait_for(state='visible',timeout=25000)
+        # This editor QA deliberately verifies local draft controls; first
+        # exercise the real published startup, then isolate its cloud catalog.
+        # Separate shared-sound QA covers published cloud precedence.
+        page.route('**/api/sounds/manifest',lambda route:route.fulfill(
+            json={'ready':True,'revision':'ci-local-draft',
+                  'cues':{},'mixer':None}))
+        page.evaluate('window.UNOLuckSoundStudio.syncCloud(true)')
         for width,height in SIZES:
             page.set_viewport_size({'width':width,'height':height})
             page.wait_for_timeout(110)
