@@ -46,6 +46,7 @@ jobs:
             sleep 1
           done
           python -m py_compile tests/visual_qa_shared_sound.py
+          python tests/visual_qa_led_chase.py
           python tests/visual_qa_sound_studio.py
           python tests/visual_qa_jackpot_sfx.py
           python tests/visual_qa_ios_safari_audio.py
