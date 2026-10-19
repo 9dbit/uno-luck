@@ -20,9 +20,16 @@ INTERCEPT="""
     };
   }
   window.__musicCalls=[];
+  // navigator.userActivation may be sticky/true in automated Chromium. Use
+  // a real pointerdown window to model WebKit's transient audio permission.
+  window.__musicGesture=false;
+  document.addEventListener('pointerdown',()=>{
+    window.__musicGesture=true;
+    setTimeout(()=>{window.__musicGesture=false;},0);
+  },true);
   const original=HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play=function(...args){
-    const gesture=Boolean(navigator.userActivation?.isActive);
+    const gesture=Boolean(window.__musicGesture);
     const src=this.getAttribute('src')||'';
     if(src.includes('music-loop.mp3'))
       window.__musicCalls.push({gesture,src,at:performance.now()});
