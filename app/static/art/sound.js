@@ -155,7 +155,8 @@
     if(!playIt)studio?.stopLoop();
     if(!isActive()){
       if(!playIt)return false;
-      if(!audioEnabled||document.hidden)return false;
+      // Music has its own mute preference. SFX OFF must not mute music.
+      if(document.hidden)return false;
       // An iPhone gesture may already have started the dedicated music
       // element while Web Audio remains "interrupted". Never stop it and
       // restart asynchronously outside the user's activation window.
