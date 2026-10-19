@@ -260,3 +260,28 @@
   .sound-studio .studio-cloud-panel{padding:9px;gap:7px}
   .sound-studio .studio-cloud-button{padding:8px!important}
 }
+
+/* Mirror Loop controls stay in Sound Studio's existing scrollable panel. */
+.sound-studio .studio-mirror-panel{
+  display:flex;flex-direction:column;gap:9px;box-sizing:border-box;
+  width:100%;min-width:0;padding:12px;margin-top:7px;
+  border:1px solid #f4ca7f88;border-radius:13px;
+  background:linear-gradient(135deg,#2b1713,#110f16);
+}
+.sound-studio .studio-mirror-panel .studio-note{
+  margin:0;font-size:12px;line-height:1.35;color:#f5dfb4;
+}
+.sound-studio .studio-mirror-fade{
+  display:flex;flex-wrap:wrap;align-items:center;
+  gap:8px;min-width:0;color:#ffe1a5;font-size:12px;
+}
+.sound-studio .studio-mirror-fade .studio-range{
+  min-width:80px;flex:1 1 140px;width:auto;max-width:100%;
+}
+.sound-studio .studio-mirror-fade output{
+  white-space:nowrap;min-width:58px;text-align:right;
+}
+@media(max-width:350px){
+  .sound-studio .studio-mirror-panel{padding:9px}
+  .sound-studio .studio-mirror-fade{gap:6px}
+}
