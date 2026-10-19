@@ -49,21 +49,43 @@
       this.idleTimer=0;
       this.idleEnabled=!REDUCED;
       this.idleInterval=480;
+      this.chaseIndex=-1;
     }
-    // Nine metal frames and the gold pointer never rotate. During idle only
-    // preview LED face content advances clockwise along the fixed arc.
-    stopIdle() {
-      clearTimeout(this.idleTimer);
+    // LED Chase: fixed metal sockets and fixed glyph positions. Only one
+    // panel's electrical illumination advances A -> I -> A. This is visual
+    // only and never calls /api/orbit/pick or touches the selected card data.
+    chaseFace(){
+      for(const node of this.nodes) {
+        node.querySelector('.led-symbol').textContent='1';
+      }
+    }
+    illuminate(index){
+      this.chaseIndex=index;
+      this.nodes.forEach((node,i)=>{
+        node.classList.toggle('led-illuminated',i===index);
+        node.classList.toggle('led-dimmed',i!==index);
+      });
+      this.host.dataset.ledFrame=String(index);
+    }
+    clearIllumination(){
+      this.chaseIndex=-1;
+      this.nodes.forEach(node=>node.classList.remove('led-illuminated','led-dimmed'));
+    }
+    stopIdle(){
+      if(this.idleTimer)clearTimeout(this.idleTimer);
       this.idleTimer=0;
       this.host.classList.remove('led-ambient');
     }
-    startIdle() {
+    startIdle(){
       this.stopIdle();
       if(this.active||!this.idleEnabled||document.hidden||!this.nodes.length)return;
+      this.host.classList.remove('led-running','led-slowing');
       this.host.classList.add('led-idle','led-ambient');
+      this.chaseFace();
+      this.illuminate(0);
       const tick=()=>{
         if(this.active||document.hidden){this.stopIdle();return;}
-        this.shift(preview(),{silent:true});
+        this.illuminate((this.chaseIndex+1)%this.count);
         this.idleTimer=setTimeout(tick,this.idleInterval);
       };
       this.idleTimer=setTimeout(tick,this.idleInterval);
@@ -117,30 +139,29 @@
       this.startedAt=performance.now();
       this.minimum=this.startedAt+(this.turbo?390:810);
       this.ready=null;
-      this.injected=false;
-      this.afterInject=0;
       this.cardConfirmed=false;
-      this.host.classList.remove('led-idle','led-locked');
+      this.host.classList.remove('led-idle','led-locked','led-ambient');
       this.host.classList.add('led-running');
+      this.chaseFace();
+      this.illuminate(0);
       this.pending=new Promise(resolve=>{this.resolve=resolve;});
-      if(REDUCED) return;
+      if(REDUCED)return;
       const tick=now=>{
         if(!this.active)return;
         const dt=now-this.startedAt;
-        const interval=this.injected ? (this.turbo?63:116) : (this.turbo?48:Math.min(98,54+Math.floor(dt/200)*8));
+        const slowed=Boolean(this.ready&&now>=this.minimum);
+        const interval=slowed?(this.turbo?115:205):
+          (this.turbo?50:Math.min(120,64+Math.floor(dt/230)*9));
         if(now-this.lastTick>=interval){
           this.lastTick=now;
-          if(this.ready && !this.injected && now>=this.minimum){
-            // Feed the authoritative server-selected card in on the far left.
-            this.shift(this.ready.card);
-            this.injected=true;
-            this.afterInject=0;
-            this.host.classList.add('led-slowing');
-          }else if(this.injected){
-            this.shift(preview());
-            this.afterInject++;
-            if(this.afterInject===PICKS){this.complete();return;}
-          }else this.shift(preview());
+          this.illuminate((this.chaseIndex+1)%this.count);
+          if(slowed)this.host.classList.add('led-slowing');
+          window.UNOLuckSound?.ledTick(slowed);
+          // The central pointer can lock ONLY after a real acknowledged
+          // server card. The illumination is cosmetic and cannot pick a win.
+          if(slowed&&this.chaseIndex===PICKS){
+            this.complete();return;
+          }
         }
         this.raf=requestAnimationFrame(tick);
       };
@@ -155,8 +176,7 @@
       // receive the same acknowledged server pick rather than a false failure.
       const acknowledged=this.pending;
       if(REDUCED){
-        this.displays[PICKS]={...card};
-        this.updateAll();
+        this.illuminate(PICKS);
         this.complete();
       }
       return acknowledged;
@@ -167,9 +187,12 @@
       this.raf=0;
       this.active=false;
       this.cardConfirmed=true;
-      this.lastSelected=this.ready?.card||this.displays[PICKS];
+      if(!this.ready?.card)throw Error('LED cannot finish without server-selected card');
+      this.lastSelected={...this.ready.card};
+      this.displays[PICKS]={...this.ready.card};
       this.host.classList.remove('led-running','led-slowing');
       this.host.classList.add('led-locked');
+      this.clearIllumination();
       this.updateAll();
       window.UNOLuckSound?.play('lock');
       const finish=this.resolve;
@@ -214,6 +237,7 @@
     }
     cancel(){
       this.stopIdle();
+      this.clearIllumination();
       cancelAnimationFrame(this.raf);this.raf=0;
       this.active=false;this.ready=null;this.injected=false;
       this.host.classList.remove('led-running','led-slowing');
