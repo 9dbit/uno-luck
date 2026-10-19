@@ -15,25 +15,21 @@ def test_safari_interrupted_context_is_recoverable():
     assert "Web Audio '+ctx.state" in SOUND
     assert "get webAudioState()" in SOUND
 
-def test_uploaded_splash_is_prepared_before_user_activation():
-    assert "await studio.prepareSplashMedia()" in BOOT
-    assert "soundStart.disabled=true" in BOOT
-    assert "const pendingMedia = htmlFallback?studio.playSplashGesture():null;" in BOOT
-    assert BOOT.index("const pendingMedia = ") < BOOT.index("const pendingUnlock = ")
-    assert BOOT.index("const pendingUnlock = ") < BOOT.index("try {\n        let played=false;")
-    assert "if (htmlFallback)" in BOOT
-    assert "if(custom&&!played)" in BOOT
-    assert "AudioContext belum aktif" not in BOOT
+def test_safari_autostart_keeps_audio_behind_first_user_gesture():
+    assert "void runBoot().catch" in BOOT
+    assert "window.UNOLuckSound?.unlock()" not in BOOT
+    assert "playSplashGesture" not in BOOT
+    assert "window.UNOLuckSound?.playCue(" not in BOOT
     assert "playSplashGesture()" in STUDIO
     assert "prepareSplashMedia()" in STUDIO
     assert "file=await readFile('soft-tech-splash-screen')" in STUDIO
     assert "URL.createObjectURL(typed)" in STUDIO
     assert "promise=player.play()" in STUDIO
-    assert "mediaUnlocked=true" in STUDIO
     assert "media-src 'self' blob:" in HTML
-    assert "sound.js?v=1117" in HTML
+    assert "boot.js?v=1124" in HTML
     assert "sound-studio.js?v=1120" in HTML
-    assert "boot.js?v=1119" in HTML
+    assert "const activate=()=>{unlockAudio()" in (ROOT/'orbit.js').read_text()
+
 
 def test_ios_media_fallback_preserves_sound_studio_settings():
     assert "limits(key,duration,{draft:previewMode})" in STUDIO
