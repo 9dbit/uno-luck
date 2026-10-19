@@ -213,6 +213,12 @@ function stopFallback(key=null){
   if(activeTemporaryUrl){URL.revokeObjectURL(activeTemporaryUrl);activeTemporaryUrl=null;}
   fallbackKey=null;fallbackPreview=false;
 }
+function stopSplashAudio(){
+  // Called when gameplay becomes visible. The dedicated music element
+  // is never paused; only the finished splash lane is stopped.
+  stopFallback('soft-tech-splash-screen');
+}
+
 function useFallbackSource(key,url){
   const player=mediaPlayer();
   if(player.getAttribute('src')!==url){player.pause();player.src=url;player.load();}
@@ -1122,7 +1128,7 @@ function show(host){
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
-  prepareSplashMedia,playSplashGesture,prepareMusicMedia,playMusicGesture,isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
+  prepareSplashMedia,playSplashGesture,stopSplashAudio,prepareMusicMedia,playMusicGesture,isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
   syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
