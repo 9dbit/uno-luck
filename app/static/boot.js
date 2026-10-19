@@ -87,6 +87,12 @@
     await wait(reducedMotion?70:170);
     banner.hidden=false;
     requestAnimationFrame(()=>banner.classList.add('is-visible'));
+    // Play the EXISTING custom loading cue only after audio has been unlocked.
+    // It is not a new default, does not overwrite cue settings or force
+    // forbidden Safari autoplay.
+    if(splashPlayed||studio()?.mediaUnlocked){
+      void window.UNOLuckSound?.playCue?.('loading-scene');
+    }
     progress(7,'Memuat aset game…');
     let loaded=false;
     const readyAssets=Promise.all([
