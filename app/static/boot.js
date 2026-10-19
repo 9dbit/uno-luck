@@ -17,7 +17,7 @@
   const studio=()=>window.UNOLuckSoundStudio;
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let released=false,started=false,splashReady=false,splashPlayed=false;
+  let released=false,started=false,splashReady=false,splashPlayed=false,musicReady=false;
   let splashStartAt=null,current=0;
   let releaseGate=()=>{};
   const playGate=new Promise(resolve=>{releaseGate=resolve;});
@@ -54,6 +54,15 @@
     }catch(error){console.warn('[UNO SPLASH] sound',error);}
     try{void window.UNOLuckSound?.unlock?.();}
     catch(error){console.warn('[UNO SPLASH] audio unlock',error);}
+    // The *same* PLAY click reserves a separate, muted music player in
+    // iPhone Safari. When the game appears we can unmute it instantly.
+    if(musicReady&&localStorage.getItem('uno_orbit_music')!=='off'){
+      try{
+        const pending=studio()?.armMusicOnSplashGesture?.();
+        if(pending)void Promise.resolve(pending).catch(
+          error=>console.warn('[UNO SPLASH] BGM prearm',error));
+      }catch(error){console.warn('[UNO SPLASH] BGM prearm',error);}
+    }
     playButton.hidden=true;
     releaseGate();
   }
@@ -80,12 +89,17 @@
     const splashPromise=Promise.resolve(studio()?.prepareSplashMedia?.())
       .then(Boolean)
       .catch(error=>{console.warn('[UNO SPLASH] preload',error);return false;});
-    void studio()?.prepareMusicMedia?.();
+    const musicPromise=Promise.resolve(studio()?.prepareMusicMedia?.())
+      .then(ok=>{musicReady=Boolean(ok);return musicReady;})
+      .catch(error=>{console.warn('[UNO SPLASH] BGM preload',error);return false;});
     await Promise.race([preloadImage(soft),wait(2500)]);
     if(playButton){
       // Do not skip the only trusted Safari sound gesture. Avoid leaving
       // people stuck forever if the cloud is temporarily unavailable.
       splashReady=await Promise.race([splashPromise,wait(8500).then(()=>false)]);
+      // Prefer ready BGM before enabling PLAY, without blocking forever if
+      // a third-party browser delays its audio metadata.
+      await Promise.race([musicPromise,wait(1400)]);
       if(!splashReady){
         playButton.title='Sound belum siap. PLAY tetap dapat memulai game.';
         console.warn('[UNO SPLASH] custom audio unavailable at activation');

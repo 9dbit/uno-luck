@@ -1,5 +1,6 @@
-"""UNO LUCK iPhone audio lifecycle: auto BGM request at gameplay entry,
-then synchronous media.play from the first trusted tap if Safari blocks it.
+"""UNO LUCK iPhone audio lifecycle: preload BGM before intro; reserve it
+muted in native splash PLAY gesture and unmute at gameplay entry without
+a second user interaction, even if WebAudio stays interrupted.
 No wallet or SPIN requests. The Sound Studio settings are not modified.
 """
 from pathlib import Path
@@ -32,7 +33,7 @@ INTERCEPT="""
     const gesture=Boolean(window.__musicGesture);
     const src=this.getAttribute('src')||'';
     if(src.includes('music-loop.mp3'))
-      window.__musicCalls.push({gesture,src,at:performance.now()});
+      window.__musicCalls.push({gesture,muted:this.muted,src,at:performance.now()});
     if(!gesture)
       return Promise.reject(new DOMException('iPhone requires user activation','NotAllowedError'));
     return original.apply(this,args);
@@ -51,37 +52,21 @@ with sync_playwright() as p:
   page.goto("http://127.0.0.1:8080/",wait_until="domcontentloaded")
   page.locator("#boot-play").tap(timeout=17000)
   page.locator("#game-shell").wait_for(state="visible",timeout=26000)
-  # Expose an actionable trace if the initial BGM request never reaches
-  # HTMLMediaElement.play (e.g., a cloud-preload/start race).
-  page.wait_for_timeout(450)
-  diagnosis=page.evaluate("""() => ({
-    calls:window.__musicCalls,
-    audio:[...document.querySelectorAll('audio')].map(a=>({
-      src:a.getAttribute('src'),paused:a.paused,ready:a.readyState
-    })),
-    cloud:window.UNOLuckSoundStudio.cloudStatus(),
-    error:window.UNOLuckSoundStudio.lastError,
-    music:window.UNOLuckSound.webAudioState,
-    musicEnabled:localStorage.getItem('uno_orbit_music'),
-    booting:document.querySelector('#game-shell').classList.contains('is-booting'),
-    hidden:document.hidden
-  })""")
-  print("BGM_ENTER_DIAGNOSTIC",diagnosis,flush=True)
-  page.wait_for_function("""() => window.__musicCalls.some(c=>!c.gesture)""",timeout=14000)
+  # A single PLAY click already invoked .play() on the separate background
+  # player while it was muted. Gameplay must unmute without another tap.
+  page.wait_for_function("""() => window.__musicCalls.some(c=>c.gesture&&c.muted)""",
+    timeout=5000)
   assert page.evaluate("window.UNOLuckSoundStudio.getRepeat('background-music')")
   assert page.locator("audio[data-uno-music='background-music']").count()==1
   assert page.evaluate("window.UNOLuckSound.webAudioState")=="interrupted"
-  # The splash PLAY gesture unlocked the attempt; a later background-music
-  # request outside the transient iOS permission window is still blocked.
-  assert not page.evaluate("""() => [...document.querySelectorAll('audio[data-uno-music]')]
-     .some(a=>!a.paused)""")
-  # The first real click must use the already prepared media element while the
-  # browser is still in user activation, despite interrupted WebAudio.
-  page.locator("#menu-open").click()
-  page.wait_for_function("""() => window.__musicCalls.some(c=>c.gesture)""",timeout=12000)
+  page.wait_for_function("""() => {
+    const a=document.querySelector('audio[data-uno-music]');
+    return a&&!a.muted&&!a.paused&&!a.ended;
+  }""",timeout=8000)
+  assert not page.evaluate("window.__musicCalls.some(c=>!c.gesture)"),(
+    "Media autoplay was attempted without activation",page.evaluate("window.__musicCalls"))
   page.wait_for_function("""() => window.UNOLuckSoundStudio.isMusicMediaPlaying()""",
-    timeout=12000)
-  assert page.evaluate("window.UNOLuckSound.webAudioState")=="interrupted"
+    timeout=5000)
   start=page.evaluate("""() => document.querySelector('audio[data-uno-music]').currentTime""")
   page.wait_for_timeout(330)
   end=page.evaluate("""() => document.querySelector('audio[data-uno-music]').currentTime""")
@@ -100,4 +85,4 @@ with sync_playwright() as p:
   assert not errors,errors
   context.close()
   browser.close()
-print("PASS: immediate BGM request, Safari autoplay refusal, trusted tap recovery, independent SFX and music mute")
+print("PASS: Safari single PLAY gesture primes muted BGM, instant unmute at gameplay, separate SFX and music mute")

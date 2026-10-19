@@ -24,6 +24,8 @@ def test_explicit_splash_play_click_triggers_preloaded_custom_cue():
     assert "playButton.addEventListener('click',onPlay)" in BOOT
     assert "await playGate" in BOOT
     assert "studio()?.playSplashGesture?.()" in BOOT
+    assert "studio()?.armMusicOnSplashGesture?.()" in BOOT
+    assert "window.UNOLuckSoundStudio?.activateMusicAtGameplay?.()" in GAME
     assert "window.UNOLuckSound?.unlock?.()" in BOOT
     assert "studio()?.stopSplashAudio?.()" in BOOT
     assert "if(!playButton&&studio()?.mediaUnlocked)" in BOOT
@@ -61,10 +63,10 @@ def test_bgm_independent_from_sfx_mute_and_no_unnecessary_restart():
     assert "if(!musicEnabled||document.hidden)return false" in GAME
 
 def test_only_asset_versions_changed_not_cloud_settings():
-    assert "sound.js?v=1130" in HTML
-    assert "sound-studio.js?v=1130" in HTML
-    assert "orbit.js?v=1130" in HTML
-    assert "boot.js?v=1132" in HTML
+    assert "sound.js?v=1133" in HTML
+    assert "sound-studio.js?v=1133" in HTML
+    assert "orbit.js?v=1133" in HTML
+    assert "boot.js?v=1133" in HTML
     assert "const KEY='uno_sound_studio_profiles_v1'" in STUDIO
     assert "await publishCue(key)" in STUDIO
     assert "function liveProfile" not in STUDIO # existing liveProfile arrow remains intact
