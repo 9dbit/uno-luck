@@ -42,7 +42,9 @@ with sync_playwright() as p:
     page.on('pageerror',lambda error:errors.append(str(error)))
     page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
-    assert page.evaluate("window.UNOLuckSound.webAudioState")=='interrupted'
+    # Auto-boot must not create an AudioContext. The menu tap below activates
+    # our deliberately interrupted WebAudio shim on iOS.
+    assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
 
     # The WAV is decoded and saved even when WebAudio is interrupted.
     page.locator('#menu-open').click()
