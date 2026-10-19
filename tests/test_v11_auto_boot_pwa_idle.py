@@ -93,6 +93,8 @@ def test_led_previews_show_random_uno_cards_not_nine_ones():
 def test_iphone15pro_pwa_background_full_bleed_and_safe_area():
     assert "CSS.supports?.('height','100dvh')" in VIEWPORT
     assert "--uno-wheel-drop" in VIEWPORT
+    assert 'else update(); // First paint must not wait' in VIEWPORT
+    assert 'update(); // Manual/boot refresh is synchronous' in VIEWPORT
     assert "rect.height-shift-2" in VIEWPORT
     assert "height:100lvh" in LAYOUT
     assert "body::before" in LAYOUT
