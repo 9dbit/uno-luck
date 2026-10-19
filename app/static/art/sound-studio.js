@@ -336,15 +336,19 @@ function playMusicMedia(){
   const monitor=()=>{
     if(serial!==bgmSerial||player.paused)return;
     const t=player.currentTime;
+    // Keep even a non-repeating cue alive *muted* during a long splash.
+    // At game entry reset to START and honor the actual Repeat OFF setting.
+    const keepingWarm=bgmHeldForGameplay&&!bgmGameplayReleased;
     if(t>=bounds.stop-.03&&!mirror){
-      if(repeat){start();}
+      if(repeat||keepingWarm){start();}
       else{stopMusicMedia();return;}
-    }else if(t>=bounds.stop-.03&&!repeat){
+    }else if(t>=bounds.stop-.03&&!repeat&&!keepingWarm){
       stopMusicMedia();return;
     }
     const elapsed=Math.max(0,t-bounds.start),remaining=Math.max(0,bounds.stop-t);
     const fadeIn=bounds.fadeIn>0?Math.min(1,elapsed/bounds.fadeIn):1;
-    const fadeOut=!repeat&&bounds.fadeOut>0?Math.min(1,remaining/bounds.fadeOut):1;
+    const fadeOut=!repeat&&!keepingWarm&&bounds.fadeOut>0?
+      Math.min(1,remaining/bounds.fadeOut):1;
     const volume=(window.UNOLuckSound?.masterVolume??.9)*
       (window.UNOLuckSound?.musicVolume??.22);
     try{player.volume=clamp(volume*Math.min(fadeIn,fadeOut),0,1);}
