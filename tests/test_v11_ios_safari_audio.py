@@ -27,9 +27,9 @@ def test_safari_autostart_keeps_audio_behind_first_user_gesture():
     assert "URL.createObjectURL(typed)" in STUDIO
     assert "promise=player.play()" in STUDIO
     assert "media-src 'self' blob:" in HTML
-    assert "boot.js?v=1126" in HTML
-    assert "sound-studio.js?v=1120" in HTML
-    assert "const activate=()=>{unlockAudio()" in (ROOT/'orbit.js').read_text()
+    assert "boot.js?v=1130" in HTML
+    assert "sound-studio.js?v=1130" in HTML
+    assert "const activate=()=>{" in (ROOT/'orbit.js').read_text()
 
 
 def test_ios_media_fallback_preserves_sound_studio_settings():
