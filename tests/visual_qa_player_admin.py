@@ -26,7 +26,7 @@ with sync_playwright() as pw:
         assert not page.evaluate('UNOLuckSoundStudio.isMusicMediaPlaying()||UNOLuckSoundStudio.isMusicWebAudioPlaying()')
         page.get_by_role('button',name='Sound Off',exact=True).click()
         assert page.evaluate("localStorage.getItem('uno_orbit_music')")=='on'
-        page.wait_for_function('UNOLuckSoundStudio.isMusicMediaPlaying()||UNOLuckSoundStudio.isMusicWebAudioPlaying()')
+        page.wait_for_function('() => UNOLuckSoundStudio.isMusicMediaPlaying()||UNOLuckSoundStudio.isMusicWebAudioPlaying()')
         page.get_by_role('button',name='Bet Setting',exact=True).click()
         assert page.locator('#modal-title').inner_text()=='Bet Setting'
         page.locator('#modal-close').click()
