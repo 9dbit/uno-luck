@@ -79,7 +79,7 @@ def main():
         assert before_index!=after_index, 'Illuminated LED panel must advance clockwise'
         assert page.locator('#orbit-ring .led-illuminated').count()==1
         assert slots_before==slots_after, 'Idle must never rotate the nine metal frames'
-        page.locator('#menu-open').click()
+        page.locator('#profile-btn').click()
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         editor=page.locator('.sound-studio')
         assert editor.locator('details.studio-cue').count()==12
@@ -159,7 +159,7 @@ def main():
             };
         }""")
         assert page.evaluate("window.__splashStartCount")==0, 'Autoplay audio must be blocked'
-        page.locator('#menu-open').click()
+        page.locator('#profile-btn').click()
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         storedSplash=page.locator('.sound-studio details.studio-cue').first
         storedSplash.locator('summary').click()

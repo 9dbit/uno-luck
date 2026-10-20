@@ -29,7 +29,7 @@ IOS_UA=("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) "
 
 
 def open_studio(page):
-    page.locator("#menu-open").click()
+    page.locator("#profile-btn").click()
     page.get_by_role("button",name="Sound Studio · 12 Custom Sound Effects").click()
     return page.locator(".sound-studio")
 
@@ -135,7 +135,7 @@ with sync_playwright() as p:
     assert m.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').stop")==2.4
     assert m.evaluate("window.UNOLuckSoundStudio.cloudStatus().ready")
     # The first trusted menu click, not auto boot, initiates Safari unlock.
-    m.locator("#menu-open").click()
+    m.locator("#profile-btn").click()
     m.locator("#modal-close").click()
     assert m.evaluate("window.UNOLuckSound.webAudioState") in ("running","interrupted","media-fallback")
     assert m.evaluate("window.UNOLuckSoundStudio.getRepeat('background-music')") is False

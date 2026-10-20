@@ -48,7 +48,7 @@ with sync_playwright() as p:
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
 
     # The WAV is decoded and saved even when WebAudio is interrupted.
-    page.locator('#menu-open').click()
+    page.locator('#profile-btn').click()
     page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
     splash=page.locator('details.studio-cue').first
     splash.locator('summary').click()
@@ -87,7 +87,7 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT/'iphone-splash-play-activated.png'),full_page=True)
     # HTML5 media remains usable after the introductory gesture. Preview
     # must not reject merely because AudioContext.state is interrupted.
-    page.locator('#menu-open').click()
+    page.locator('#profile-btn').click()
     page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
     splash=page.locator('details.studio-cue').first
     splash.locator('summary').click()

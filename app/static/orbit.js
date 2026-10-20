@@ -292,7 +292,7 @@ function showSoundStudio(){
   if(window.UNOLuckSoundStudio)window.UNOLuckSoundStudio.show(area);
   else paragraph(area,'Sound Studio belum tersedia. Refresh halaman.');
 }
-function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan Kombinasi & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Sound Studio · 12 Custom Sound Effects',showSoundStudio);
+function showMenu(){const area=modal('Profil & Menu');modalButton(area,'Profil Pemain',showProfile);modalButton(area,'Aturan Kombinasi & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Sound Studio · 12 Custom Sound Effects',showSoundStudio);
 modalButton(area,'Mixer Master · Musik · SFX',showSoundVolume);modalButton(area,'Tes Suara Meriah',testSound);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');window.UNOLuckSound?.setEnabled(sfxEnabled);if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v1.1 · staging · hadiah virtual tanpa nilai tunai.');}
 function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 async function loadState(quiet=false){
@@ -315,8 +315,7 @@ function listeners(){
   $('auto-btn').addEventListener('click',autoLoop);
   $('wallet-open').addEventListener('click',showWallet);
   $('gift-btn').addEventListener('click',claimDaily);
-  $('menu-open').addEventListener('click',showMenu);
-  $('profile-btn').addEventListener('click',showProfile);
+  $('profile-btn').addEventListener('click',showMenu);
   $('modal-close').addEventListener('click',closeModal);
   $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
   addEventListener('resize',layoutRing);

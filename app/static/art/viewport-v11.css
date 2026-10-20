@@ -27,14 +27,24 @@ html,body{
   box-sizing:border-box!important;
   overflow:hidden!important;
 }
-/* Equal tracks on either side keep the wallet centered on the page.
-   DOM order also follows the visible logo, gift, wallet, profile, menu order. */
+/* The left logo track balances gift + profile on the right, keeping the
+   wallet centered. All three controls share one responsive height. */
 .game-header{
+  --uno-hud-size:max(29px,min(52px,6dvh,13.44vw));
   min-height:0!important;
-  grid-template-columns:18% 11% minmax(0,1fr) 11% 18%!important;
+  grid-template-columns:29% minmax(0,1fr) 14% 14%!important;
 }
-.game-header #gift-btn,.game-header #profile-btn{justify-self:center}
-.game-header #menu-open{justify-self:end}
+.game-header .balance-chip{height:var(--uno-hud-size)!important}
+.game-header #gift-btn,.game-header #profile-btn{
+  width:var(--uno-hud-size)!important;
+  height:var(--uno-hud-size)!important;
+  justify-self:end;
+}
+/* 29% track × 71.37931% = 20.7%: 15% larger than the prior 18% logo. */
+.game-header .uno-logo{width:71.37931%}
+@media(orientation:landscape) and (max-height:470px){
+  .game-header{--uno-hud-size:36px}
+}
 .game-header .uno-logo{
   transform-origin:32% 48%;
   animation:unoLuckLogoBreathe 2.65s cubic-bezier(.3,.06,.4,1) infinite!important;
