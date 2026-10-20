@@ -27,7 +27,14 @@ html,body{
   box-sizing:border-box!important;
   overflow:hidden!important;
 }
-.game-header{min-height:0!important}
+/* Equal tracks on either side keep the wallet centered on the page.
+   DOM order also follows the visible logo, gift, wallet, profile, menu order. */
+.game-header{
+  min-height:0!important;
+  grid-template-columns:18% 11% minmax(0,1fr) 11% 18%!important;
+}
+.game-header #gift-btn,.game-header #profile-btn{justify-self:center}
+.game-header #menu-open{justify-self:end}
 .game-header .uno-logo{
   transform-origin:32% 48%;
   animation:unoLuckLogoBreathe 2.65s cubic-bezier(.3,.06,.4,1) infinite!important;
