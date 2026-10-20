@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="id"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#160002">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self' blob:; font-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<title>Admin · UNO LUCK</title>
+<link rel="stylesheet" href="/assets/orbit.css?v=9">
+<link rel="stylesheet" href="/assets/art/celebrations.css?v=101">
+<link rel="stylesheet" href="/assets/art/v11.css?v=110">
+<link rel="stylesheet" href="/assets/art/sound-studio.css?v=1120">
+<link rel="stylesheet" href="/assets/admin.css?v=1143">
+</head><body>
+<main class="admin-shell">
+<header><div><p>UNO LUCK</p><h1>Admin</h1></div><a href="/">Kembali ke Game</a></header>
+<p class="admin-intro">Kelola audio dan preview celebration. Publish Sound Cloud memerlukan kunci admin yang valid.</p>
+<nav class="admin-controls" aria-label="Control panel">
+<button id="admin-studio" type="button">Sound Studio · 12 Custom Sound Effects</button>
+<button id="admin-mixer" type="button">Mixer Master · Musik · SFX</button>
+<button id="admin-test-sound" type="button">Tes Suara Meriah</button>
+<button id="admin-gallery" type="button">Galeri 5 Celebration (demo)</button>
+</nav>
+<p id="admin-status" role="status" aria-live="polite"></p>
+<section class="wheel-area admin-preview" aria-label="Preview celebration">
+<div class="wheel-stage"><p>Preview Celebration</p><small>Demo visual tidak mengubah coin atau hasil permainan.</small></div>
+</section>
+</main>
+  <section id="celebration-overlay" class="celebration-overlay" aria-label="Celebration" role="dialog" aria-modal="true" hidden>
+    <div class="celebration-particles" id="celebration-particles" aria-hidden="true"></div>
+    <img id="celebration-art" class="celebration-art" src="/assets/art/v3/tier-5.webp" alt="Ilustrasi peringkat celebration" draggable="false">
+    <div class="celebration-actual" role="status" aria-live="polite">
+      <strong id="celebration-title">LUCKY COLOR WIN</strong>
+      <small id="celebration-pattern" class="celebration-pattern" hidden></small>
+      <span id="celebration-amount">Kembali 0 koin</span>
+      <small id="celebration-preview" class="celebration-preview" hidden>DEMO VISUAL · TIDAK ADA HADIAH</small>
+    </div>
+    <button class="celebration-continue" id="celebration-continue" type="button">LANJUTKAN</button>
+  </section>
+  <dialog id="modal" class="modal" aria-label="Menu UNO LUCK">
+    <div class="modal-card"><div class="modal-header"><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" aria-label="Tutup">×</button></div><div class="modal-content" id="modal-content"></div></div>
+  </dialog>
+
+<script src="/assets/art/sound.js?v=1133" defer></script>
+<script src="/assets/art/mirror-loop.js?v=1120" defer></script>
+<script src="/assets/art/sound-studio.js?v=1133" defer></script>
+<script src="/assets/art/celebrations.js?v=1117" defer></script>
+<script src="/assets/admin.js?v=1143" defer></script>
+</body></html>

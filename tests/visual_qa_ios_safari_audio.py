@@ -48,7 +48,7 @@ with sync_playwright() as p:
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
 
     # The WAV is decoded and saved even when WebAudio is interrupted.
-    page.locator('#profile-btn').click()
+    page.goto('http://127.0.0.1:8080/admin',wait_until='domcontentloaded')
     page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
     splash=page.locator('details.studio-cue').first
     splash.locator('summary').click()
@@ -66,7 +66,7 @@ with sync_playwright() as p:
 
     # iOS autoplay is intentionally disabled. Custom file is still available
     # in IndexedDB after a reload and can be previewed after the user's tap.
-    page.reload(wait_until='domcontentloaded')
+    page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
     assert page.locator('#boot-start-sound').count()==0
     assert page.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').custom")
     assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
@@ -87,10 +87,11 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT/'iphone-splash-play-activated.png'),full_page=True)
     # HTML5 media remains usable after the introductory gesture. Preview
     # must not reject merely because AudioContext.state is interrupted.
-    page.locator('#profile-btn').click()
+    page.goto('http://127.0.0.1:8080/admin',wait_until='domcontentloaded')
     page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
     splash=page.locator('details.studio-cue').first
     splash.locator('summary').click()
+    page.evaluate("""() => {window.__iosMediaPlays=0;const old=HTMLMediaElement.prototype.play;HTMLMediaElement.prototype.play=function(...args){window.__iosMediaPlays++;return old.apply(this,args);};}""")
     previous=page.evaluate('window.__iosMediaPlays')
     splash.locator('button',has_text='PREVIEW').click()
     splash.locator('.studio-status').get_by_text('Preview aktif',exact=False).wait_for(timeout=12000)

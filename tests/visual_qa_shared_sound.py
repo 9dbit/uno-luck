@@ -29,7 +29,8 @@ IOS_UA=("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) "
 
 
 def open_studio(page):
-    page.locator("#profile-btn").click()
+    if not page.url.endswith("/admin"):
+        page.goto(URL+"admin",wait_until="domcontentloaded")
     page.get_by_role("button",name="Sound Studio · 12 Custom Sound Effects").click()
     return page.locator(".sound-studio")
 

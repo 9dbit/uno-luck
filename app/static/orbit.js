@@ -79,8 +79,9 @@ function syncAccount(a){
   if(!a)return;account=a;
   if(window.UNOLuckMotion)window.UNOLuckMotion.balance(a.balance,true);
   else $('wallet-balance').textContent=idMoney(a.balance);
-  $('gift-btn').disabled=!a.daily_available;
-  $('gift-btn').title=a.daily_available?'Hadiah harian tersedia':'Hadiah sudah diklaim';
+  $('gift-btn').disabled=!a.daily_available&&!a.refill_available;
+  $('gift-btn').title='Gift · hadiah harian dan refill';
+  const total=$('coin-total');if(total)total.textContent=idMoney(a.balance);
   updateButtons();
 }
 function updateButtons(){
@@ -217,14 +218,46 @@ async function autoLoop(){
   }
   isAuto=false;updateButtons();
 }
-function modal(title){$('modal-title').textContent=title;$('modal-content').replaceChildren();if(!$('modal').open)$('modal').showModal();return $('modal-content');}
+function modal(title){$('modal').classList.remove('coin-modal');$('modal-title').textContent=title;$('modal-content').replaceChildren();if(!$('modal').open)$('modal').showModal();return $('modal-content');}
 function paragraph(parent,text){const p=document.createElement('p');p.textContent=text;parent.append(p);return p;}
 function modalButton(parent,text,fn){const b=document.createElement('button');b.textContent=text;b.type='button';b.addEventListener('click',fn);parent.append(b);return b;}
 function closeModal(){if($('modal').open)$('modal').close();}
 async function claimDaily(){try{const x=await legacyBonus('daily');syncAccount(x.account);sfx('coin');say(`Hadiah +${idMoney(x.credited)} koin virtual`);closeModal();}catch(e){say(e.message);}}
 async function claimRefill(){try{const x=await legacyBonus('refill');syncAccount(x.account);sfx('coin');say(`Refill gratis +${idMoney(x.credited)} koin`);closeModal();}catch(e){say(e.message);}}
-function showWallet(){const area=modal('Koin Virtual');paragraph(area,`Saldo saat ini ${idMoney(account?.balance||0)} koin.`);paragraph(area,'Tidak ada deposit, penarikan tunai, jual-beli koin, atau hadiah bernilai uang.');modalButton(area,'🎁 Klaim +250 harian',claimDaily).disabled=!account?.daily_available;modalButton(area,'✦ Refill gratis +1.000',claimRefill).disabled=!account?.refill_available;}
-async function showHistory(){const area=modal('Riwayat Ronde');try{const x=await api('/state');const list=x.recent||[];if(!list.length)paragraph(area,'Belum ada ronde selesai.');for(const item of list){const row=document.createElement('div');row.className='history-line';row.textContent=`${item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':'NO MATCH')} · Biaya ${idMoney(item.stake)} · ${item.delta>=0?'+':''}${idMoney(item.delta)} koin`;area.append(row);}}catch(e){paragraph(area,e.message);}}
+function showGift(){
+  const area=modal('Gift');
+  paragraph(area,'Hadiah koin virtual untuk bermain.');
+  modalButton(area,'Klaim +250 harian',claimDaily).disabled=!account?.daily_available;
+  modalButton(area,'Refill gratis +1.000',claimRefill).disabled=!account?.refill_available;
+}
+async function showWallet(){
+  const area=modal('Coin');$('modal').classList.add('coin-modal');
+  const summary=document.createElement('div');summary.className='coin-summary';
+  paragraph(summary,'Total Coin');
+  const total=document.createElement('strong');total.id='coin-total';total.textContent=idMoney(account?.balance||0);
+  total.setAttribute('aria-live','polite');summary.append(total);
+  const title=document.createElement('h3');title.textContent='History Bet';
+  const history=document.createElement('div');history.className='coin-history';history.tabIndex=0;
+  history.setAttribute('role','region');history.setAttribute('aria-label','History Bet');
+  paragraph(history,'Memuat riwayat bet…');area.append(summary,title,history);
+  try{
+    const data=await api('/state');
+    // A closed/replaced popup must not receive a delayed response.
+    if(!history.isConnected||!$('modal').open)return;
+    syncAccount(data.account);history.replaceChildren();
+    if(!data.recent?.length)paragraph(history,'Belum ada bet selesai.');
+    for(const item of data.recent||[]){
+      const row=document.createElement('article');row.className='coin-history-row';
+      const stamp=new Date(item.created_at*1000);
+      const time=document.createElement('time');time.dateTime=stamp.toISOString();
+      time.textContent=stamp.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'});
+      const result=document.createElement('strong');result.textContent=item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':'NO MATCH');
+      const values=document.createElement('p');values.textContent=`BET ${idMoney(item.stake)} · PAYOUT ${idMoney(item.payout)} · WIN ${item.delta>=0?'+':''}${idMoney(item.delta)}`;
+      row.append(time,result,values);history.append(row);
+    }
+    if(data.recent?.length)paragraph(history,'Menampilkan '+data.recent.length+' bet terakhir.');
+  }catch(error){if(history.isConnected){history.replaceChildren();paragraph(history,error.message);}}
+}
 function showRules(){
   const area=modal('Aturan UNO LUCK · 5 Kombinasi');
   paragraph(area,'Tiga SPIN membentuk satu ronde: kartu kiri, tengah, kanan. BET dipotong sekali pada SPIN pertama. Hasil ditentukan oleh server, lalu diumumkan setelah SPIN ketiga.');
@@ -237,63 +270,21 @@ function showRules(){
   paragraph(area,'Peluang menang dasar 80% dan NO MATCH 20%. Distribusi Rank mempertahankan bobot virtual yang telah dipublikasikan, bukan peluang pengocokan dek UNO fisik. Kombinasi ditentukan sebelum ronde dimulai; tidak ada jaminan jackpot atau bonus setelah sejumlah spin.');
   paragraph(area,'AUTO maksimal 10 ronde, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
 }
-function showStakeChoices(){const area=modal('Biaya SPIN');paragraph(area,'Pilih biaya satu ronde tiga SPIN. Perubahan hanya dapat dilakukan sebelum ronde dimulai.');for(const [i,cost] of STAKES.entries()){const btn=modalButton(area,`${cost===STAKES[stakeIndex]?'✓ ':''}${idMoney(cost)} koin`,()=>{stakeIndex=i;paintRound(null,true);updateButtons();closeModal();say(`Biaya ronde berikutnya ${idMoney(cost)} koin.`);});btn.disabled=!!currentRound;}}
-function showCelebrationGallery(){
-  const area=modal('Galeri Celebration · Demo Visual');
-  paragraph(area,'Pilih efek untuk melihat animasi dan mendengar suara. Mode demo tidak mengubah hasil kartu, saldo, atau riwayat.');
-  for(let rank=1;rank<=5;rank++){
-    const item=window.UNOLuckCelebration?.registry[rank];
-    if(!item)continue;
-    modalButton(area,`PERINGKAT ${rank} · ${item.name} · ${item.multiplier}×`,async()=>{
-      closeModal();await unlockAudio();window.UNOLuckCelebration.present(null,{preview:true,rank});
-    });
-    const rule=ruleset?.celebrations?.find(t=>t.rank===rank)?.rule;
-    if(rule)paragraph(area,'Kombinasi: '+rule);
-  }
-}
-async function testSound(){
-  closeModal();
-  const ok=await unlockAudio();
-  if(!ok){say('Audio belum aktif. Sentuh Main dengan Suara lalu coba lagi.');return;}
-  const heard=await window.UNOLuckSound?.testSound();
-  say(heard?'Tes audio diputar. Pastikan volume media iPhone aktif.':`Audio gagal: ${window.UNOLuckSound?.lastError||'coba sentuh MAIN DENGAN SUARA'}`);
-}
-function showSoundVolume(){
-  const area=modal('Audio Mixer · UNO LUCK');
-  paragraph(area,'Master, Musik dan SFX mengikuti pengaturan Sound Cloud yang dipublikasikan. Admin dapat mengubah di desktop dan perubahan akan tersinkron. Volume fisik iPhone tetap mengikuti iOS.');
-  for(const [title,property,setter] of [
-    ['MASTER','masterVolume','setMasterVolume'],
-    ['MUSIC','musicVolume','setMusicVolume'],
-    ['SFX','volume','setVolume']]){
-    const label=paragraph(area,title+' · '+Math.round((window.UNOLuckSound?.[property]??0)*100)+'%');
-    const input=document.createElement('input');
-    input.type='range';input.min='0';input.max='100';input.step='5';
-    input.value=String(Math.round((window.UNOLuckSound?.[property]??0)*100));
-    input.setAttribute('aria-label',title+' Volume');
-    input.addEventListener('input',()=>{
-      const n=Number(input.value);
-      window.UNOLuckSound?.[setter](n/100);
-      label.textContent=title+' · '+n+'%';
-      if(title==='SFX'&&n>0){sfxEnabled=true;localStorage.setItem(MUTE_EFFECTS,'on');window.UNOLuckSound?.setEnabled(true);}
-      window.UNOLuckSoundStudio?.schedulePublishMixer?.();
-    });
-    area.append(input);
-  }
-  modalButton(area,'TES AUDIO',async()=>{
-    const ok=await unlockAudio();
-    if(!ok){say('Audio belum aktif: '+(window.UNOLuckSound?.lastError||'periksa volume perangkat'));return;}
-    const heard=await window.UNOLuckSound.testSound();
-    say(heard?'Tes fanfare diputar. Jika senyap, naikkan volume media iPhone.':
-      'Tes audio gagal: '+(window.UNOLuckSound?.lastError||'periksa status audio'));
+function showStakeChoices(){const area=modal('Bet Setting');paragraph(area,'Pilih jumlah coin untuk satu ronde tiga SPIN. Perubahan hanya dapat dilakukan sebelum ronde dimulai.');for(const [i,cost] of STAKES.entries()){const btn=modalButton(area,`${cost===STAKES[stakeIndex]?'✓ ':''}${idMoney(cost)} koin`,()=>{stakeIndex=i;paintRound(null,true);updateButtons();closeModal();say(`Bet berikutnya ${idMoney(cost)} coin.`);});btn.disabled=!!currentRound;}}
+function showMenu(){
+  const area=modal('Menu');
+  modalButton(area,'Game Rules',showRules);
+  modalButton(area,'Profile',showProfile);
+  const sound=modalButton(area,`Sound ${musicEnabled||sfxEnabled?'On':'Off'}`,()=>{
+    const enabled=!(musicEnabled||sfxEnabled);musicEnabled=enabled;sfxEnabled=enabled;
+    localStorage.setItem(MUTE_MUSIC,enabled?'on':'off');localStorage.setItem(MUTE_EFFECTS,enabled?'on':'off');
+    window.UNOLuckSound?.setEnabled(enabled);
+    if(enabled)void unlockAudio();else{stopMusic();window.UNOLuckSound?.stopCelebration?.();}
+    sound.textContent=`Sound ${enabled?'On':'Off'}`;sound.setAttribute('aria-pressed',String(enabled));
   });
+  sound.setAttribute('aria-pressed',String(musicEnabled||sfxEnabled));
+  modalButton(area,'Bet Setting',showStakeChoices);
 }
-function showSoundStudio(){
-  const area=modal('SOUND STUDIO · CUSTOM EFFECTS');
-  if(window.UNOLuckSoundStudio)window.UNOLuckSoundStudio.show(area);
-  else paragraph(area,'Sound Studio belum tersedia. Refresh halaman.');
-}
-function showMenu(){const area=modal('Profil & Menu');modalButton(area,'Profil Pemain',showProfile);modalButton(area,'Aturan Kombinasi & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Sound Studio · 12 Custom Sound Effects',showSoundStudio);
-modalButton(area,'Mixer Master · Musik · SFX',showSoundVolume);modalButton(area,'Tes Suara Meriah',testSound);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');window.UNOLuckSound?.setEnabled(sfxEnabled);if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v1.1 · staging · hadiah virtual tanpa nilai tunai.');}
 function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 async function loadState(quiet=false){
   try{const data=await api('/state');ruleset=data.rules||ruleset;syncAccount(data.account);currentRound=data.round;
@@ -314,7 +305,7 @@ function listeners(){
   $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();unlockAudio().then(()=>sfx('tap'));say(isTurbo?'Turbo aktif, peluang tetap 80%.':'Turbo nonaktif.');});
   $('auto-btn').addEventListener('click',autoLoop);
   $('wallet-open').addEventListener('click',showWallet);
-  $('gift-btn').addEventListener('click',claimDaily);
+  $('gift-btn').addEventListener('click',showGift);
   $('profile-btn').addEventListener('click',showMenu);
   $('modal-close').addEventListener('click',closeModal);
   $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});

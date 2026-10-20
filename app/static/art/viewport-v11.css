@@ -42,6 +42,18 @@ html,body{
 }
 /* 29% track × 71.37931% = 20.7%: 15% larger than the prior 18% logo. */
 .game-header .uno-logo{width:71.37931%}
+/* Keep the Coin total fixed while only the server bet history scrolls. */
+.coin-modal .modal-card{height:min(76dvh,580px)}
+.coin-modal .modal-content{display:flex;flex-direction:column;overflow:hidden;flex:1;min-height:0}
+.coin-summary{flex:none;text-align:center;padding:8px 0 15px}
+.coin-summary p{margin:0;color:#ffe09b}
+.coin-summary strong{display:block;font-size:32px;font-variant-numeric:tabular-nums}
+.coin-modal h3{flex:none;margin:0 0 10px;font-size:15px}
+.coin-history{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+.coin-history-row{padding:10px 0;border-bottom:1px solid #ffe2a51f}
+.coin-history-row time{display:block;color:#d2b6a1;font-size:11px}
+.coin-history-row strong{display:block;font-size:13px;margin:3px 0}
+.coin-history-row p{font-size:12px;margin:0;overflow-wrap:anywhere}
 @media(orientation:landscape) and (max-height:470px){
   .game-header{--uno-hud-size:36px}
 }

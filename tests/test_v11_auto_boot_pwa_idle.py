@@ -48,7 +48,7 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
-    assert '/assets/art/viewport-v11.css?v=1142' in HTML
+    assert '/assets/art/viewport-v11.css?v=1143' in HTML
     assert '/assets/viewport-v11.js?v=1140' in HTML
     assert 'height:var(--uno-viewport-height,100dvh)!important' in LAYOUT
 

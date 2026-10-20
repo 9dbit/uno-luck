@@ -35,6 +35,14 @@ async def homepage():
     return FileResponse(APP_ROOT / "static" / "orbit-index.html")
 
 
+@app.get("/admin", include_in_schema=False)
+@app.get("/admin/", include_in_schema=False)
+async def admin_page():
+    # Audio mutations retain the existing server-side admin-token checks.
+    return FileResponse(APP_ROOT / "static" / "admin.html",
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/spin-legacy")
 async def legacy_spin_home():
     return FileResponse(APP_ROOT / "static" / "spin-index.html")
