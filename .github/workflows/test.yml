@@ -24,6 +24,7 @@ jobs:
       - run: node --check app/static/viewport-v11.js
       - run: node --check app/static/orbit.js
       - run: node --check app/static/admin.js
+      - run: node --check app/static/pwa-update.js
       - run: node --check app/static/art/motion.js
       - run: node --check app/static/art/ledwheel.js
       - run: node --check app/static/art/sound.js
@@ -56,6 +57,7 @@ jobs:
           python -m py_compile tests/visual_qa_shared_sound.py tests/visual_qa_smooth_hud_splash.py tests/visual_qa_iphone15pro_fullbleed.py
           python tests/visual_qa_led_chase.py
           python tests/visual_qa_player_admin.py
+          python tests/visual_qa_pwa_recovery.py
           python tests/visual_qa_solid_led.py
           python tests/visual_qa_smooth_hud_splash.py
           python tests/visual_qa_iphone15pro_fullbleed.py
@@ -73,6 +75,7 @@ jobs:
           path: |
             artifacts/uno-v13-solid-led/*
             artifacts/uno-v1143-player-admin/*
+            artifacts/uno-v1144-pwa-recovery/*
             artifacts/uno-v11-led-chase/*.png
             artifacts/uno-v11-gameplay-music/*.png
             artifacts/uno-v12-iphone15pro-fullbleed/*.png

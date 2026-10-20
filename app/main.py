@@ -5,6 +5,7 @@ real money prizes, user accounts, or cash-value balances.
 """
 from __future__ import annotations
 import os
+import hashlib
 import re
 import secrets
 import time
@@ -14,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .engine import COLORS, RuleError, UnoGame
@@ -29,10 +30,35 @@ app.include_router(orbit_router)
 app.include_router(sound_cloud_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")
 
+# One content-derived release shared by the shell and foreground update check.
+UI_RELEASE = hashlib.sha256(b"".join(
+    p.relative_to(APP_ROOT).as_posix().encode() + p.read_bytes()
+    for p in sorted((APP_ROOT / "static").rglob("*"))
+    if p.is_file() and p.suffix in {".html", ".js", ".css", ".webmanifest"}
+)).hexdigest()[:20]
+
+
+@app.middleware("http")
+async def shell_cache_policy(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path in {"/", "/admin", "/admin/", "/classic", "/spin-legacy", "/api/ui-version"} or path.endswith(".html"):
+        response.headers["Cache-Control"] = "no-store"
+    elif path.startswith("/assets/") and path.endswith((".js", ".css", ".webmanifest")):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
+
+@app.get("/api/ui-version", include_in_schema=False)
+async def ui_version():
+    return JSONResponse({"release": UI_RELEASE}, headers={"Cache-Control": "no-store"})
+
 
 @app.get("/")
 async def homepage():
-    return FileResponse(APP_ROOT / "static" / "orbit-index.html")
+    html = (APP_ROOT / "static" / "orbit-index.html").read_text()
+    return HTMLResponse(html.replace("__UNO_RELEASE__", UI_RELEASE),
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/admin", include_in_schema=False)

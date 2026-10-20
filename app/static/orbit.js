@@ -94,12 +94,17 @@ function updateButtons(){
 }
 async function api(path,method='GET',body){
   const req={method,credentials:'same-origin',headers:{}};
+  const controller=method==='GET'?new AbortController():null;
+  const timeout=controller?setTimeout(()=>controller.abort(),6000):null;
+  if(controller){req.signal=controller.signal;req.cache='no-store';}
   if(method!=='GET'){req.headers['Content-Type']='application/json';req.headers['X-UNO-Client']='spin-ui';req.body=JSON.stringify(body??{});}
+  try{
   let response;
   try{response=await fetch('/api/orbit'+path,req);}catch(_){throw Error('Koneksi terputus. Periksa internet dan coba lagi.');}
   let data;try{data=await response.json();}catch(_){throw Error('Server mengirim respons tak valid.');}
   if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:`HTTP ${response.status}`);
   return data;
+  }finally{if(timeout!==null)clearTimeout(timeout);}
 }
 async function legacyBonus(endpoint){
   const response=await fetch('/api/spin/'+endpoint,{method:'POST',headers:{'X-UNO-Client':'spin-ui','Content-Type':'application/json'},credentials:'same-origin',body:'{}'});
@@ -139,6 +144,9 @@ function newRequestId(){return typeof crypto.randomUUID==='function'?crypto.rand
    content from left to right. Only after the pointer stops does a result card fly
    from the wheel to the upper-left, upper-center, or upper-right display. */
 const pendingKey='uno_orbit_pending_v08'; // Keep request recovery keys across upgrades.
+// The updater may only refresh between completed rounds, never during a pick.
+window.UNOLuckCanReload=()=>Boolean(account)&&!isSpinning&&!isAuto&&!currentRound&&
+  !pendingInfo()&&!$('modal').open&&$('celebration-overlay').hidden;
 function pendingInfo(){
   try{const data=JSON.parse(localStorage.getItem(pendingKey)||'null');
       return data&&typeof data.id==='string'&&Number.isInteger(data.expected)?data:null;
@@ -286,7 +294,10 @@ function showMenu(){
   modalButton(area,'Bet Setting',showStakeChoices);
 }
 function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
+let stateLoading=false;
 async function loadState(quiet=false){
+  if(stateLoading)return;
+  stateLoading=true;
   try{const data=await api('/state');ruleset=data.rules||ruleset;syncAccount(data.account);currentRound=data.round;
     if(data.round){paintRound(data.round);}else if(data.recent?.length){const lastSpin=data.recent[0];last={...lastSpin,complete:true,picked:3};paintRound(last);}else paintRound(null,true);
     const pending=pendingInfo();
@@ -299,7 +310,17 @@ async function loadState(quiet=false){
     $('connection-status').textContent='ONLINE';
     if(!quiet)say(data.round?`Lanjutkan ronde: SPIN ${data.round.picked+1}/3`:'Sentuh SPIN untuk memilih kartu pertama');
   }catch(e){$('connection-status').textContent='OFFLINE';say(e.message);}
+  finally{stateLoading=false;}
 }
+function recoverInitialConnection(){
+  if(!account&&!document.hidden&&!isSpinning)void loadState();
+}
+window.addEventListener('online',recoverInitialConnection);
+document.addEventListener('visibilitychange',recoverInitialConnection);
+const initialConnectionTimer=setInterval(()=>{
+  if(account){clearInterval(initialConnectionTimer);return;}
+  recoverInitialConnection();
+},8000);
 function listeners(){
   $('spin-btn').addEventListener('click',pickOne);
   $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();unlockAudio().then(()=>sfx('tap'));say(isTurbo?'Turbo aktif, peluang tetap 80%.':'Turbo nonaktif.');});

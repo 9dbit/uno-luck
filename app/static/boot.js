@@ -20,6 +20,7 @@
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
   let released=false,started=false,splashReady=false,splashPlayed=false,musicReady=false;
   let retrying=false,attemptSerial=0;
+  let preloadSettled=false;
   let splashStartAt=null,current=0;
   let releaseGate=()=>{};
   const playGate=new Promise(resolve=>{releaseGate=resolve;});
@@ -54,7 +55,7 @@
     if(playButton)playButton.removeAttribute('title');
   }
   function prepareAgain(){
-    if(retrying)return;
+    if(retrying||started||released)return;
     retrying=true;playButton.disabled=true;
     // Read-only refresh. Never publish, reset, or overwrite saved Sound Cloud.
     void Promise.resolve(studio()?.syncCloud?.(true)).then(()=>Promise.all([
@@ -70,6 +71,18 @@
     }).catch(error=>reportAudioError('Gagal memuat audio: '+String(error?.message||error)))
       .finally(()=>{retrying=false;playButton.disabled=false;});
   }
+  // Network handovers (including VPN changes) must not require a page reset.
+  const recoverAudio=()=>{
+    if(playButton&&preloadSettled&&!document.hidden&&!started&&!released&&
+       (!splashReady||(localStorage.getItem('uno_orbit_music')!=='off'&&!musicReady)))prepareAgain();
+  };
+  window.addEventListener('online',recoverAudio);
+  window.addEventListener('pageshow',recoverAudio);
+  document.addEventListener('visibilitychange',recoverAudio);
+  const recoveryTimer=setInterval(()=>{
+    if(started||released){clearInterval(recoveryTimer);return;}
+    recoverAudio();
+  },8000);
   function onPlay(){
     if(released||started||retrying||!playButton||playButton.disabled)return;
     const musicWanted=localStorage.getItem('uno_orbit_music')!=='off';
@@ -141,10 +154,14 @@
     // Fetch the user's published Sound Cloud files, never create/edit a cue.
     // The first iPhone tap should not be spent on network/IndexedDB work.
     const splashPromise=Promise.resolve(studio()?.prepareSplashMedia?.())
-      .then(Boolean)
+      .then(ok=>{
+        splashReady=Boolean(ok);
+        if(splashReady&&(localStorage.getItem('uno_orbit_music')==='off'||musicReady))clearAudioError();
+        return splashReady;
+      })
       .catch(error=>{console.warn('[UNO SPLASH] preload',error);return false;});
     const musicPromise=Promise.resolve(studio()?.prepareMusicMedia?.())
-      .then(ok=>{musicReady=Boolean(ok);return musicReady;})
+      .then(ok=>{musicReady=Boolean(ok);if(musicReady&&splashReady)clearAudioError();return musicReady;})
       .catch(error=>{console.warn('[UNO SPLASH] BGM preload',error);return false;});
     await Promise.race([preloadImage(soft),wait(2500)]);
     if(playButton){
@@ -154,6 +171,7 @@
       // Prefer ready BGM before enabling PLAY, without blocking forever if
       // a third-party browser delays its audio metadata.
       await Promise.race([musicPromise,wait(1400)]);
+      preloadSettled=true;
       if(!splashReady){
         reportAudioError(studio()?.splashError||'Custom Soft Tech Splash belum tersedia.');
         console.warn('[UNO SPLASH] custom audio unavailable at activation');
