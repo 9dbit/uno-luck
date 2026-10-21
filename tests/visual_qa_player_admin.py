@@ -31,6 +31,20 @@ with sync_playwright() as pw:
         assert page.locator('#modal-title').inner_text()=='Bet Setting'
         page.locator('#modal-close').click()
 
+        page.locator('#profile-btn').click()
+        page.get_by_role('button',name='Game Rules',exact=True).click()
+        rules_text=page.locator('#modal-content').inner_text()
+        assert '%' not in rules_text
+        for rank,multiplier in enumerate([200,80,30,10,2],1):
+            assert f'RANK {rank}' in rules_text
+            assert f'{multiplier}× BET' in rules_text
+        assert 'NO MATCH' in rules_text
+        page.screenshot(path=str(OUT/f'{engine}-player-rules.png'))
+        page.locator('#modal-close').click()
+        page.locator('#turbo-btn').click()
+        assert '%' not in page.locator('#game-shell').inner_text()
+        page.locator('#turbo-btn').click()
+
         # Synthetic history affects only this isolated browser response.
         def history(route):
             response=route.fetch();data=response.json()

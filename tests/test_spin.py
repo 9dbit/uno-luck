@@ -45,7 +45,7 @@ def test_starting_wallet_and_rules(client):
     s = setup(client)
     assert s['account']['balance'] == 1000
     assert s['account']['spins'] == 0
-    assert s['rules']['probability_color_match'] == 1/16
+    assert 'probability_color_match' not in s['rules']
     assert s['account']['daily_available']
 
 

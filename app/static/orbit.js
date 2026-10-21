@@ -272,10 +272,10 @@ function showRules(){
   paragraph(area,'Ada lima pola kartu yang bisa menang. Wild dan Wild +4 tidak mempunyai warna; hanya tiga Wild sejenis yang memenuhi Rank 1/2. Warna sama biasa memenuhi Rank 5 jika bukan Rank 3/4.');
   if(ruleset?.celebrations?.length){
     for(const tier of ruleset.celebrations){
-      paragraph(area,`RANK ${tier.rank} · ${tier.title} · ${tier.rule} · ${tier.multiplier}× BET · ${tier.conditional_win_probability_percent}% dari ronde menang.`);
+      paragraph(area,`RANK ${tier.rank} · ${tier.title} · ${tier.rule} · ${tier.multiplier}× BET.`);
     }
   }else paragraph(area,'Daftar kombinasi sedang disinkronkan dari server. Periksa koneksi sebelum bermain.');
-  paragraph(area,'Peluang menang dasar 80% dan NO MATCH 20%. Distribusi Rank mempertahankan bobot virtual yang telah dipublikasikan, bukan peluang pengocokan dek UNO fisik. Kombinasi ditentukan sebelum ronde dimulai; tidak ada jaminan jackpot atau bonus setelah sejumlah spin.');
+  paragraph(area,'Jika tidak ada kombinasi yang cocok, hasilnya NO MATCH tanpa payout. Tidak ada jaminan jackpot atau bonus setelah sejumlah spin.');
   paragraph(area,'AUTO maksimal 10 ronde, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
 }
 function showStakeChoices(){const area=modal('Bet Setting');paragraph(area,'Pilih jumlah coin untuk satu ronde tiga SPIN. Perubahan hanya dapat dilakukan sebelum ronde dimulai.');for(const [i,cost] of STAKES.entries()){const btn=modalButton(area,`${cost===STAKES[stakeIndex]?'✓ ':''}${idMoney(cost)} koin`,()=>{stakeIndex=i;paintRound(null,true);updateButtons();closeModal();say(`Bet berikutnya ${idMoney(cost)} coin.`);});btn.disabled=!!currentRound;}}
@@ -323,7 +323,7 @@ const initialConnectionTimer=setInterval(()=>{
 },8000);
 function listeners(){
   $('spin-btn').addEventListener('click',pickOne);
-  $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();unlockAudio().then(()=>sfx('tap'));say(isTurbo?'Turbo aktif, peluang tetap 80%.':'Turbo nonaktif.');});
+  $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();unlockAudio().then(()=>sfx('tap'));say(isTurbo?'Turbo aktif, animasi lebih cepat.':'Turbo nonaktif.');});
   $('auto-btn').addEventListener('click',autoLoop);
   $('wallet-open').addEventListener('click',showWallet);
   $('gift-btn').addEventListener('click',showGift);
