@@ -221,6 +221,10 @@ function autoBudget(rounds){return (rounds-(currentRound?1:0))*(currentRound?.st
 async function autoLoop(roundLimit){
   if(isAuto||isSpinning||!account||pendingInfo()||document.hidden||
       !AUTO_ROUNDS.includes(roundLimit)||account.balance<autoBudget(roundLimit))return;
+  // Keep the confirmed setup stake after a restored paid round completes.
+  const autoStakeIndex=STAKES.indexOf(currentRound?.stake??STAKES[stakeIndex]);
+  if(autoStakeIndex<0)return;
+  stakeIndex=autoStakeIndex;
   isAuto=true;cancelAuto=false;updateButtons();
   // The selected limit includes an existing paid partial round. Each card
   // still uses the same server-issued pick and persistent request ID.

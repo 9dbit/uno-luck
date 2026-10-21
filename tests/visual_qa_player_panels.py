@@ -135,6 +135,19 @@ with sync_playwright() as pw:
         page.wait_for_function('() => !isAuto&&!isSpinning')
         assert len(requests)==start+2  # Finish paid partial round, no new charge.
 
+        # Reloaded paid round can have a different stake than the default selector.
+        state['account']['balance']=20
+        state['round']={'id':'restored-round','stake':10,'picked':1,'cards':[{'color':'red','face':'1'}],
+                        'complete':False,'combo':None,'tier':None,'payout':None,'delta':None}
+        page.evaluate('() => {stakeIndex=1;return loadState(true);}')
+        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click()
+        assert page.locator('.auto-budget dd').nth(1).inner_text()=='20 Coin'
+        start=len(requests);page.locator('#auto-start').click()
+        page.wait_for_function('() => !isAuto&&!isSpinning')
+        assert len(requests)-start==8
+        assert all(r['stake']==10 for r in requests[start:])
+        assert state['account']['balance']==0
+
         state['account']['balance']=1000;page.evaluate('() => loadState(true)')
         mode['value']='fail';start=len(requests)
         page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click();page.locator('#auto-start').click()
