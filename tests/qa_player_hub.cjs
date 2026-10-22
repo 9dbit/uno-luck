@@ -29,7 +29,7 @@ const sizes=[[320,568],[320,700],[393,659],[393,852],[390,844],[430,932],[852,39
    }
    if(!['GET','HEAD'].includes(r.request().method())){unexpected.push(u.pathname);return r.abort();}
    if(sources){const key=u.pathname==='/'?'orbit-index.html':u.pathname.replace('/assets/','');
-    if(sources[key])return r.fulfill({contentType:key.endsWith('.html')?'text/html':key.endsWith('.css')?'text/css':'application/javascript',body:sources[key].replaceAll('__UNO_RELEASE__','1'.repeat(20))});}
+    if(sources[key])return r.fulfill({contentType:key.endsWith('.html')?'text/html':key.endsWith('.css')?'text/css':key.endsWith('.svg')?'image/svg+xml':'application/javascript',body:sources[key].replaceAll('__UNO_RELEASE__','1'.repeat(20))});}
    return r.continue();
   });
   await p.goto(BASE,{waitUntil:'domcontentloaded'});await p.locator('#boot-play').click({timeout:25000});
@@ -37,6 +37,8 @@ const sizes=[[320,568],[320,700],[393,659],[393,852],[390,844],[430,932],[852,39
   const close=()=>p.locator('#modal-close').click();
   const menu=async(name)=>{await p.locator('#profile-btn').click();if(name)await p.getByRole('button',{name,exact:true}).click();};
   async function bounds(){
+   await p.locator('#modal img').evaluateAll(imgs=>Promise.all(imgs.map(img=>img.decode())));
+   assert(await p.locator('#modal img').evaluateAll(imgs=>imgs.every(img=>img.naturalWidth>0)),'panel artwork loaded');
    const dims=await p.evaluate(()=>({page:document.documentElement.scrollWidth<=innerWidth+1,content:document.querySelector('#modal-content').scrollWidth<=document.querySelector('#modal-content').clientWidth+1}));
    assert(dims.page&&dims.content,JSON.stringify(dims));
    for(const sel of ['#modal-close','.panel-primary'])if(await p.locator(sel).count()){
@@ -52,6 +54,13 @@ const sizes=[[320,568],[320,700],[393,659],[393,852],[390,844],[430,932],[852,39
    await p.screenshot({path:path.join(OUT,`${engine}-bet-${width}x${height}.png`)});await close();
    await menu('Turnamen');await p.getByRole('button',{name:'GABUNG GRATIS'}).waitFor();await bounds();
    assert.equal(joins,0);await p.screenshot({path:path.join(OUT,`${engine}-tournament-${width}x${height}.png`)});await close();
+   for(const name of ['Game Rules','Profile']){await menu(name);await bounds();await p.screenshot({path:path.join(OUT,`${engine}-${name.replaceAll(' ','-')}-${width}x${height}.png`)});await close();}
+   for(const [selector,name] of [['#gift-btn','gift'],['#wallet-open','coin'],['#auto-btn','auto']]){
+    await p.locator(selector).click();await bounds();
+    assert.equal(await p.locator('.hero-art').count(),1,name+' hero');
+    if(name==='coin'){const top=(await p.locator('.coin-summary').boundingBox()).y;await p.locator('.coin-history').evaluate(el=>el.scrollTop=el.scrollHeight);assert.equal((await p.locator('.coin-summary').boundingBox()).y,top);}
+    await p.screenshot({path:path.join(OUT,`${engine}-${name}-${width}x${height}.png`)});await close();
+   }
   }
   await p.setViewportSize({width:393,height:852});await menu('Bet Setting');await p.locator('[data-bet="100"]').click();await close();
   assert.equal(await p.locator('#last-stake').innerText(),'25');

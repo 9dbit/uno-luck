@@ -250,18 +250,33 @@ function modalButton(parent,text,fn){const b=document.createElement('button');b.
 function closeModal(){if($('modal').open)$('modal').close();}
 function panelNode(tag,klass,text){const el=document.createElement(tag);el.className=klass;if(text!==undefined)el.textContent=text;return el;}
 function playerPanel(title){const area=modal(title);$('modal').classList.add('player-panel');return area;}
+function festiveArt(kind,klass='hero-art'){
+  const img=panelNode('img',klass);img.src=kind==='profile'?'/assets/art/v1/avatar.webp':`/assets/art/festive/${kind}.svg`;
+  img.alt='';img.width=240;img.height=240;img.decoding='async';return img;
+}
+function panelHero(parent,kind,eyebrow,title,copy){
+  const hero=panelNode('section','festive-hero');hero.dataset.art=kind;
+  const text=panelNode('div','hero-copy');text.append(panelNode('span','panel-eyebrow',eyebrow),panelNode('h3','',title));
+  if(copy)text.append(panelNode('p','',copy));hero.append(festiveArt(kind),text);parent.append(hero);return hero;
+}
 function panelAction(text,fn){const footer=panelNode('div','panel-actions');$('modal').querySelector('.modal-card').append(footer);const btn=modalButton(footer,text,fn);btn.className='panel-primary';return btn;}
 async function claimDaily(){try{const x=await legacyBonus('daily');syncAccount(x.account);sfx('coin');say(`Hadiah +${idMoney(x.credited)} koin virtual`);closeModal();}catch(e){say(e.message);}}
 async function claimRefill(){try{const x=await legacyBonus('refill');syncAccount(x.account);sfx('coin');say(`Refill gratis +${idMoney(x.credited)} koin`);closeModal();}catch(e){say(e.message);}}
 function showGift(){
-  const area=modal('Gift');
-  paragraph(area,'Hadiah koin virtual untuk bermain.');
-  modalButton(area,'Klaim +250 harian',claimDaily).disabled=!account?.daily_available;
-  modalButton(area,'Refill gratis +1.000',claimRefill).disabled=!account?.refill_available;
+  const area=playerPanel('Gift');$('modal').dataset.view='gift';
+  panelHero(area,'gift','A LITTLE EXTRA JOY','Hadiah untukmu','Kumpulkan Coin virtual dan lanjutkan keseruanmu.');
+  const list=panelNode('div','gift-rewards');area.append(list);
+  for(const [title,copy,kind,available,fn] of [
+    ['Klaim +250 harian','Bonus harian','gift',account?.daily_available,claimDaily],
+    ['Refill gratis +1.000','Isi ulang Coin','coins',account?.refill_available,claimRefill]]){
+    const btn=menuTile(list,title,available?copy+' · Tersedia':'Belum tersedia',kind,fn);btn.disabled=!available;
+  }
+  paragraph(area,'Coin bersifat virtual, tidak dapat dibeli atau dicairkan.').className='panel-fine';
 }
 async function showWallet(){
-  const area=modal('Coin');$('modal').classList.add('coin-modal');
+  const area=playerPanel('Coin');$('modal').classList.add('coin-modal');$('modal').dataset.view='coin';
   const summary=document.createElement('div');summary.className='coin-summary';
+  summary.append(festiveArt('coins'));
   paragraph(summary,'Total Coin');
   const total=document.createElement('strong');total.id='coin-total';total.textContent=idMoney(account?.balance||0);
   total.setAttribute('aria-live','polite');summary.append(total);
@@ -289,6 +304,7 @@ async function showWallet(){
 }
 function showRules(){
   const area=playerPanel('Game Rules');
+  panelHero(area,'cards','PLAY YOUR COLORS','Kenali kombinasimu','Lima kombinasi. Lima perayaan.');
   area.append(panelNode('p','panel-eyebrow','3 KARTU · 1 RONDE'));
   paragraph(area,'Tekan SPIN tiga kali untuk membuka kartu kiri, tengah, dan kanan. BET dipotong sekali pada SPIN pertama.');
   // Illustration only: these examples never enter the outcome generator.
@@ -317,12 +333,11 @@ function showRules(){
 function showStakeChoices(){
   const area=playerPanel('Bet Setting');$('modal').dataset.view='bet';let selected=nextBetIndex??stakeIndex;
   const hero=panelNode('section','bet-hero');
+  hero.append(festiveArt('coins'));
   hero.append(panelNode('span','panel-eyebrow','YOUR NEXT ROUND'));
   const amount=panelNode('strong','panel-amount',idMoney(STAKES[selected])+' Coin');
   amount.setAttribute('aria-live','polite');hero.append(amount,panelNode('p','','Satu BET. Tiga kartu.'));
-  const mini=panelNode('div','bet-mini-cards');mini.setAttribute('aria-hidden','true');
-  for(const [color,face] of [['red','1'],['blue','2'],['green','3']])mini.append(htmlCard({color,face},true));
-  hero.append(mini);area.append(hero);
+  area.append(hero);
   const balance=panelNode('div','bet-balance');balance.append(panelNode('span','','Coin tersedia'),coinValue(account?.balance??0,'strong'));area.append(balance);
   area.append(panelNode('p','panel-eyebrow','PILIH CHIP BET'));
   const grid=panelNode('div','bet-grid');grid.setAttribute('role','group');grid.setAttribute('aria-label','Pilihan BET');area.append(grid);
@@ -359,7 +374,8 @@ function coinValue(value,tag='span'){
 function showAutoSettings(){
   if(isAuto){cancelAuto=true;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
   if(isSpinning||!account)return;
-  const area=playerPanel('Auto Play');let selected=autoRounds;
+  const area=playerPanel('Auto Play');$('modal').dataset.view='auto';let selected=autoRounds;
+  panelHero(area,'cards','KEEP THE FUN GOING','Atur ritme bermain','Pilih ronde, lalu biarkan AUTO melanjutkan.');
   area.append(panelNode('p','panel-eyebrow','PILIH JUMLAH RONDE'));
   paragraph(area,'Setiap ronde membuka tiga kartu. AUTO dapat dihentikan setelah SPIN yang sedang berjalan.');
   const grid=panelNode('div','auto-grid');grid.setAttribute('role','group');grid.setAttribute('aria-label','Jumlah ronde AUTO');area.append(grid);
@@ -392,9 +408,7 @@ function showAutoSettings(){
   refresh();
 }
 function hubIcon(kind){
-  const paths={cards:'M6 3h12v18H6z M9 8l6 8 M15 8l-6 8',person:'M8 7a4 4 0 1 0 8 0a4 4 0 1 0-8 0 M4 22v-3a8 8 0 0 1 16 0v3',sound:'M3 9h4l5-5v16l-5-5H3z M16 8q5 4 0 8 M19 4q9 8 0 16',coin:'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M12 7v10 M9 9h6 M9 15h6',cup:'M7 3h10v5a5 5 0 0 1-10 0z M7 5H3v3q0 4 5 4 M17 5h4v3q0 4-5 4 M12 13v6 M7 21h10'};
-  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
-  const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',paths[kind]||paths.cards);svg.append(path);return svg;
+  return festiveArt(({person:'profile',coin:'coins',cup:'trophy'})[kind]||kind,'icon-3d');
 }
 function menuTile(parent,title,subtitle,icon,fn){
   const btn=modalButton(parent,'',fn);btn.className='menu-tile';btn.setAttribute('aria-label',title);
@@ -407,7 +421,7 @@ function showMenu(){
   const welcome=panelNode('section','menu-welcome');
   const avatar=panelNode('img','menu-avatar');avatar.src='/assets/art/v1/avatar.webp';avatar.alt='';
   const intro=panelNode('div','');intro.append(panelNode('span','panel-eyebrow','PLAYER LOUNGE'),panelNode('h3','',account?.name||'Player'),panelNode('p','',`Level ${account?.level||1} · ${idMoney(account?.balance??0)} Coin`));
-  welcome.append(avatar,intro);area.append(welcome);
+  welcome.append(avatar,intro,festiveArt('cards','lounge-art'));area.append(welcome);
   const tournament=menuTile(area,'Turnamen','Dragon Daily · 10 ronde untuk bersinar','cup',showTournament);tournament.classList.add('tournament-entry');
   const grid=panelNode('div','menu-grid');area.append(grid);
   menuTile(grid,'Game Rules','Kenali 5 kombinasi','cards',showRules);
@@ -458,7 +472,7 @@ async function showTournament(){
   function render(data){
     if(!active())return;area.replaceChildren(anchor);$('modal').querySelector('.panel-actions')?.remove();
     const {event,you,leaderboard}=data;
-    const hero=panelNode('section','tournament-hero');const emblem=panelNode('span','tournament-emblem');emblem.append(hubIcon('cup'));
+    const hero=panelNode('section','tournament-hero festive-hero');const emblem=panelNode('span','tournament-emblem');emblem.append(festiveArt('trophy'));
     hero.append(emblem,panelNode('span','panel-eyebrow','DAILY TOURNAMENT'),panelNode('h3','',event.title),panelNode('p','','Bawa kombinasi terbaikmu ke papan peringkat.'));
     const meta=panelNode('div','event-meta');meta.append(panelNode('span','','Ikut gratis'),panelNode('span','',`${event.round_limit} ronde`),panelNode('span','','Reset 00.00 WIB'));hero.append(meta);area.append(hero);
     const today=new Date(event.server_time*1000).toLocaleDateString('id-ID',{timeZone:'Asia/Jakarta',day:'numeric',month:'long',year:'numeric'});
@@ -487,7 +501,7 @@ async function showTournament(){
   }
   try{render(await tournamentRequest('state'));}catch(e){error(e.name==='AbortError'?'Koneksi lambat. Coba muat turnamen lagi.':e.message);}
 }
-function showProfile(){const area=playerPanel('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
+function showProfile(){const area=playerPanel('Profil Pemain');panelHero(area,'profile','YOUR PLAYER ID','Panggungmu, gayamu','Nama ini tampil di papan peringkat saat kamu bergabung.');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 let stateLoading=false;
 async function loadState(quiet=false){
   if(stateLoading)return;

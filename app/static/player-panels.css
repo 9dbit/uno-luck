@@ -170,3 +170,60 @@ button:focus-visible,summary:focus-visible,[role=button]:focus-visible{outline:2
 .auto-budget{padding:16px;background:#ffffff04;border:1px solid #e1b88520;border-radius:18px;align-items:center;gap:14px 8px}
 .auto-budget dt{font-size:12px}.auto-budget dd{font-size:14px}
 @media(max-width:359px){.player-panel .auto-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.player-panel .auto-grid button{min-height:124px;padding-top:12px}.auto-budget{padding:12px}.auto-budget dd{font-size:12px}.coin-value-icon{width:20px;height:20px}}
+
+/* Festive collection: raster 3D artwork, lightweight painted light, no perpetual animation. */
+.modal.player-panel .modal-card{border:1px solid #edbe6a;background:radial-gradient(ellipse at 100% 0,#9f183d55,transparent 55%),linear-gradient(155deg,#3b091c,#140810 72%);box-shadow:0 24px 70px #000b,inset 0 0 0 3px #ffcf7010,inset 0 1px #ffecab}
+.player-panel .modal-header{background:linear-gradient(120deg,#6c102a66,#260e1b);border-bottom:1px solid #d9a34b55}
+.player-panel .modal-header h2{text-shadow:0 2px 0 #33020c}
+.player-panel .modal-header #modal-close,.player-panel .modal-header #modal-back{background:linear-gradient(145deg,#d52b4f,#690c25);border:1px solid #f9d28c80;box-shadow:inset 0 2px 1px #ffc7a742,0 3px 0 #300515;color:#fff4d8}
+.festive-hero,.player-panel .bet-hero,.about-hero{position:relative;isolation:isolate;text-align:center;margin:0 0 20px;padding:18px 14px 22px;border:1px solid #e5ae5a38;border-radius:20px;background:radial-gradient(ellipse at 50% 30%,#c4562475,transparent 66%),linear-gradient(145deg,#64112880,#280b1860);overflow:hidden}
+.festive-hero:before,.bet-hero:before,.about-hero:before{content:'';position:absolute;z-index:-1;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 22%,#ffe69d 0 1px,transparent 2px),radial-gradient(circle at 82% 16%,#ffe69d 0 1.5px,transparent 3px),radial-gradient(circle at 90% 68%,#ffe69d 0 1px,transparent 2px),radial-gradient(circle at 20% 75%,#ffe69d 0 1px,transparent 2px),repeating-conic-gradient(from 10deg at 50% 32%,#f2b94e09 0 12deg,transparent 12deg 32deg);opacity:.8}
+.hero-art{display:block;width:164px;height:144px;object-fit:contain;margin:0 auto 8px;pointer-events:none;filter:drop-shadow(0 8px 8px #14041165)}
+.hero-copy h3{font-size:25px;line-height:1.15;letter-spacing:-.025em;color:#ffecb5;margin:7px 0 8px;text-shadow:0 2px #5e1b12}
+.hero-copy p{max-width:270px;margin:0 auto;font-size:12px;line-height:1.6;color:#ecd4bd}
+.festive-hero[data-art=profile] .hero-art{width:104px;height:104px;object-fit:cover;border:3px solid #f3c676;border-radius:50%;padding:4px;background:#250816;margin-bottom:16px}
+.icon-3d{width:100%;height:100%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 4px 3px #0005)}
+.menu-icon{width:62px;height:62px}
+.menu-icon img[src*='avatar']{border-radius:50%;border:1px solid #ebbb6a}
+.player-panel .menu-tile{border-color:#ddb36350;background:radial-gradient(ellipse at 15% 30%,#a13b3c30,transparent 75%),linear-gradient(135deg,#562337,#250d1a);box-shadow:inset 0 1px #ffe9b222,0 4px 0 #0c030980;padding:14px;gap:10px}
+.menu-grid .menu-tile{gap:8px}
+.menu-copy strong{color:#fff0be;text-shadow:0 2px 1px #230613}
+.menu-copy small{color:#d7bbaa}
+.menu-chevron{display:grid;place-items:center;width:26px;height:26px;border-radius:9px;background:linear-gradient(#f54462,#950b31);border:1px solid #f8b580;color:#fff2c9;box-shadow:0 2px 0 #480817;font-size:23px;line-height:1}
+.player-panel .tournament-entry{background:radial-gradient(ellipse at left,#9f632950,transparent 65%),linear-gradient(120deg,#6e1e31,#351120);border-color:#ffd58b90}
+.tournament-entry .menu-icon{width:78px;height:78px;padding:0;background:none;border-radius:0}
+.menu-welcome{position:relative;min-height:112px;padding:16px 94px 16px 12px;border-radius:18px;border:1px solid #d9a44c44;background:radial-gradient(ellipse at right,#bc471945,transparent 70%),linear-gradient(130deg,#6a1731,#2d0e1d);gap:10px;isolation:isolate;overflow:hidden;margin-bottom:14px}
+.menu-welcome h3{font-size:21px}.menu-welcome .menu-avatar{width:44px;height:44px;flex:none}
+.lounge-art{position:absolute;right:-8px;bottom:0;width:112px;height:112px;object-fit:contain;z-index:-1;pointer-events:none}
+.tournament-hero .tournament-emblem{display:block;width:auto;height:auto;border:0;background:none;box-shadow:none;padding:0;margin:0 0 10px}
+.tournament-emblem .hero-art{width:192px;height:170px}
+.tournament-hero h3{font-size:32px;text-shadow:0 2px #5e1b12}
+.player-panel .bet-hero{padding:12px 12px 18px}
+.bet-hero .hero-art{height:116px;width:148px}
+.player-panel .bet-hero .panel-amount{font-size:38px;text-shadow:0 3px #54250b}
+.gift-rewards{display:grid;gap:12px;margin-bottom:20px}
+.gift-rewards .menu-tile{min-height:100px;width:100%}
+.gift-rewards .menu-icon{width:70px;height:70px}
+.gift-rewards .menu-tile:disabled{opacity:.55;cursor:not-allowed}
+.player-panel .panel-primary{background:linear-gradient(180deg,#ffedac 0,#f9cd65 46%,#e4a23e 52%,#f2bf58);border:1px solid #fff0ad;box-shadow:inset 0 2px #fff2be,0 4px 0 #74401e,0 6px 15px #0005;text-shadow:0 1px #fff5bb80}
+.player-panel .panel-actions{background:linear-gradient(#2e0b19,#180711);padding-bottom:18px}
+.rules-tier{padding:14px 12px;border:1px solid #daa95740;background:linear-gradient(135deg,#6d26372e,#28101c);border-radius:16px}
+.tournament-stats{border:1px solid #ddb36340;background:linear-gradient(150deg,#80334430,#2d0c1c)}
+.leaderboard li{margin-bottom:6px;background:linear-gradient(100deg,#6430252e,#ffffff03);border:1px solid #e3bd5b20;border-radius:12px}
+.leaderboard li:nth-child(-n+3) .rank-badge{border:1px solid #ffdf8b;background:linear-gradient(#fce7a0,#c38b30);border-radius:50%;height:28px;line-height:26px;color:#532b16;box-shadow:0 2px 0 #6b461f}
+.player-panel.coin-modal .coin-summary{position:relative;min-height:100px;padding:14px 100px 14px 8px;text-align:left;flex:none;border-radius:16px;background:radial-gradient(ellipse at right,#ba782742,transparent),#5e132233;border:1px solid #e1b88540;margin-bottom:14px}
+.coin-summary .hero-art{position:absolute;right:0;top:0;width:98px;height:98px;margin:0}
+.coin-summary strong{color:#ffebad;overflow-wrap:anywhere}
+.player-panel.coin-modal .coin-history{min-height:50px}
+.player-panel.coin-modal .modal-content{overflow:hidden}
+.coin-history-row{padding:12px;border:1px solid #f1c26d20;border-radius:12px;margin-bottom:8px;background:#fff1}
+.about-hero{padding-top:18px}.about-logo{width:140px}
+.game-header #gift-btn{background-image:none}
+.game-header #gift-btn .header-gift-art{display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 3px #0008)}
+.player-panel[data-view=auto] .festive-hero{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:8px;padding:14px 10px;text-align:left}
+.player-panel[data-view=auto] .hero-art{width:110px;height:112px;margin:0}
+.player-panel[data-view=auto] .hero-copy h3{font-size:23px}
+.player-panel[data-view=auto] .hero-copy p{font-size:11px;line-height:1.5}
+@media(max-width:359px){.player-panel[data-view=auto] .festive-hero{grid-template-columns:84px minmax(0,1fr)}.player-panel[data-view=auto] .hero-art{width:84px;height:96px}.player-panel[data-view=auto] .hero-copy h3{font-size:19px}.player-panel[data-view=auto] .panel-eyebrow{font-size:9px}}
+@media(max-width:359px){.hero-art{height:120px;width:142px}.hero-copy h3{font-size:22px}.menu-welcome{padding-right:70px;padding-left:8px;gap:7px}.menu-welcome .menu-avatar{width:36px;height:36px}.menu-welcome h3{font-size:18px}.lounge-art{width:88px;height:100px}.menu-icon{width:54px;height:54px}.player-panel .menu-tile{padding:12px}.tournament-entry .menu-icon{width:64px;height:64px}.tournament-entry .menu-copy strong{font-size:18px}.rules-tier{padding:12px 8px}.player-panel.coin-modal .coin-summary{padding-right:80px}.coin-summary .hero-art{width:80px;height:88px}}
+@media(orientation:landscape) and (max-height:470px){.hero-art,.tournament-emblem .hero-art{height:90px;width:110px}.festive-hero{padding:12px}.player-panel.coin-modal .coin-summary{min-height:66px;padding:6px 90px 6px 10px;margin-bottom:8px}.coin-summary .hero-art{width:76px;height:66px}.coin-summary strong{font-size:25px}.player-panel.coin-modal .modal-content{padding-top:10px;padding-bottom:10px}.player-panel.coin-modal .modal-card{height:calc(100dvh - 24px)}}
