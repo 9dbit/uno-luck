@@ -11,7 +11,7 @@ def test_splash_has_one_explicit_sound_button_and_custom_cue():
                        "boot-with-audio","boot-continue"):
         assert f'id="{identifier}"' not in H
     assert 'id="boot-play"' in H
-    assert 'boot.js?v=1134' in H
+    assert 'boot.js?v=1144' in H
     assert "playButton.addEventListener('click',onPlay)" in B
     assert "await playGate" in B
     assert "studio()?.prepareSplashMedia?.()" in B

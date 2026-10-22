@@ -245,16 +245,12 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
 def public_rules() -> dict:
     return {
         'mode': 'three-pick-orbit', 'virtual_only': True, 'rules_version': RULES_VERSION,
-        'win_probability_percent': WIN_PERCENT, 'winning_combinations_percent': WIN_PERCENT,
         'stake_options': spin.COSTS,
         'base_payout_multiplier': 2, 'payout_multiplier': 2,
-        'celebrations': [rank_details(rank) | {
-            'conditional_win_probability_percent': CELEBRATIONS[rank]['weight'] / 10000,
-            'all_rounds_probability_percent': CELEBRATIONS[rank]['weight'] * WIN_PERCENT / 1000000,
-        } for rank in sorted(CELEBRATIONS)],
+        'celebrations': [rank_details(rank) for rank in sorted(CELEBRATIONS)],
         'coin_cap': spin.COIN_CAP,
         'spin_sequence': ['kiri','tengah','kanan'],
-        'note': 'Setiap ronde 3 SPIN dan 1 biaya. Peluang 80% untuk salah satu dari 5 pola kartu UNO-inspired, 20% NO_MATCH. Payout rank ditentukan dari 3 kartu yang benar-benar muncul. Weight adalah generator virtual, bukan shuffle dek UNO asli. Saldo dapat dibatasi 1.000.000 koin. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
+        'note': 'Setiap ronde 3 SPIN dan 1 biaya. Payout rank ditentukan dari 3 kartu yang benar-benar muncul. NO MATCH tidak mendapat payout. Saldo dapat dibatasi 1.000.000 koin. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
     }
 
 

@@ -19,14 +19,15 @@ def test_virtual_economy_expected_return_is_documented():
 def test_audio_controls_are_independent_and_guarded():
     sound = (ROOT / 'art/sound.js').read_text()
     ui = (ROOT / 'orbit.js').read_text()
+    admin = (ROOT / 'admin.js').read_text()
     wheel = (ROOT / 'art/ledwheel.js').read_text()
     for name in ('setMasterVolume', 'setMusicVolume', 'setVolume', 'ledTick', 'lastError'):
         assert name in sound
     for key in ('uno_luck_master_volume', 'uno_luck_music_volume', 'uno_luck_fx_volume'):
         assert key in sound
     for title in ('MASTER', 'MUSIC', 'SFX'):
-        assert "'"+title+"'" in ui
-    assert 'Audio Mixer' in ui
+        assert "'"+title+"'" in admin
+    assert 'Audio Mixer' in admin
     assert "window.UNOLuckSound?.ledTick(this.injected)" in wheel
     assert "window.UNOLuckSound?.play('lock')" in wheel
     assert "if(isAuto){cancelAuto=true;updateButtons();" in ui

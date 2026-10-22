@@ -27,8 +27,8 @@ def test_probability_thresholds_and_server_independence(monkeypatch):
         monkeypatch.setattr(orbit.secrets,'randbelow',lambda n,result=result:result)
         assert orbit.choose_tier()==expected
     rules=orbit.public_rules()
-    assert sum(v['conditional_win_probability_percent'] for v in rules['celebrations'])==100
-    assert rules['win_probability_percent']==80
+    assert sum(v['weight'] for v in orbit.CELEBRATIONS.values()) / 10000==100
+    assert orbit.WIN_PERCENT==80
     assert [t['multiplier'] for t in rules['celebrations']]==[200,80,30,10,2]
 
 @pytest.mark.parametrize('rank,multiplier',[(1,200),(2,80),(3,30),(4,10),(5,2)])

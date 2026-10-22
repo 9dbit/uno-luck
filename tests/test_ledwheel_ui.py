@@ -13,7 +13,7 @@ def test_single_approved_static_wheel_with_nine_led_placeholders():
     assert HTML.count('id="spin-btn"')==1
     assert HTML.count('wheel-dragon.webp')==1
     assert 'wheel360.js?v=8' not in HTML
-    assert '/assets/art/ledwheel.js?v=1129' in HTML
+    assert '/assets/art/ledwheel.js?v=1139' in HTML
     assert '/assets/art/ledwheel.css?v=10' in HTML
     assert 'const RING_COUNT = 9' in ORBIT
     assert 'GEOMETRY = [' in WHEEL

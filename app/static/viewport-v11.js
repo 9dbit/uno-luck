@@ -40,7 +40,11 @@
     // Contain the artwork inside the wheel row on short Safari heights
     // (e.g. iPhone viewport 393x659 or older 320x568). Oversizing by even
     // 8px cuts the dragon's bottom and the lower action buttons.
-    const size=Math.min(rect.width*.99,rect.height-shift-2);
+    // The caption is absolutely positioned over the bottom of this row.
+    // Reserve its actual height so its dark backing never hides the dragon's
+    // lower curve even when the complete square technically fits the row.
+    const captionHeight=area.querySelector('.spin-caption')?.getBoundingClientRect().height||0;
+    const size=Math.min(rect.width*.99,rect.height-shift-captionHeight-4);
     lastWheel=setPx(game,'--uno-wheel-size',Math.max(1,size),lastWheel);
     lastShift=setPx(game,'--uno-wheel-drop',shift,lastShift);
   }
