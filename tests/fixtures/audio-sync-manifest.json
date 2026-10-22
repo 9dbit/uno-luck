@@ -1,0 +1,109 @@
+{
+  "ready": true,
+  "revision": "801acad084900b626931ffa1",
+  "cues": {
+    "soft-tech-splash-screen": {
+      "source": "custom",
+      "start": 0.0,
+      "stop": 7.0,
+      "fadeIn": 0.0,
+      "fadeOut": 7.0,
+      "fileDuration": 46.45,
+      "repeat": true,
+      "fileName": "soulprodmusic-futuristic-logo-3-versions-149429.mp3",
+      "revision": "a003f90f08d8846a2742d5e4",
+      "url": "/api/sounds/files/soft-tech-splash-screen?v=a003f90f08d8846a2742d5e4"
+    },
+    "background-music": {
+      "source": "custom",
+      "start": 3.0,
+      "stop": 21.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "fileDuration": 26.12,
+      "repeat": true,
+      "mirror": false,
+      "mirrorCrossfadeMs": 140,
+      "fileName": "mfcc-exciting-exciting-logo-603129.mp3",
+      "revision": "9cfd1d5f9ccf148fc53493c7",
+      "url": "/api/sounds/files/background-music?v=9cfd1d5f9ccf148fc53493c7"
+    },
+    "push-button": {
+      "source": "custom",
+      "start": 0.0,
+      "stop": 1.56,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "fileDuration": 1.56,
+      "repeat": true,
+      "fileName": "floraphonic-level-up-bonus-sequence-1-186890.mp3",
+      "revision": "f0bec7451b9efd778e092820",
+      "url": "/api/sounds/files/push-button?v=f0bec7451b9efd778e092820"
+    },
+    "spinning-sound": {
+      "source": "custom",
+      "start": 0.0,
+      "stop": 2.5,
+      "fadeIn": 0.0,
+      "fadeOut": 0.16,
+      "fileDuration": 11.98,
+      "repeat": true,
+      "fileName": "freesound_community-spinner-sound-36693.mp3",
+      "revision": "2cf187eaeaf905cd2a9e5bd1",
+      "url": "/api/sounds/files/spinning-sound?v=2cf187eaeaf905cd2a9e5bd1"
+    },
+    "chosen-card": {
+      "source": "custom",
+      "start": 0.0,
+      "stop": 1.13,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "fileDuration": 1.13,
+      "repeat": true,
+      "fileName": "universfield-message-ping-351298.mp3",
+      "revision": "1de15ff4352b6b3c79c7e9fc",
+      "url": "/api/sounds/files/chosen-card?v=1de15ff4352b6b3c79c7e9fc"
+    },
+    "result-sound": {
+      "source": "custom",
+      "start": 0.0,
+      "stop": 3.53,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "fileDuration": 3.53,
+      "repeat": true,
+      "fileName": "floraphonic-tada-military-1-183974.mp3",
+      "revision": "400e328b253b65120af459af",
+      "url": "/api/sounds/files/result-sound?v=400e328b253b65120af459af"
+    },
+    "jackpot-1": {
+      "source": "custom",
+      "start": 0.0,
+      "stop": 4.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.5,
+      "fileDuration": 5.64,
+      "repeat": true,
+      "fileName": "floraphonic-playful-casino-slot-machine-jackpot-3-183921.mp3",
+      "revision": "52804f038a605ab19bc2cded",
+      "url": "/api/sounds/files/jackpot-1?v=52804f038a605ab19bc2cded"
+    },
+    "jackpot-5": {
+      "source": "custom",
+      "start": 0.0,
+      "stop": 4.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.5,
+      "fileDuration": 5.64,
+      "repeat": true,
+      "fileName": "floraphonic-playful-casino-slot-machine-jackpot-3-183921.mp3",
+      "revision": "45984c664fed646cc16cf337",
+      "url": "/api/sounds/files/jackpot-5?v=45984c664fed646cc16cf337"
+    }
+  },
+  "mixer": {
+    "master": 0.9,
+    "music": 0.22,
+    "sfx": 0.85
+  }
+}

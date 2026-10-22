@@ -36,7 +36,8 @@
     compressor.ratio.value=4.6;compressor.attack.value=.003;compressor.release.value=.24;
     fxBus=ctx.createGain(); fxBus.gain.value=fxLevel;
     musicBus=ctx.createGain(); musicBus.gain.value=musicLevel;
-    fxBus.connect(compressor);musicBus.connect(compressor);
+    // Effects must not pump/duck the music through a shared compressor.
+    fxBus.connect(compressor);musicBus.connect(master);
     compressor.connect(master);master.connect(ctx.destination);
     return true;
   }
@@ -105,6 +106,7 @@
     }
   }
   function ledTick(slowing=false){
+    if(studio?.isSpinPlaying?.())return false;
     if(!isActive()||!audioEnabled||fxLevel===0)return false;
     const now=ctx.currentTime;
     if(now-lastLedTick<(slowing?.078:.065))return false;
@@ -150,6 +152,11 @@
     }
     src.start();return true;
   }
+  function startSpin(){
+    if(!audioEnabled||fxLevel===0||document.hidden)return false;
+    return studio?.startSpin?.()??false;
+  }
+  function stopSpin(){studio?.stopSpin?.();}
   async function music(playIt){
     musicRequested=Boolean(playIt);
     if(!playIt)studio?.stopLoop();
@@ -249,12 +256,13 @@
     if(master&&ctx)master.gain.setTargetAtTime(masterLevel,ctx.currentTime,.04);return masterLevel;}
   function setMusicVolume(v){musicLevel=clamp(v);localStorage.setItem('uno_luck_music_volume',String(musicLevel));
     if(musicBus&&ctx)musicBus.gain.setTargetAtTime(musicLevel,ctx.currentTime,.05);return musicLevel;}
-  function setEnabled(v){audioEnabled=Boolean(v);}
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)music(false);});
+  function setEnabled(v){audioEnabled=Boolean(v);if(!audioEnabled)stopSpin();}
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){music(false);stopSpin();}});
   window.UNOLuckSound={unlock,play,music,celebration,testSound,ledTick,setVolume,setMasterVolume,setMusicVolume,setEnabled,
-    installStudio,channels,prepareContext,playCue,result,refreshMusic,stopCelebration,
+    installStudio,channels,prepareContext,playCue,result,refreshMusic,stopCelebration,startSpin,stopSpin,
     get volume(){return fxLevel;},get masterVolume(){return masterLevel;},
     get musicVolume(){return musicLevel;},get lastError(){return lastError;},
     get state(){return isActive()?'running':studio?.mediaUnlocked?'media-fallback':
       ctx?.state||'inactive';},get webAudioState(){return ctx?.state||'inactive';}};
 })();
+

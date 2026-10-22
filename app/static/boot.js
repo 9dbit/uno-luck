@@ -94,7 +94,8 @@
       return;
     }
     clearAudioError();
-    const activationAt=performance.now();
+    // Resume the shared mixer inside the actual click, before selecting a lane.
+    try{void window.UNOLuckSound?.unlock?.();}catch(_){}
     // DO NOT await anything before either HTMLMediaElement.play() call.
     // Both elements are prepared before the trusted native click on Safari.
     let splashPromise,musicPromise=true;
@@ -123,7 +124,7 @@
         reportAudioError(reason);
         return;
       }
-      splashPlayed=true;started=true;splashStartAt=activationAt;
+      splashPlayed=true;started=true;splashStartAt=performance.now();
       playButton.hidden=true;
       releaseGate();
     }).catch(error=>{
@@ -140,7 +141,10 @@
     released=true;
     banner.classList.add('is-fading');
     cover.classList.add('is-dismissing');
-    await wait(reducedMotion?120:420);
+    if(playButton&&splashPlayed){
+      // Follow the audio clock, including a suspended context, not click time.
+      while((studio()?.splashRemaining?.()||0)>20)await wait(16);
+    }else await wait(reducedMotion?120:420);
     game.classList.remove('is-booting');
     game.removeAttribute('aria-hidden');
     cover.hidden=true;
@@ -218,20 +222,15 @@
     }
     if(released)return;
     await Promise.race([readyAssets,wait(75)]);
-    // Respect custom START/STOP of the splash clip so its fade-out can
-    // actually finish before the gameplay BGM begins. Bound to 8.5 sec.
+    // Finish the progress hold and cover fade *inside* the published clip.
     if(playButton&&splashPlayed&&splashStartAt!==null){
-      const cfg=studio()?.publishedProfile?.('soft-tech-splash-screen')||
-        studio()?.profile?.('soft-tech-splash-screen');
-      const duration=Number(cfg?.stop)-Number(cfg?.start);
-      if(Number.isFinite(duration)&&duration>0){
-        const target=Math.min(8500,duration*1000);
-        const pending=Math.max(0,target-(performance.now()-splashStartAt));
-        if(pending>0)await wait(pending);
-      }
+      const ending=(reducedMotion?180+120:560+420);
+      while((studio()?.splashRemaining?.()||0)>ending)await wait(16);
     }
     progress(100,'loading game system');
-    await wait(reducedMotion?180:560);
+    const hold=reducedMotion?180:560;
+    await wait(playButton&&splashPlayed?
+      Math.min(hold,Math.max(0,(studio()?.splashRemaining?.()||0)-(reducedMotion?120:420))):hold);
     await release();
   }
   void runBoot().catch(error=>{
@@ -245,3 +244,4 @@
     }else void release();
   });
 })();
+

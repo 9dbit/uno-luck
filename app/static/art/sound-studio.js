@@ -16,6 +16,24 @@ const known=new Map(KEYS.map(x=>[x[0],x]));
 const KEY='uno_sound_studio_profiles_v1',DB='uno-luck-custom-sound-v1',MAX_BYTES=16*1024*1024;
 const profiles=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(_){return {};}})();
 const bufferCache=new Map();
+let splashNode=null,splashClock=null,spinNode=null,spinRequest=0,spinPending=false;
+let webMusicArmed=false;
+async function warmBuffer(key){
+  if(!window.UNOLuckSound?.prepareContext?.())return false;
+  try{return Boolean(await getBuffer(key));}
+  catch(error){console.warn('[UNO AUDIO preload]',key,error);return false;}
+}
+function splashRemaining(){
+  if(splashClock){
+    const {context,end}=splashClock;
+    return Math.max(0,end-context.currentTime)*1000;
+  }
+  if(fallbackKey==='soft-tech-splash-screen'&&fallbackPlayer){
+    const bounds=limits(fallbackKey,Number(liveProfile(fallbackKey).fileDuration)||fallbackPlayer.duration);
+    return Math.max(0,bounds.stop-fallbackPlayer.currentTime)*1000;
+  }
+  return 0;
+}
 let cloudProfiles=new Map(), cloudRevision='', cloudReady=false, cloudError='';
 let cloudMixer=null, mixerPublishTimer=null;
 let cloudFetch=null, adminKey=sessionStorage.getItem('uno-sound-admin-key')||'';
@@ -222,6 +240,8 @@ function stopSplashAudio(){
   // Called when gameplay becomes visible. The dedicated music element
   // is never paused; only the finished splash lane is stopped.
   stopFallback('soft-tech-splash-screen');
+  if(splashNode){try{splashNode.source.stop();}catch(_){}splashNode=null;}
+  splashClock=null;
 }
 
 function useFallbackSource(key,url){
@@ -254,7 +274,7 @@ function stopMusicMedia({invalidate=false}={}){
   bgmStarting=false;
   if(bgmRaf!==null)cancelAnimationFrame(bgmRaf);
   bgmRaf=null;
-  if(bgmPlayer){bgmPlayer.pause();bgmPlayer.loop=false;}
+  if(bgmPlayer){bgmPlayer.pause();bgmPlayer.loop=false;bgmPlayer.muted=false;}
   if(invalidate){
     if(bgmPlayer){bgmPlayer.removeAttribute('src');bgmPlayer.load();}
     if(bgmObjectUrl){URL.revokeObjectURL(bgmObjectUrl);bgmObjectUrl=null;}
@@ -306,6 +326,7 @@ async function prepareMusicMedia(){
       const player=bgmElement();
       player.src=url;
       player.load();
+      await warmBuffer('background-music');
       bgmPrepared=true;
       return true;
     }catch(error){
@@ -324,6 +345,7 @@ function playMusicMedia(){
   if(!bgmPrepared||bgmRevision!==cloudRevision||document.hidden)
     return Promise.resolve(false);
   const player=bgmElement();
+  if(!bgmHeldForGameplay||bgmGameplayReleased)player.muted=false;
   // A pending denied autoplay must not swallow the first trusted tap.
   if(!player.paused&&!bgmStarting)return Promise.resolve(true);
   const profile=liveProfile('background-music');
@@ -392,6 +414,13 @@ function playMusicGesture(){
 // Keep it silent until the game is visible, then unmute without invoking
 // autoplay from an asynchronous handler. This does not change cloud settings.
 function armMusicOnSplashGesture(){
+  // A decoded buffer and unlocked AudioContext need no muted media reservation.
+  // Start BGM on the music bus only when gameplay is visible.
+  if(bufferCache.has('live:background-music')&&window.UNOLuckSound.webAudioState!=='interrupted'){
+    webMusicArmed=true;
+    return window.UNOLuckSound.unlock().then(ok=>Boolean(ok&&
+      window.UNOLuckSound.webAudioState==='running'));
+  }
   if(!bgmPrepared||bgmRevision!==cloudRevision||document.hidden)return false;
   bgmHeldForGameplay=true;
   bgmGameplayReleased=false;
@@ -399,9 +428,11 @@ function armMusicOnSplashGesture(){
   return playMusicMedia(); // player.play() is invoked within the trusted click
 }
 function activateMusicAtGameplay(){
+  if(webMusicArmed){webMusicArmed=false;return play('background-music',{looping:true});}
   if(!bgmHeldForGameplay)return false;
   bgmGameplayReleased=true;
   const player=bgmElement();
+  player.muted=false;
   if(player.paused&&!bgmStarting){
     bgmHeldForGameplay=false;
     return false;
@@ -418,7 +449,7 @@ function activateMusicAtGameplay(){
   return true;
 }
 function isMusicMediaPlaying(){
-  return bgmStarting||Boolean(bgmPlayer&&!bgmPlayer.paused&&!bgmPlayer.ended);
+  return Boolean(bgmPlayer&&!bgmPlayer.muted&&(bgmStarting||(!bgmPlayer.paused&&!bgmPlayer.ended)));
 }
 function isMusicWebAudioPlaying(){return Boolean(loop?.source);}
 async function prepareSplashMedia(){
@@ -441,6 +472,9 @@ async function prepareSplashMedia(){
       splashUrl=URL.createObjectURL(typed);
     }
     useFallbackSource('soft-tech-splash-screen',splashUrl);
+    await warmBuffer('soft-tech-splash-screen');
+    void warmBuffer('spinning-sound');
+    void warmBuffer('chosen-card');
     splashError='';
     return true;
   })().catch(error=>{
@@ -450,7 +484,7 @@ async function prepareSplashMedia(){
   }).finally(()=>{splashPreparation=null;});
   return splashPreparation;
 }
-function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDuration=0){
+function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDuration=0,sustain=false){
   clearFallbackTiming();
   const serial=++fallbackSerial;
   const p=previewMode?editProfile(key):liveProfile(key);
@@ -467,10 +501,11 @@ function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDurat
     return clamp(level,0,.95);
   };
   const tick=()=>{
-    if(serial!==fallbackSerial||player.paused)return;
+    if(serial!==fallbackSerial)return;
+    if(player.paused){fallbackRaf=requestAnimationFrame(tick);return;}
     const t=player.currentTime;
     if(t>=stop-.025&&!mirrorDuration){
-      if(looping&&getRepeat(key)){
+      if(sustain||(looping&&getRepeat(key))){
         try{player.currentTime=start;}catch(_){}
         fallbackRaf=requestAnimationFrame(tick);return;
       }
@@ -479,7 +514,7 @@ function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDurat
     if(mirrorDuration&&!looping&&t>=stop-.025){stopFallback(key);return;}
     const elapsed=Math.max(0,t-start),remaining=Math.max(0,stop-t);
     const fadeIn=bounds.fadeIn>0?Math.min(1,elapsed/bounds.fadeIn):1;
-    const fadeOut=bounds.fadeOut>0?Math.min(1,remaining/bounds.fadeOut):1;
+    const fadeOut=!sustain&&bounds.fadeOut>0?Math.min(1,remaining/bounds.fadeOut):1;
     // iOS may ignore element.volume. The trim still works, and the device
     // hardware volume remains the authoritative loudness control.
     try{player.volume=clamp(gain()*Math.min(fadeIn,fadeOut),0,1);}catch(_){}
@@ -487,6 +522,7 @@ function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDurat
   };
   const seek=()=>{try{player.currentTime=start;}catch(_){}
     if(fallbackRaf===null)fallbackRaf=requestAnimationFrame(tick);};
+  try{player.volume=bounds.fadeIn>0?0:gain();}catch(_){}
   if(player.readyState>=1)seek();
   else player.addEventListener('loadedmetadata',seek,{once:true});
   player.loop=Boolean(mirrorDuration&&looping&&getRepeat(key));
@@ -495,6 +531,12 @@ function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDurat
   return {player,bounds};
 }
 function playSplashGesture(){
+  if(bufferCache.has('live:soft-tech-splash-screen')&&window.UNOLuckSound.webAudioState!=='interrupted'){
+    return window.UNOLuckSound.unlock().then(ok=>{
+      if(!ok||window.UNOLuckSound.webAudioState!=='running')return false;
+      return play('soft-tech-splash-screen');
+    });
+  }
   // Must be invoked *synchronously* in a real user tap. No await/fetch/IDB
   // can appear between the click and this HTMLMediaElement.play call.
   if(!splashUrl)return Promise.resolve(false);
@@ -514,7 +556,7 @@ function playSplashGesture(){
     return false;
   });
 }
-async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
+async function playFallback(key,{looping=false,forPreview=false,token=null,sustain=false,spinToken=null}={}){
   const entry=known.get(key);if(!entry)return false;
   const serialAtFallback=loopSerial;
   try{
@@ -558,9 +600,10 @@ async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
       if(url?.startsWith('blob:')&&url!==splashUrl)URL.revokeObjectURL(url);
       return false;
     }
+    if(sustain&&spinToken!==spinRequest)return false;
     stopFallback();
     const player=useFallbackSource(key,url);
-    const end=applyMediaBounds(key,player,forPreview,looping,mirrorDuration);
+    const end=applyMediaBounds(key,player,forPreview,looping,mirrorDuration,sustain);
     // Release temporary URLs once a subsequent cue replaces the source.
     // Keeping the current URL intact is required for seeking/repeating.
     const promise=player.play();
@@ -653,8 +696,8 @@ function limits(key,duration,{draft=false}={}){
   const start=clamp(current.start??0,0,Math.max(0,duration-.02));
   const stop=clamp(current.stop??duration,start+.01,duration);
   const length=stop-start;
-  const fadeIn=clamp(current.fadeIn??0,0,length/2);
-  const fadeOut=clamp(current.fadeOut??0,0,length/2);
+  const fadeIn=clamp(current.fadeIn??0,0,length);
+  const fadeOut=clamp(current.fadeOut??0,0,length-fadeIn);
   return {start,stop,length,fadeIn,fadeOut};
 }
 function isCustomized(key){
@@ -757,12 +800,26 @@ async function segmentDuration(key){
   }
 }
 function stopLoop(){
+  webMusicArmed=false;
   if(fallbackKey==='background-music')stopFallback();
   stopMusicMedia();
   loopSerial++;
   if(loop){stopNode(loop,Math.max(.08,loop.bounds.fadeOut));loop=null;}
 }
-async function play(key,{looping=false,forPreview=false}={}){
+function stopSpin(){
+  ++spinRequest;spinPending=false;
+  if(spinNode){try{spinNode.source.stop();}catch(_){}spinNode=null;}
+  stopFallback('spinning-sound');
+}
+function startSpin(){
+  stopSpin();spinPending=true;
+  const token=spinRequest;
+  return play('spinning-sound',{sustain:true,spinToken:token}).finally(()=>{
+    if(token===spinRequest)spinPending=false;
+  });
+}
+function isSpinPlaying(){return spinPending||Boolean(spinNode)||fallbackKey==='spinning-sound';}
+async function play(key,{looping=false,forPreview=false,sustain=false,spinToken=null}={}){
   if(!known.has(key))return false;
   if(forPreview)stopPreview();
   if(looping)stopLoop();
@@ -778,12 +835,13 @@ async function play(key,{looping=false,forPreview=false}={}){
         return playMusicMedia();
       }
       const ok=await playFallback(key,{looping,forPreview,
-        token:isJackpot?jackpotToken:null});
+        token:isJackpot?jackpotToken:null,sustain,spinToken});
       return ok;
     }
     const {context,fx,music}=channel();
     const buffer=await getBuffer(key,{draft:forPreview});
     if(!buffer)return false;
+    if(sustain&&spinToken!==spinRequest)return false;
     if(looping&&serial!==loopSerial)return false;
     if(isJackpot&&jackpotToken!==celebrationRequest)return false;
     let bounds=limits(key,buffer.duration,{draft:forPreview});
@@ -799,12 +857,12 @@ async function play(key,{looping=false,forPreview=false}={}){
     }
     const source=context.createBufferSource(),envelope=context.createGain();
     const now=context.currentTime+.012;
-    const repeat=looping && getRepeat(key);
+    const repeat=sustain||(looping && getRepeat(key));
     source.buffer=playback;
     source.loop=repeat;
     if(repeat){source.loopStart=bounds.start;source.loopEnd=bounds.stop;}
     source.connect(envelope).connect(looping||key==='background-music'?music:fx);
-    const fadeIn=Math.min(bounds.fadeIn,bounds.length/2);
+    const fadeIn=bounds.fadeIn;
     envelope.gain.setValueAtTime(fadeIn>0?.0001:1,now);
     if(fadeIn>0)envelope.gain.linearRampToValueAtTime(1,now+fadeIn);
     if(!repeat && bounds.fadeOut>0){
@@ -813,18 +871,27 @@ async function play(key,{looping=false,forPreview=false}={}){
       envelope.gain.linearRampToValueAtTime(.0001,now+bounds.length);
     }
     const item={source,envelope,bounds};
-    if(looping){
+    if(sustain){
+      spinNode=item;
+      source.start(now,bounds.start);
+      source.onended=()=>{if(spinNode===item)spinNode=null;source.disconnect();envelope.disconnect();};
+    }else if(looping){
       if(repeat)source.start(now,bounds.start);
       else source.start(now,bounds.start,bounds.length);
       loop=item;
       source.onended=()=>{if(loop===item)loop=null;};
     }else{
       source.start(now,bounds.start,bounds.length);
+      if(key==='soft-tech-splash-screen'&&!forPreview){
+        splashNode=item;splashClock={context,end:now+bounds.length};
+      }
       if(forPreview){preview=item;}
       if(isJackpot){item.key=key;celebrationNode=item;}
       source.onended=()=>{
         if(preview===item)preview=null;
         if(celebrationNode===item)celebrationNode=null;
+        if(splashNode===item)splashNode=null;
+        source.disconnect();envelope.disconnect();
       };
     }
     return true;
@@ -1174,6 +1241,7 @@ function show(host){
   }
 }
 window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(this);},
+  startSpin,stopSpin,isSpinPlaying,splashRemaining,
   isCustomized,play,stopLoop,stopPreview,stopCelebration,segmentDuration,
   prepareSplashMedia,playSplashGesture,stopSplashAudio,
   prepareMusicMedia,playMusicGesture,armMusicOnSplashGesture,
@@ -1194,3 +1262,4 @@ document.addEventListener('visibilitychange',()=>{
 });
 setInterval(()=>{if(!document.hidden)void syncCloud(true);},45000);
 })();
+

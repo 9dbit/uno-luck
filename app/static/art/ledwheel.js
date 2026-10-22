@@ -229,6 +229,7 @@
       if(this.active)throw Error('LED selection already in progress');
       this.stopIdle();
       this.active=true;
+      this.startSpinAudio();
       this.turbo=Boolean(turbo);
       this.lastTick=0;
       this.startedAt=performance.now();
@@ -302,6 +303,7 @@
     }
     complete() {
       if(!this.active)return;
+      this.stopSpinAudio();
       cancelAnimationFrame(this.raf);
       this.raf=0;
       this.active=false;
@@ -359,6 +361,7 @@
       this.startIdle();
     }
     cancel(){
+      this.stopSpinAudio();
       this.stopIdle();
       this.clearIllumination();
       cancelAnimationFrame(this.raf);this.raf=0;
@@ -369,6 +372,18 @@
       if(this.resolve)this.resolve(false);
       this.resolve=null;this.pending=null;
     }
+    startSpinAudio(){
+      const token=this.audioSerial=(this.audioSerial||0)+1;
+      void Promise.resolve(window.UNOLuckSound?.unlock?.()).then(ok=>{
+        if(ok&&this.active&&token===this.audioSerial&&!document.hidden)
+          void window.UNOLuckSound?.startSpin?.();
+      });
+    }
+    stopSpinAudio(){
+      this.audioSerial=(this.audioSerial||0)+1;
+      window.UNOLuckSound?.stopSpin?.();
+    }
   }
   window.UNOLuckLEDWheel=LEDWheel;
 })();
+

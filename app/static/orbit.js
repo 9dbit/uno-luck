@@ -169,7 +169,7 @@ async function pickOne(){
   isSpinning=true;updateButtons();
   window.UNOLuckMatch?.clear();
   window.UNOLuckMotion?.beginSpin();
-  unlockAudio().then(ok=>{if(ok){sfx('tap');sfx('spin');}});
+  unlockAudio().then(ok=>{if(ok&&wheel?.active)sfx('tap');});
   say(`SPIN ${expected}/3 · LED kartu bergerak dari kiri ke kanan…`);
   let confirmed=null;
   try {
@@ -180,7 +180,6 @@ async function pickOne(){
     if(!card)throw Error('Server belum memberikan kartu terpilih');
     const aligned=await wheel.settle(card,phase);
     if(!aligned)throw Error('Putaran terhenti, memulihkan hasil server');
-    sfx('tick');
     await wheel.transferTo($('result-'+(phase-1)));
     // The server result is painted ONLY after the transfer finishes.
     localStorage.removeItem(pendingKey);
@@ -408,11 +407,11 @@ function listeners(){
   addEventListener('resize',layoutRing);
   // The intro is hands-free. Background Music is requested immediately on
   // entering gameplay, not only on a later touch or visibilitychange.
-  window.addEventListener('uno:boot-finished',()=>{
+  window.addEventListener('uno:boot-finished',async()=>{
     if(!musicEnabled)return;
     // Splash PLAY activated a separate music lane inside the user's native
     // gesture. Unmute it immediately here, without Safari-blocked autoplay.
-    const reserved=window.UNOLuckSoundStudio?.activateMusicAtGameplay?.();
+    const reserved=await window.UNOLuckSoundStudio?.activateMusicAtGameplay?.();
     if(reserved){
       void startMusic(); // records requested state; never restarts active media
       return;
@@ -441,13 +440,16 @@ function listeners(){
   document.addEventListener('touchend',activate,{passive:true,capture:true});
   document.addEventListener('visibilitychange',()=>{
     if(document.hidden){
+      wheel?.stopSpinAudio();
       wheel?.stopIdle();
       stopMusic();
       if(isAuto)cancelAuto=true;
     }else{
+      if(wheel?.active)wheel.startSpinAudio();
       if(!isSpinning)wheel?.startIdle();
       if(!$('game-shell').classList.contains('is-booting'))void startMusic();
     }
   });
 }
 resetRing();listeners();window.UNOLuckSound?.setEnabled(sfxEnabled);loadState();
+

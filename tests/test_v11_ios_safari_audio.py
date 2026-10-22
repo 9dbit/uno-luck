@@ -42,7 +42,7 @@ def test_safari_play_button_activates_published_splash_in_trusted_event():
 def test_ios_media_fallback_preserves_sound_studio_settings():
     assert "limits(key,duration,{draft:previewMode})" in STUDIO
     assert "const fadeIn=bounds.fadeIn" in STUDIO
-    assert "const fadeOut=bounds.fadeOut" in STUDIO
+    assert "const fadeOut=!sustain&&bounds.fadeOut" in STUDIO
     assert "if(t>=stop-.025&&!mirrorDuration)" in STUDIO
     assert "stopFallback(key)" in STUDIO
     assert "get mediaUnlocked()" in STUDIO
@@ -58,3 +58,4 @@ def test_coin_ledger_and_probability_unchanged():
     from app import orbit
     assert orbit.WIN_PERCENT==80
     assert [orbit.CELEBRATIONS[i]['multiplier'] for i in range(1,6)]==[200,80,30,10,2]
+
