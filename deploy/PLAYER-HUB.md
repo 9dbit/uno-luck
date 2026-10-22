@@ -7,7 +7,9 @@ untouched while its ephemeral SQLite backup remains blocked.
 - Ruby/gold menu tiles, dedicated daily tournament entry, retained player-only
   rules/profile/sound/BET navigation. Gift remains exclusive to the header gift.
 - Five visual Coin chips retain approved stakes 10/25/50/100/250. Draft changes
-  apply only after confirmation, and remain locked during a paid round/AUTO.
+  apply only after confirmation. During a paid round/AUTO, the choice is queued
+  for the next round after the current round and AUTO batch finish; the existing
+  stake and uncertain-request retry stay unchanged.
 - Animated header logo opens About UNO LUCK and Soft Tech. Explicitly distinguishes
   this custom virtual-credit game from official Mattel UNO.
 - Fixed close/back and confirmation controls; scrollable content; reduced-motion

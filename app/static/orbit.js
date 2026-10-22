@@ -10,6 +10,7 @@ const MUTE_MUSIC = 'uno_orbit_music';
 const MUTE_EFFECTS = 'uno_orbit_sfx';
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let account = null, currentRound=null, last=null, ruleset=null, stakeIndex=1, isSpinning=false;
+let nextBetIndex=null;
 let isTurbo=false, isAuto=false, cancelAuto=false, ringCards=[], wheel=null;
 const AUTO_ROUNDS=[1,3,5,10];
 let autoRounds=10;
@@ -210,12 +211,19 @@ async function pickOne(){
     return false;
   }finally{
     isSpinning=false;
+    applyNextBet();
     window.UNOLuckMotion?.endSpin();
     wheel?.startIdle();
     updateButtons();
   }
 }
 function canChangeBet(){return !!account&&!isSpinning&&!isAuto&&!currentRound&&!pendingInfo();}
+// Only promote a confirmed choice after the paid round, AUTO batch and any
+// uncertain request finish. Never change the stake used for an in-flight retry.
+function applyNextBet(){
+  if(nextBetIndex===null||!canChangeBet())return;
+  stakeIndex=nextBetIndex;nextBetIndex=null;
+}
 function autoBudget(rounds){return (rounds-(currentRound?1:0))*(currentRound?.stake??STAKES[stakeIndex]);}
 async function autoLoop(roundLimit){
   if(isAuto||isSpinning||!account||pendingInfo()||document.hidden||
@@ -234,7 +242,7 @@ async function autoLoop(roundLimit){
     }
     if(!cancelAuto)await wait(isTurbo?270:510);
   }
-  isAuto=false;updateButtons();
+  isAuto=false;applyNextBet();updateButtons();
 }
 function modal(title){delete $('modal').dataset.view;$('modal-back').hidden=title==='Menu';$('modal').classList.remove('coin-modal','player-panel');$('modal').querySelector('.panel-actions')?.remove();$('modal-title').textContent=title;$('modal-content').replaceChildren();$('modal-content').scrollTop=0;if(!$('modal').open)$('modal').showModal();return $('modal-content');}
 function paragraph(parent,text){const p=document.createElement('p');p.textContent=text;parent.append(p);return p;}
@@ -307,10 +315,10 @@ function showRules(){
   area.append(details);
 }
 function showStakeChoices(){
-  const area=playerPanel('Bet Setting');$('modal').dataset.view='bet';let selected=stakeIndex;
+  const area=playerPanel('Bet Setting');$('modal').dataset.view='bet';let selected=nextBetIndex??stakeIndex;
   const hero=panelNode('section','bet-hero');
   hero.append(panelNode('span','panel-eyebrow','YOUR NEXT ROUND'));
-  const amount=panelNode('strong','panel-amount',idMoney(currentRound?.stake??STAKES[selected])+' Coin');
+  const amount=panelNode('strong','panel-amount',idMoney(STAKES[selected])+' Coin');
   amount.setAttribute('aria-live','polite');hero.append(amount,panelNode('p','','Satu BET. Tiga kartu.'));
   const mini=panelNode('div','bet-mini-cards');mini.setAttribute('aria-hidden','true');
   for(const [color,face] of [['red','1'],['blue','2'],['green','3']])mini.append(htmlCard({color,face},true));
@@ -320,19 +328,28 @@ function showStakeChoices(){
   const grid=panelNode('div','bet-grid');grid.setAttribute('role','group');grid.setAttribute('aria-label','Pilihan BET');area.append(grid);
   const preview=panelNode('p','bet-preview');preview.setAttribute('role','status');
   function refresh(){
-    const cost=currentRound?.stake??STAKES[selected];amount.textContent=idMoney(cost)+' Coin';
+    const cost=STAKES[selected];amount.textContent=idMoney(cost)+' Coin';
     for(const item of grid.children)item.setAttribute('aria-pressed',String(Number(item.dataset.bet)===cost));
-    preview.textContent=!canChangeBet()?'BET terkunci sampai ronde / AUTO selesai.':(account?.balance??0)<cost?'Coin belum cukup untuk BET ini. Pilihan dapat disimpan.':`Sisa setelah BET pertama: ${idMoney((account?.balance??0)-cost)} Coin`;
+    preview.textContent=isAuto?`AUTO berjalan tetap ${idMoney(currentRound?.stake??STAKES[stakeIndex])} Coin. Pilihan ini berlaku setelah AUTO dan ronde berjalan selesai.`:
+      currentRound?`Ronde berjalan tetap ${idMoney(currentRound.stake)} Coin (${currentRound.picked}/3 kartu). Pilihan ini berlaku mulai ronde berikutnya.`:
+      !canChangeBet()?'Pilihan ini disimpan untuk ronde berikutnya setelah SPIN tersinkronkan.':
+      (account?.balance??0)<cost?'Coin belum cukup untuk BET ini. Pilihan dapat disimpan.':`Sisa setelah BET pertama: ${idMoney((account?.balance??0)-cost)} Coin`;
   }
   for(const [i,cost] of STAKES.entries()){
-    const btn=modalButton(grid,'',()=>{if(!canChangeBet())return;selected=i;refresh();});
-    btn.setAttribute('aria-label',idMoney(cost)+' Coin');btn.dataset.bet=String(cost);btn.disabled=!canChangeBet();
+    const btn=modalButton(grid,'',()=>{selected=i;refresh();});
+    btn.setAttribute('aria-label',idMoney(cost)+' Coin');btn.dataset.bet=String(cost);btn.disabled=!account;
     btn.append(panelNode('span','bet-chip',idMoney(cost)),panelNode('span','bet-chip-label','COIN'),panelNode('span','bet-selected','✓'));
     btn.lastChild.setAttribute('aria-hidden','true');
   }
   area.append(preview,panelNode('p','panel-fine','Pilih chip lalu konfirmasi. Menutup panel membatalkan perubahan.'));
-  const save=panelAction('GUNAKAN BET',()=>{if(!canChangeBet())return;stakeIndex=selected;paintRound(null,true);updateButtons();closeModal();say(`Bet berikutnya ${idMoney(STAKES[selected])} Coin.`);});
-  save.disabled=!canChangeBet();refresh();
+  const save=panelAction('GUNAKAN BET',()=>{
+    if(!account)return;
+    const ready=canChangeBet();nextBetIndex=selected;applyNextBet();
+    if(ready)paintRound(null,true);
+    updateButtons();closeModal();
+    say(`Bet berikutnya ${idMoney(STAKES[selected])} Coin.${ready?'':' Berlaku setelah ronde / AUTO berjalan selesai.'}`);
+  });
+  save.disabled=!account;refresh();
 }
 function showAutoSettings(){
   if(isAuto){cancelAuto=true;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
@@ -474,6 +491,7 @@ async function loadState(quiet=false){
     }
     if(data.round?.cards?.length)wheel.recover(data.round.cards.at(-1));
     else if(data.recent?.length && data.recent[0].cards?.length)wheel.recover(data.recent[0].cards.at(-1));
+    applyNextBet();updateButtons();
     $('connection-status').textContent='ONLINE';
     if(!quiet)say(data.round?`Lanjutkan ronde: SPIN ${data.round.picked+1}/3`:'Sentuh SPIN untuk memilih kartu pertama');
   }catch(e){$('connection-status').textContent='OFFLINE';say(e.message);}
