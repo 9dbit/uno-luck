@@ -36,7 +36,7 @@ def test_editing_is_real_and_persistent_without_server_upload():
 def test_real_game_events_and_boot_use_studio_cues():
     assert 'sound-studio.js?v=1144' in H
     assert 'sound-studio.css?v=1120' in H
-    assert H.index('sound.js?v=1133') < H.index('sound-studio.js?v=1144') < H.index('orbit.js?v=1146')
+    assert H.index('sound.js?v=1133') < H.index('sound-studio.js?v=1144') < H.index('orbit.js?v=1148')
     assert "installStudio,channels,prepareContext,playCue,result" in S
     assert "studio?.isCustomized(cue)" in S
     assert "studio?.isCustomized('background-music')" in S
@@ -48,7 +48,11 @@ def test_real_game_events_and_boot_use_studio_cues():
     assert "showSoundStudio" not in GAME
     assert "last.combo!=='COLOR_MATCH')window.UNOLuckSound?.result(false)" in GAME
     assert "window.UNOLuckSound?.play('lock')" in (P/'art/ledwheel.js').read_text()
-    assert "sfx('spin')" in GAME and "sfx('tap')" in GAME
+    assert "sfx('tap')" in GAME
+    wheel=(P/'art/ledwheel.js').read_text()
+    assert "this.startSpinAudio();" in wheel and "this.stopSpinAudio();" in wheel
+    assert "window.UNOLuckSound?.startSpin?.()" in wheel
+    assert "window.UNOLuckSound?.stopSpin?.()" in wheel
 
 def test_pill_layout_is_wider_without_covering_spin():
     assert "width:29%!important" in C
@@ -81,7 +85,7 @@ def test_music_repeat_off_and_on_end_to_end_wiring():
     assert "repeatInput.checked=getDraftRepeat(key)" in A
     assert "setRepeat(key,repeatInput.checked)" in A
     assert "repeat:getDraftRepeat(key)" in A
-    assert "const repeat=looping && getRepeat(key)" in A
+    assert "const repeat=sustain||(looping && getRepeat(key))" in A
     assert "source.loop=repeat" in A
     assert "if(repeat)source.start(now,bounds.start)" in A
     assert "else source.start(now,bounds.start,bounds.length)" in A

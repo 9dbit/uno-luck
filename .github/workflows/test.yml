@@ -1,7 +1,7 @@
 name: Test UNO LUCK Spin
 on:
   push:
-    branches: [main, 'fix/uno-v13-solid-uno-led-emissive-20261019']
+    branches: [main, 'fix/uno-v13-solid-uno-led-emissive-20261019', 'feat/uno-player-hub-tournament-20261022']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -58,6 +58,8 @@ jobs:
           python tests/visual_qa_led_chase.py
           python tests/visual_qa_player_admin.py
           python tests/visual_qa_player_panels.py
+          npm install --no-save --package-lock=false playwright
+          node tests/qa_player_hub.cjs
           python tests/visual_qa_pwa_recovery.py
           python tests/visual_qa_solid_led.py
           python tests/visual_qa_smooth_hud_splash.py
@@ -77,6 +79,7 @@ jobs:
             artifacts/uno-v13-solid-led/*
             artifacts/uno-v1143-player-admin/*
             artifacts/uno-v1146-player-panels/*
+            artifacts/uno-v1148-player-hub/*
             artifacts/uno-v1144-pwa-recovery/*
             artifacts/uno-v11-led-chase/*.png
             artifacts/uno-v11-gameplay-music/*.png

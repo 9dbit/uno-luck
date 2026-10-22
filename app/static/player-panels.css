@@ -49,3 +49,101 @@
   .player-panel .auto-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .player-panel .bet-grid button{font-size:12px}
 }
+
+/* Player lounge: warm gold, deep ruby and generous touch targets. */
+.game-header #about-btn{padding:0;border:0;background:none;pointer-events:auto;cursor:pointer;display:grid;place-items:center;min-height:44px}
+#about-btn img{display:block;width:100%;height:auto;max-height:100%;object-fit:contain}
+#about-btn:focus-visible{outline:2px solid #ffe6a2;outline-offset:5px;border-radius:18px}
+.modal-header #modal-back[hidden]{display:none}
+.modal-header #modal-back{font-size:30px;background:#fff1;border:1px solid #ffdc8e30}
+.modal-header h2{flex:1;min-width:0}
+.modal.player-panel .modal-card{border-color:#e8ba744f;background:radial-gradient(ellipse at 95% 0,#74233855,transparent 48%),linear-gradient(145deg,#310c18,#140810 65%);box-shadow:0 28px 80px #000b,inset 0 1px #ffe0a733}
+.player-panel .modal-header{border-bottom:1px solid #f9d79518;padding:14px 18px}
+.player-panel .modal-header h2{color:#fff0d2;font-size:20px}
+.player-panel .modal-header #modal-close{background:#fff1;border:1px solid #ffe4be30;font-weight:400}
+.player-panel .modal-content{padding:20px;color:#e7d3c4;scrollbar-width:thin;scrollbar-color:#94714c transparent}
+.player-panel button{cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .16s,transform .16s,border-color .16s}
+.player-panel button:active:not(:disabled){transform:scale(.975)}
+.player-panel button:focus-visible,.player-panel summary:focus-visible{outline:2px solid #fff0ab;outline-offset:3px}
+.player-panel .panel-primary{background:linear-gradient(110deg,#ffe7a4,#e9b85d 70%,#c58b3a);color:#3b1a0d;border:0;box-shadow:0 4px 16px #0004;text-shadow:none;font-size:13px}
+.player-panel .panel-primary:disabled{opacity:.45;cursor:not-allowed}
+.player-panel .panel-actions{background:#1b0a12;border-top-color:#f9d79518;padding:14px 20px}
+.player-panel .panel-fine{font-size:11px;color:#bea495;line-height:1.6;margin:12px 0 0}
+.menu-welcome{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+.menu-avatar{width:56px;height:56px;border-radius:50%;border:2px solid #dcb165;padding:3px;background:#1b0811;object-fit:cover}
+.menu-welcome h3{color:#fff2da;font-size:23px;line-height:1.3;margin:2px 0;overflow-wrap:anywhere}
+.menu-welcome p{font-size:12px;color:#cbb3a4;margin:0!important}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.player-panel .menu-tile{display:flex;align-items:center;gap:12px;margin:0;min-width:0;text-align:left;padding:18px 14px;background:linear-gradient(140deg,#ffffff08,#ffffff02);border:1px solid #e1b88526;border-radius:18px;min-height:86px;color:#fff0d5;box-shadow:none}
+.menu-grid .menu-tile{flex-wrap:wrap;align-content:start;gap:12px;position:relative}
+.menu-icon{display:grid;place-items:center;flex:none;color:#edca84;width:32px;height:32px}
+.menu-icon svg,.tournament-emblem svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.menu-copy{display:flex;flex:1;flex-direction:column;gap:5px;min-width:0}
+.menu-copy strong{font-size:15px;font-weight:750;line-height:1.25}
+.menu-copy small{font-size:11px;color:#c3a59a;font-weight:400;line-height:1.4}
+.menu-grid .menu-copy{flex-basis:100%}
+.menu-chevron{font-size:24px;font-weight:400;color:#dec29880}
+.menu-grid .menu-chevron{position:absolute;right:14px;top:18px}
+.player-panel .tournament-entry{background:radial-gradient(ellipse at right,#c1954e25,transparent),linear-gradient(120deg,#532031,#2b1421);border-color:#e9b66260;min-height:90px}
+.tournament-entry .menu-icon{width:44px;height:44px;padding:8px;border-radius:50%;background:#e6b85116}
+.tournament-entry .menu-copy strong{font-size:19px}
+.tournament-entry .menu-copy small{color:#e0bf99}
+.player-panel .menu-signoff{font-size:10px;text-align:center;letter-spacing:.08em;color:#a68e83;margin:22px 0 0}
+.player-panel button[aria-pressed=true]{background:#e5b66a14;border-color:#d9ad6880;box-shadow:none}
+.player-panel .bet-hero{text-align:center;position:relative;padding:25px 0 20px;border-radius:20px;background:radial-gradient(ellipse at center top,#e2af6430,transparent 75%)}
+.player-panel .bet-hero .panel-amount{font-size:40px;letter-spacing:-.03em;margin:9px 0 6px;color:#ffe6ad}
+.bet-hero p{font-size:12px;color:#d2b3a0}
+.bet-mini-cards{display:flex;justify-content:center;gap:5px;margin-top:16px}
+.bet-mini-cards .card3d{width:28px;height:40px;border-radius:4px;filter:none;opacity:1;flex:none;box-shadow:0 3px 8px #0006}
+.bet-mini-cards .card3d:first-child{transform:rotate(-12deg) translateY(4px)}
+.bet-mini-cards .card3d:last-child{transform:rotate(12deg) translateY(4px)}
+.bet-mini-cards .number{font-size:16px!important}.bet-mini-cards .small-num{font-size:5px!important}
+.bet-balance{display:flex;justify-content:space-between;gap:10px;margin:18px 0 24px;padding-bottom:16px;border-bottom:1px solid #e1b88520;font-size:12px}
+.bet-balance strong{color:#fff0ce;font-variant-numeric:tabular-nums}
+.player-panel .bet-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:14px 0 18px}
+.player-panel .bet-grid button{position:relative;display:flex;align-items:center;flex-direction:column;gap:7px;padding:12px 3px 10px;min-height:102px;background:transparent;border:1px solid transparent;border-radius:16px}
+.bet-chip{display:grid;place-items:center;width:clamp(38px,10vw,66px);aspect-ratio:1;border-radius:50%;border:4px double #f3d19c;background:repeating-conic-gradient(#bc8b4a 0deg 14deg,#f3d29a 14deg 28deg);box-shadow:0 3px 0 #704623,0 6px 12px #0004;position:relative;isolation:isolate;font-size:16px;color:#fff2d5;font-weight:900;font-variant-numeric:tabular-nums}
+.bet-chip:before{content:'';position:absolute;inset:3px;border-radius:50%;background:radial-gradient(circle at 35% 25%,#ad3853,#591325);border:1px solid #f8db9d85;z-index:-1}
+[data-bet='10'] .bet-chip:before{background:radial-gradient(circle at 35% 25%,#348276,#17413d)}
+[data-bet='50'] .bet-chip:before{background:radial-gradient(circle at 35% 25%,#4474a5,#223655)}
+[data-bet='100'] .bet-chip:before{background:radial-gradient(circle at 35% 25%,#9151a5,#462359)}
+[data-bet='250'] .bet-chip:before{background:radial-gradient(circle at 35% 25%,#a37b32,#513914)}
+.bet-chip-label{font-size:8px;letter-spacing:.14em;color:#c7ad94}
+.bet-selected{position:absolute;right:2px;top:2px;border-radius:50%;width:18px;height:18px;background:#f5d088;color:#382010;font-size:11px;opacity:0}
+.bet-grid [aria-pressed=true] .bet-selected{opacity:1}
+.player-panel .bet-grid button[aria-pressed=true]{background:#e5b66a12;border-color:#d9ad6880;box-shadow:inset 0 0 18px #e5b66a0a}
+.player-panel .bet-preview{color:#e7c58f;font-size:12px;min-height:36px;margin:0}
+.tournament-hero{text-align:center;padding:16px 8px 22px;background:radial-gradient(ellipse at 50% 20%,#e0af6d20,transparent 70%)}
+.tournament-emblem{display:block;width:68px;height:68px;padding:14px;color:#ffdc92;margin:0 auto 12px;border-radius:50%;background:linear-gradient(145deg,#edbd6426,#edbd6403);border:1px solid #edbd6440;box-shadow:0 0 35px #edbd6410}
+.tournament-hero h3{font-size:32px;line-height:1.2;color:#ffedc7;margin:5px 0 10px;letter-spacing:-.025em}
+.tournament-hero p{font-size:12px;max-width:260px;margin:0 auto 16px!important;color:#cfb4a4}
+.event-meta{display:flex;justify-content:center;gap:6px;flex-wrap:wrap}
+.event-meta span{border:1px solid #e4b86f30;border-radius:99px;padding:5px 9px;font-size:9px;color:#e9c88e}
+.player-panel .event-date{font-size:11px;text-align:center;color:#bba296}
+.tournament-stats{display:grid;grid-template-columns:repeat(3,1fr);background:#ffffff05;border-radius:16px;padding:18px 0;margin:18px 0 10px}
+.tournament-stats div{text-align:center;border-right:1px solid #e4b86f20}.tournament-stats div:last-child{border:0}
+.tournament-stats small{display:block;font-size:8px;letter-spacing:.12em;color:#bea795}
+.tournament-stats strong{display:block;color:#f5d496;font-size:24px;margin-top:5px;font-variant-numeric:tabular-nums}
+.tournament-progress{display:block;width:100%;height:5px;border:0;accent-color:#edc16f;border-radius:5px;overflow:hidden;background:#fff1}
+.tournament-progress::-webkit-progress-bar{background:#fff1}.tournament-progress::-webkit-progress-value{background:#edc16f}
+.leaderboard-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:22px 0 8px}
+.leaderboard-heading h3{font-size:15px;color:#fff0d5;margin:0}
+.player-panel .text-action{width:auto;min-height:44px;font-size:11px;padding:8px;margin:0;border:0;background:none;color:#dfbd82}
+.leaderboard{list-style:none;margin:0;padding:0}
+.leaderboard li{display:flex;align-items:center;gap:12px;min-height:57px;padding:10px 8px;border-bottom:1px solid #fff1}
+.leaderboard li.is-you{background:#e6bb6110;border-radius:12px;border-color:transparent}
+.rank-badge{width:26px;text-align:center;flex:none;color:#e3c084;font-weight:800}
+.leader-name{flex:1;min-width:0;overflow-wrap:anywhere;font-size:13px;color:#e8dace}
+.leader-score{font-size:13px;color:#e9c887;white-space:nowrap}
+.player-panel .tournament-empty{padding:25px 18px;text-align:center;border:1px dashed #dcb36e30;border-radius:16px;font-size:12px;color:#bfa696}
+.about-hero{text-align:center;padding:0 10px 20px}.about-logo{display:block;width:160px;max-width:65%;margin:0 auto 12px}
+.about-hero h3{font-size:24px;color:#ffe8bb;line-height:1.2;margin:10px auto 0;max-width:300px}
+.player-panel .about-tabs{display:flex;gap:4px;padding:4px;background:#0003;border-radius:99px;margin:6px 0 24px}
+.player-panel .about-tabs button{border:0;border-radius:99px;margin:0;flex:1;background:none;font-size:12px;color:#bfa793}
+.player-panel .about-tabs button[aria-pressed=true]{background:#e8c485;color:#392012}
+.about-story h3{color:#ffe7bb;font-size:17px}.about-story p{font-size:13px;line-height:1.8;color:#d3bcad}
+.about-softtech{width:120px;display:block;margin:20px auto 24px}
+@media(hover:hover){.player-panel .menu-tile:hover{background-color:#f2cf8012;border-color:#e9ba6f88}.player-panel .bet-grid button:hover:not(:disabled){background:#f2cf8012}}
+@media(max-width:359px){.player-panel .modal-content{padding:16px 12px}.player-panel .menu-tile{padding:15px 12px}.menu-copy strong{font-size:14px}.menu-copy small{font-size:10px}.player-panel .bet-grid{gap:2px}.bet-chip{font-size:13px}.player-panel .bet-hero .panel-amount{font-size:34px}}
+@media(prefers-reduced-motion:no-preference){.modal[open] .modal-card{animation:panel-arrive .2s ease-out}@keyframes panel-arrive{from{opacity:0;transform:translateY(12px) scale(.99)}to{opacity:1;transform:none}}}
+@media(prefers-reduced-motion:reduce){.player-panel button{transition:none}}
