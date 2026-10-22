@@ -59,6 +59,8 @@ with sync_playwright() as pw:
             page.locator('#wallet-open').click()
             page.locator('.coin-history-row').nth(7).wait_for()
             assert page.locator('#modal-content button').count()==0
+            # Measure scroll stability after the actual opening animation settles.
+            page.locator('.modal-card').evaluate('(e)=>Promise.all(e.getAnimations().map(a=>a.finished))')
             top=page.locator('#coin-total').bounding_box()['y']
             page.locator('.coin-history').evaluate('(e)=>e.scrollTop=e.scrollHeight')
             assert abs(page.locator('#coin-total').bounding_box()['y']-top)<1
