@@ -45,3 +45,24 @@ The Railway service and production remain untouched. Render's attached disk
 requires one instance and a brief interruption during deployment. Backups must
 be kept independently of that disk. Account connection, data import and live
 verification must be completed before calling this staging service ready.
+
+## Verified deployment — 22 October 2026 WIB
+
+- User confirmed workspace `tea-dbcl9lo473hc739ebb70` and recurring base cost USD 7.25/month (compute 7 + 1 GB disk 0.25, excluding tax/overages).
+- Public staging: https://uno-luck-render-staging.onrender.com/
+- Service: `srv-dbclgblg1s2s73dn0jig`; Blueprint: `exs-dbclfdjncjis73cri5a0`.
+- Singapore, one `0.5c-512mb` instance; disk `dsk-dbclgbtg1s2s73dn0k1g`, 1 GB mounted at `/data/uno-luck`. Service auto-deploy off.
+- Deployed application commit `1054d9784fad7994fcff382005eb5568a7f1542c`; CI run `39698637046` completed successfully in all three jobs.
+- Initial deploy `dep-dbclgctg1s2s73dn0seg` became live. Redeploy `dep-dbclj4dg1s2s73dna3c0` became live at 00:32:57 UTC.
+- HTTPS 200 at homepage, /health, /api/ui-version, /assets/player-panels.css?v=1146, /api/sounds/health. UI release `db4a15cc4c46a324a1a8`; shell no-store, CSS must-revalidate.
+- Eight published audio files imported onto the Render disk. Every public file's SHA-256 equals Railway. Full public manifests are identical, revision `801acad084900b626931ffa1`, including trims, fades, repeat, mirror and mixer. No Railway sound mutations.
+- Live browser QA: PLAY loads ONLINE gameplay; AUTO opens configuration without spinning; one selected AUTO round completed three picks and stopped, 1000 -> 975 stake -> 1025 after a 50-coin Color Match payout.
+- A separate isolated guest's paid partial round was seeded before redeploy. After replacement, exact account/balance/round remained; replay of the same request returned replayed=true without a second charge or additional pick. SQLite integrity_check returned ok; audio revision persisted.
+- Physical iPhone/Safari/PWA acceptance remains outstanding.
+
+### Remaining data migration boundary
+
+Old Railway balances/history have NOT been copied. Render currently contains isolated QA guests. Guest sessions are origin-bound and databases are not synchronized; do not advertise automatic failover or full historical-data parity.
+
+A targeted Railway CLI command on TRADEVICEPC could not run because railway was not on PATH. Subsequent command discovery and a scoped npx Railway SSH attempt were rejected by automatic approval review as unauthorized remote-device/database access. No source database read/export or changes occurred. Obtain explicit authorization for the scoped TRADEVICEPC Railway backup path, or use a separately authorized source backup, before importing old data. Preserve the current Render QA data and use a consistent SQLite backup/import procedure.
+
