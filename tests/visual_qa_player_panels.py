@@ -90,7 +90,7 @@ with sync_playwright() as pw:
             page.screenshot(path=str(OUT/f'{engine}-bet-{width}x{height}.png'));close()
             page.locator('#auto-btn').click();bounds()
             page.locator('[data-rounds="3"]').click()
-            assert page.locator('.auto-budget dd').nth(1).inner_text()=='75 Coin'
+            assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='75 Coin'
             page.screenshot(path=str(OUT/f'{engine}-auto-{width}x{height}.png'));close()
         assert requests==[],requests
         page.set_viewport_size({'width':393,'height':852})
@@ -101,7 +101,7 @@ with sync_playwright() as pw:
         assert page.locator('#last-stake').inner_text()=='250'
         page.locator('#auto-btn').click();page.locator('[data-rounds="10"]').click()
         assert page.locator('#auto-start').is_disabled()
-        assert page.locator('.auto-budget dd').nth(1).inner_text()=='2.500 Coin';close()
+        assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='2.500 Coin';close()
         menu('Bet Setting');page.locator('[data-bet="25"]').click()
         page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
         # Speed up only animation in this control test; separate suites test LED timing.
@@ -140,7 +140,7 @@ with sync_playwright() as pw:
         assert page.locator('#last-stake').inner_text()=='25'
         state['account']['balance']=0;page.evaluate('() => loadState(true)')
         page.locator('#auto-btn').click();page.locator('[data-rounds="1"]').click()
-        assert page.locator('.auto-budget dd').nth(1).inner_text()=='0 Coin'
+        assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='0 Coin'
         assert page.locator('#auto-start').is_enabled()
         mode['value']='normal';start=len(requests);page.locator('#auto-start').click()
         page.wait_for_function('() => !isAuto&&!isSpinning')
@@ -178,7 +178,7 @@ with sync_playwright() as pw:
                         'complete':False,'combo':None,'tier':None,'payout':None,'delta':None}
         page.evaluate('() => {stakeIndex=1;return loadState(true);}')
         page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click()
-        assert page.locator('.auto-budget dd').nth(1).inner_text()=='20 Coin'
+        assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='20 Coin'
         start=len(requests);page.locator('#auto-start').click()
         page.wait_for_function('() => !isAuto&&!isSpinning')
         assert len(requests)-start==8

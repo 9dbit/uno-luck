@@ -53,4 +53,4 @@ Physical iPhone acceptance remains necessary.
 
 AUTO round choices show a three-card illustration, large count and selected checkmark. Budget rows and BET balance use a local decorative gold coin SVG. A delegated activation handler provides press feedback and the existing push-button sound for dynamic player controls; disabled controls and muted effects remain silent. SPIN and TURBO no longer schedule a duplicate tap sound. Sound Cloud settings and round/AUTO accounting are unchanged.
 
-Validation: 174 local pytest pass (one existing generated-branding skip); RDC Chrome touch QA against preview sources checks four viewport sizes, one cue per tap, mute, image loading, no horizontal overflow, and existing next-BET/AUTO stake invariants. CI runs the same touch regression in Chromium and WebKit.
+Validation: 174 local pytest pass (one existing generated-branding skip); RDC Chromium and WebKit touch QA against preview sources passed four viewport sizes, one cue per tap, mute, image loading, no horizontal overflow, and existing next-BET/AUTO stake invariants. CI runs the same touch regression in Chromium and WebKit.

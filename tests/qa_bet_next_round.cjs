@@ -53,10 +53,11 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
    for(const [width,height] of [[320,568],[393,852],[430,932],[852,393]]){
     await p.setViewportSize({width,height});await tapOnce(p.locator('#auto-btn'));
     assert.equal(await p.locator('.auto-card-fan img').count(),12);
+    await p.locator('.auto-card-fan img').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));
     assert.equal(await p.locator('.auto-budget .coin-value-icon').count(),3);
     await tapOnce(p.locator('[data-rounds="5"]'));
     assert.equal(await p.locator('[data-rounds="5"]').getAttribute('aria-pressed'),'true');
-    assert.equal(await p.locator('.auto-budget dd').nth(1).innerText(),'100 Coin');
+    assert.equal(await p.locator('.auto-budget .coin-value-text').nth(1).innerText(),'100 Coin');
     assert(await p.locator('.auto-budget img').evaluateAll(imgs=>imgs.every(i=>i.complete&&i.naturalWidth>0)));
     assert(await p.locator('.modal-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'no horizontal overflow');
     await p.screenshot({path:out+'/'+engine+'-auto-'+width+'x'+height+'.png'});
