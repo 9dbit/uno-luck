@@ -170,7 +170,7 @@ async function pickOne(){
   isSpinning=true;updateButtons();
   window.UNOLuckMatch?.clear();
   window.UNOLuckMotion?.beginSpin();
-  unlockAudio().then(ok=>{if(ok&&wheel?.active)sfx('tap');});
+  void unlockAudio();
   say(`SPIN ${expected}/3 · LED kartu bergerak dari kiri ke kanan…`);
   let confirmed=null;
   try {
@@ -323,7 +323,7 @@ function showStakeChoices(){
   const mini=panelNode('div','bet-mini-cards');mini.setAttribute('aria-hidden','true');
   for(const [color,face] of [['red','1'],['blue','2'],['green','3']])mini.append(htmlCard({color,face},true));
   hero.append(mini);area.append(hero);
-  const balance=panelNode('div','bet-balance');balance.append(panelNode('span','','Coin tersedia'),panelNode('strong','',idMoney(account?.balance??0)));area.append(balance);
+  const balance=panelNode('div','bet-balance');balance.append(panelNode('span','','Coin tersedia'),coinValue(account?.balance??0,'strong'));area.append(balance);
   area.append(panelNode('p','panel-eyebrow','PILIH CHIP BET'));
   const grid=panelNode('div','bet-grid');grid.setAttribute('role','group');grid.setAttribute('aria-label','Pilihan BET');area.append(grid);
   const preview=panelNode('p','bet-preview');preview.setAttribute('role','status');
@@ -351,6 +351,11 @@ function showStakeChoices(){
   });
   save.disabled=!account;refresh();
 }
+function coinValue(value,tag='span'){
+  const el=panelNode(tag,'coin-value');
+  const icon=panelNode('img','coin-value-icon');icon.src='/assets/art/coin-ui.svg';icon.alt='';icon.width=24;icon.height=24;
+  el.append(icon,panelNode('span','coin-value-text',idMoney(value)+' Coin'));return el;
+}
 function showAutoSettings(){
   if(isAuto){cancelAuto=true;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
   if(isSpinning||!account)return;
@@ -359,11 +364,16 @@ function showAutoSettings(){
   paragraph(area,'Setiap ronde membuka tiga kartu. AUTO dapat dihentikan setelah SPIN yang sedang berjalan.');
   const grid=panelNode('div','auto-grid');grid.setAttribute('role','group');grid.setAttribute('aria-label','Jumlah ronde AUTO');area.append(grid);
   for(const rounds of AUTO_ROUNDS){
-    const btn=modalButton(grid,rounds+' ronde',()=>{selected=rounds;refresh();});btn.dataset.rounds=String(rounds);
+    const btn=modalButton(grid,'',()=>{selected=rounds;refresh();});btn.dataset.rounds=String(rounds);
+    btn.setAttribute('aria-label',rounds+' ronde');
+    const cards=panelNode('span','auto-card-fan');cards.setAttribute('aria-hidden','true');
+    for(const color of ['red','blue','green']){const card=panelNode('img','');card.src=`/assets/art/v2/card-${color}.webp`;card.alt='';cards.append(card);}
+    const check=panelNode('span','auto-selected','✓');check.setAttribute('aria-hidden','true');
+    btn.append(cards,panelNode('strong','auto-round-count',String(rounds)),panelNode('span','auto-round-label','RONDE'),check);
   }
   const budget=panelNode('dl','auto-budget');
-  const total=panelNode('dd','',''),balance=panelNode('dd','',idMoney(account.balance)+' Coin');
-  budget.append(panelNode('dt','','BET per ronde'),panelNode('dd','',idMoney(currentRound?.stake??STAKES[stakeIndex])+' Coin'),
+  const total=coinValue(0,'dd'),balance=coinValue(account.balance,'dd');
+  budget.append(panelNode('dt','','BET per ronde'),coinValue(currentRound?.stake??STAKES[stakeIndex],'dd'),
     panelNode('dt','','Total kebutuhan'),total,panelNode('dt','','Saldo tersedia'),balance);area.append(budget);
   const message=panelNode('p','panel-note','');message.setAttribute('role','status');area.append(message);
   if(currentRound)paragraph(area,'Ronde yang sudah dimulai dihitung sebagai ronde pertama. BET ronde tersebut sudah dipotong.');
@@ -374,7 +384,7 @@ function showAutoSettings(){
   });start.id='auto-start';
   function refresh(){
     for(const btn of grid.children)btn.setAttribute('aria-pressed',String(Number(btn.dataset.rounds)===selected));
-    const required=autoBudget(selected);total.textContent=idMoney(required)+' Coin';balance.textContent=idMoney(account?.balance??0)+' Coin';
+    const required=autoBudget(selected);total.querySelector('.coin-value-text').textContent=idMoney(required)+' Coin';balance.querySelector('.coin-value-text').textContent=idMoney(account?.balance??0)+' Coin';
     const blocked=!!pendingInfo()||isSpinning||isAuto||!account;
     start.disabled=blocked||account.balance<required;
     message.textContent=blocked?'Selesaikan sinkronisasi SPIN sebelum memulai AUTO.':account.balance<required?'Coin belum cukup. Pilih jumlah ronde lebih kecil atau ubah BET.':`${selected} ronde · ${isTurbo?'TURBO aktif':'Kecepatan normal'}`;
@@ -408,7 +418,7 @@ function showMenu(){
     const next=!enabled();musicEnabled=next;sfxEnabled=next;
     localStorage.setItem(MUTE_MUSIC,next?'on':'off');localStorage.setItem(MUTE_EFFECTS,next?'on':'off');
     window.UNOLuckSound?.setEnabled(next);
-    if(next)void unlockAudio();else{stopMusic();window.UNOLuckSound?.stopCelebration?.();}
+    if(next)void unlockAudio().then(()=>sfx('tap'));else{stopMusic();window.UNOLuckSound?.stopCelebration?.();}
     const label=`Sound ${next?'On':'Off'}`;sound.querySelector('strong').textContent=label;sound.setAttribute('aria-label',label);sound.setAttribute('aria-pressed',String(next));
   });sound.setAttribute('aria-pressed',String(enabled()));
   area.append(panelNode('p','menu-signoff','UNO LUCK · Crafted by Soft Tech'));
@@ -507,8 +517,19 @@ const initialConnectionTimer=setInterval(()=>{
   recoverInitialConnection();
 },8000);
 function listeners(){
+  // One delegated activation handles dynamic menus, touch, mouse and keyboard.
+  // Capture before handlers disable/remove controls; no sound on scroll or disabled choices.
+  document.addEventListener('click',event=>{
+    const control=event.target.closest?.('button,summary,[role="button"],input[type="radio"],input[type="checkbox"],select');
+    if(!control||control.matches(':disabled,[aria-disabled="true"]'))return;
+    control.classList.remove('ui-pressed');
+    control.classList.add('ui-pressed');
+    setTimeout(()=>control.classList.remove('ui-pressed'),140);
+    if(control.id==='boot-play')void unlockAudio().then(()=>sfx('tap'));
+    else sfx('tap');
+  },true);
   $('spin-btn').addEventListener('click',pickOne);
-  $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();unlockAudio().then(()=>sfx('tap'));say(isTurbo?'Turbo aktif, animasi lebih cepat.':'Turbo nonaktif.');});
+  $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();void unlockAudio();say(isTurbo?'Turbo aktif, animasi lebih cepat.':'Turbo nonaktif.');});
   $('auto-btn').addEventListener('click',showAutoSettings);
   $('wallet-open').addEventListener('click',showWallet);
   $('gift-btn').addEventListener('click',showGift);

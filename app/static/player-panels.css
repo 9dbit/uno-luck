@@ -147,3 +147,26 @@
 @media(max-width:359px){.player-panel .modal-content{padding:16px 12px}.player-panel .menu-tile{padding:15px 12px}.menu-copy strong{font-size:14px}.menu-copy small{font-size:10px}.player-panel .bet-grid{gap:2px}.bet-chip{font-size:13px}.player-panel .bet-hero .panel-amount{font-size:34px}}
 @media(prefers-reduced-motion:no-preference){.modal[open] .modal-card{animation:panel-arrive .2s ease-out}@keyframes panel-arrive{from{opacity:0;transform:translateY(12px) scale(.99)}to{opacity:1;transform:none}}}
 @media(prefers-reduced-motion:reduce){.player-panel button{transition:none}}
+/* Tactile feedback uses independent scale, preserving wheel/header transforms. */
+button,summary,[role=button]{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+button:active:not(:disabled),summary:active,[role=button]:active,.ui-pressed:not(:disabled){scale:.96}
+button:focus-visible,summary:focus-visible,[role=button]:focus-visible{outline:2px solid #ffdf91;outline-offset:3px}
+@media(prefers-reduced-motion:no-preference){button,summary,[role=button]{transition:scale .12s ease,background-color .16s,border-color .16s}}
+.coin-value{display:flex;align-items:center;justify-content:flex-end;gap:7px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.coin-value-icon{width:24px;height:24px;flex:none;object-fit:contain;filter:drop-shadow(0 2px 2px #0005)}
+.player-panel .auto-grid{gap:10px;margin:20px 0 24px}
+.player-panel .auto-grid button{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:18px 4px 14px;border-radius:18px;border:1px solid #d9ad6838;background:linear-gradient(150deg,#6b30402b,#120811);box-shadow:0 4px 10px #0003;min-height:142px;overflow:hidden}
+.auto-card-fan{height:44px;width:56px;position:relative;margin:0 0 6px;pointer-events:none}
+.auto-card-fan img{position:absolute;width:26px;height:38px;object-fit:fill;top:0;left:15px;filter:drop-shadow(0 2px 3px #0006)}
+.auto-card-fan img:first-child{transform:translate(-13px,5px) rotate(-20deg)}
+.auto-card-fan img:last-child{transform:translate(13px,5px) rotate(20deg)}
+.auto-card-fan img:nth-child(2){z-index:1}
+.auto-round-count{font-size:30px;line-height:1;color:#ffeac0;font-weight:850}
+.auto-round-label{font-size:9px;letter-spacing:.14em;color:#c9ad94}
+.auto-selected{position:absolute;right:6px;top:6px;width:17px;height:17px;display:grid;place-items:center;background:#f8d993;border-radius:50%;font-size:11px;color:#4b2517;opacity:0}
+.player-panel .auto-grid button[aria-pressed=true]{border-color:#f3ce84;background:radial-gradient(ellipse at top,#b47b343b,transparent),linear-gradient(145deg,#663021,#281119);box-shadow:inset 0 0 0 1px #f3ce8430,0 4px 16px #0004}
+.auto-grid [aria-pressed=true] .auto-selected{opacity:1}
+.auto-grid [aria-pressed=true] .auto-round-count{color:#fff0b6}
+.auto-budget{padding:16px;background:#ffffff04;border:1px solid #e1b88520;border-radius:18px;align-items:center;gap:14px 8px}
+.auto-budget dt{font-size:12px}.auto-budget dd{font-size:14px}
+@media(max-width:359px){.player-panel .auto-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.player-panel .auto-grid button{min-height:124px;padding-top:12px}.auto-budget{padding:12px}.auto-budget dd{font-size:12px}.coin-value-icon{width:20px;height:20px}}
