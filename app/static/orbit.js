@@ -525,7 +525,7 @@ function listeners(){
     control.classList.remove('ui-pressed');
     control.classList.add('ui-pressed');
     setTimeout(()=>control.classList.remove('ui-pressed'),140);
-    if(control.id==='boot-play')void unlockAudio().then(()=>sfx('tap'));
+    if(control.id==='boot-play')void Promise.resolve(window.UNOLuckSound?.unlock()).then(()=>sfx('tap')); // splash owns music activation
     else sfx('tap');
   },true);
   $('spin-btn').addEventListener('click',pickOne);
