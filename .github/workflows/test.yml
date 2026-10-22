@@ -105,3 +105,27 @@ jobs:
           python3 -c 'import json; a=json.load(open("/tmp/uno-sound-probe.json")); assert a["ready"] and a["published_cues"]==0'
           test "$(docker exec uno-volume-test stat -c %u /data/uno-luck-audio)" = 10001
           echo "PASS: Railway style volume is writable as UID 10001"
+      - name: Verify Render disk preserves paid rounds across container replacement
+        run: |
+          mkdir -p "$RUNNER_TEMP/uno-render-test"
+          chmod 0700 "$RUNNER_TEMP/uno-render-test"
+          start_render_test() {
+            docker run -d --name uno-render-test -p 127.0.0.1:18086:8080 \
+              -v "$RUNNER_TEMP/uno-render-test:/data/uno-luck" \
+              -e UNO_SOUND_STORAGE_DIR=/data/uno-luck \
+              -e UNO_SPIN_DB_PATH=/data/uno-luck/database/uno_luck_spin.sqlite3 \
+              uno-volume-runtime
+            for i in $(seq 1 40); do
+              if curl -fsS http://127.0.0.1:18086/health >/dev/null; then return 0; fi
+              sleep 1
+            done
+            docker logs uno-render-test
+            return 1
+          }
+          start_render_test
+          python3 tests/volume_round_probe.py seed --snapshot "$RUNNER_TEMP/uno-round.json"
+          test "$(docker exec uno-render-test stat -c %u /data/uno-luck/database/uno_luck_spin.sqlite3)" = 10001
+          docker stop uno-render-test
+          docker rm uno-render-test
+          start_render_test
+          python3 tests/volume_round_probe.py check --snapshot "$RUNNER_TEMP/uno-round.json"
