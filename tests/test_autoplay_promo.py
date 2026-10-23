@@ -20,13 +20,20 @@ def client(tmp_path, monkeypatch):
     orbit._initialized.clear()
     with TestClient(app) as c:
         assert c.get("/api/orbit/state").status_code == 200
+        # Published, isolated CI paytable: never enable promo against legacy RTP.
+        db = orbit.open_db()
+        db.execute("INSERT INTO economy_configs VALUES(?,?,?)",
+                   (1,economy.PRESET.model_dump_json(),1.0))
+        db.close()
         yield c
 
 
 def save_policy(c, enabled=True, budget=10000, per_account=1):
     return c.post("/api/admin/economy/promo-policy", headers=ADMIN_HEADERS,
         json={"enabled":enabled, "daily_budget_coin":budget,
-              "max_sessions_per_account_day":per_account})
+              "max_sessions_per_account_day":per_account,
+              "max_sessions_per_day":2, "planned_paid_turnover_coin":1000000,
+              "target_margin_percent":5})
 
 
 def request_pick(c, seq, phase, stake, session_id):
