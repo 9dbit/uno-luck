@@ -341,7 +341,16 @@ def pick(request: Request, response: Response, payload: PickRequest):
             revision, config = economy.active(db)
             if payload.stake not in (config.stake_options if config else spin.COSTS):
                 raise HTTPException(422,'Tahapan BET berubah. Muat ulang pengaturan BET.')
-            if acct['balance'] < payload.stake:
+            promotion = None
+            charged_stake = payload.stake
+            if payload.auto_session_id:
+                promotion = autoplay.by_id(db, aid, payload.auto_session_id)
+                if not promotion:
+                    raise HTTPException(409, 'Sesi AUTO tidak ditemukan')
+                if promotion['stake'] != payload.stake:
+                    raise HTTPException(409, 'BET AUTO tidak sesuai')
+                charged_stake, _ = autoplay.round_terms(promotion)
+            if acct['balance'] < charged_stake:
                 raise HTTPException(409,'Koin tidak cukup. Klaim hadiah atau refill gratis.')
             cards=economy.draw(config) if config else choose_cards()
             if config:
@@ -353,16 +362,25 @@ def pick(request: Request, response: Response, payload: PickRequest):
             snapshot=json.dumps({'revision':revision,'multiplier':multiplier,
                 'config':config.model_dump(mode='json')}) if config else None
             rid=spin.new_id()
-            db.execute('INSERT INTO orbit_rounds(id,account_id,start_key,stake,cards_json,picked,combo,tier,rules_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                       (rid,aid,payload.request_id,payload.stake,json.dumps(cards,separators=(',',':')),1,combo,tier,RULES_VERSION,stamp))
+            db.execute('''INSERT INTO orbit_rounds
+                (id,account_id,start_key,stake,charged_stake,auto_session_id,
+                 cards_json,picked,combo,tier,rules_version,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (rid,aid,payload.request_id,payload.stake,charged_stake,
+                 promotion['id'] if promotion else None,
+                 json.dumps(cards,separators=(',',':')),1,combo,tier,RULES_VERSION,stamp))
             db.execute('UPDATE orbit_rounds SET economy_json=? WHERE id=?',(snapshot,rid))
-            new_balance=acct['balance']-payload.stake
+            new_balance=acct['balance']-charged_stake
             db.execute('UPDATE accounts SET balance=? WHERE id=?',(new_balance,aid))
             db.execute('INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)',
-                       (spin.new_id(),aid,'orbit_stake',-payload.stake,new_balance,stamp))
+                       (spin.new_id(),aid,'auto_free_spin' if charged_stake == 0 else 'orbit_stake',
+                        -charged_stake,new_balance,stamp))
             picked=1
         else:
             # The stake is fixed on spin #1. Subsequent requests cannot change it.
+            if (payload.auto_session_id is not None
+                    and payload.auto_session_id != row['auto_session_id']):
+                raise HTTPException(409, 'Ronde sedang berjalan milik sesi lain')
             if payload.stake != row['stake']:
                 raise HTTPException(409,'Biaya ronde sedang berlangsung tidak dapat diganti')
             rid=row['id']
@@ -371,7 +389,7 @@ def pick(request: Request, response: Response, payload: PickRequest):
                 raise HTTPException(409,'Ronde ini sudah selesai')
             if picked == 3:
                 rank=row['tier'] or 5  # Existing v1 unfinished Color Match keeps its original award.
-                if row['combo']=='COLOR_MATCH' and int(row['rules_version'])>=RULES_VERSION:
+                if row['combo']=='COLOR_MATCH' and int(row['rules_version'])>=3:
                     if classify_rank(json.loads(row['cards_json'])) != rank:
                         raise RuntimeError('Invalid stored card/payout combination; settlement blocked')
                 multiplier=CELEBRATIONS[rank]['multiplier'] if row['combo']=='COLOR_MATCH' else 0
@@ -391,8 +409,21 @@ def pick(request: Request, response: Response, payload: PickRequest):
                            (new_balance,int(row['combo']=='COLOR_MATCH'),aid))
                 db.execute('INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)',
                            (spin.new_id(),aid,'orbit_payout',credited,new_balance,stamp))
-                db.execute('INSERT INTO spins(id,account_id,request_id,stake,payout,delta,balance_after,combo,cards_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                           (rid,aid,row['start_key'],row['stake'],credited,credited-row['stake'],new_balance,row['combo'],row['cards_json'],stamp))
+                promo_coin = 0
+                if row['auto_session_id']:
+                    promo_session = autoplay.by_id(db, aid, row['auto_session_id'])
+                    if promo_session is None:
+                        raise RuntimeError('Missing Auto Play session')
+                    refreshed = db.execute('SELECT * FROM accounts WHERE id=?', (aid,)).fetchone()
+                    promo_coin, _ = autoplay.complete_round(db, promo_session, refreshed, stamp)
+                    db.execute('UPDATE orbit_rounds SET promo_coin=? WHERE id=?',
+                               (promo_coin, rid))
+                    new_balance += promo_coin
+                if row['charged_stake'] > 0:
+                    db.execute('INSERT INTO spins(id,account_id,request_id,stake,payout,delta,balance_after,combo,cards_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                               (rid,aid,row['start_key'],row['charged_stake'],
+                                credited+promo_coin,credited+promo_coin-row['charged_stake'],
+                                new_balance,row['combo'],row['cards_json'],stamp))
             else:
                 db.execute('UPDATE orbit_rounds SET picked=? WHERE id=?',(picked,rid))
         db.execute('INSERT INTO orbit_requests(account_id,request_id,round_id,selected_count) VALUES(?,?,?,?)',
