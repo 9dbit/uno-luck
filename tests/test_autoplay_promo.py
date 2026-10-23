@@ -69,6 +69,9 @@ def test_color_sequence_pair_zonk_and_rank_priority():
     assert economy.classify(make(["2","3","4"], ["red"]*3),cfg) == ("COLOR_MATCH",40,4)
     assert economy.classify(make(["2","2","4"], ["red","red","blue"]),cfg) == ("PAIR_SUM",8,None)
     assert economy.classify(make(["1","8","5"], ["red","green","blue"]),cfg) == ("NO_MATCH",0,None)
+    assert economy.classify(make(["6","0","6"], ["blue"]*3),cfg) == ("COLOR_MATCH",25,5)
+    assert economy.classify(make(["0","0","0"], ["red","green","blue"]),cfg) == ("NO_MATCH",0,None)
+    assert economy.classify(make(["0","0","0"], ["red","red","blue"]),cfg) == ("COLOR_PAIR",2,None)
     out = economy.simulate(economy.Simulation(config=cfg, stake=10, turnover_rp=400000,
                                             auto_sessions=2, auto_paid_rounds=10))
     assert out["projection"]["promotional_cost_expected_rp"] > 0
@@ -269,12 +272,12 @@ def test_operator_margin_budget_guardrail_and_global_slots(client):
     assert not client.get("/api/admin/economy/promo-policy",
         headers=ADMIN_HEADERS).json()["enabled"]
     funded = client.post("/api/admin/economy/promo-policy", headers=ADMIN_HEADERS,
-        json={"enabled":True,"daily_budget_coin":2800,
+        json={"enabled":True,"daily_budget_coin":2600,
               "max_sessions_per_account_day":1,"max_sessions_per_day":2,
               "planned_paid_turnover_coin":80000,"target_margin_percent":5})
     assert funded.status_code == 200, funded.text
     cfg = funded.json()
-    assert cfg["max_affordable_budget_coin"] >= 2800
+    assert cfg["max_affordable_budget_coin"] >= 2600
     assert cfg["projected_margin_percent"] >= cfg["target_margin_percent"]
     assert cfg["max_sessions_per_day"] == 2
 
