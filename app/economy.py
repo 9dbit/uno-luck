@@ -311,6 +311,19 @@ def simulate(payload):
     period_worst_surplus_rp = (1-expected) * payload.turnover_rp - promo_cost_max_rp - payload.costs_rp
     break_even_turnover_rp = ((promo_cost_expected_rp + payload.costs_rp)/(1-expected)
                               if expected < 1 else None)
+    gross_budget_rp = (1-expected) * payload.turnover_rp - payload.costs_rp
+    expected_cost_per_auto_rp = gift_expected_rp + free_per_auto_rp*expected
+    high_gift_cost_per_auto_rp = gift_max_rp + free_per_auto_rp*expected
+    max_auto_by_paid_turnover = math.floor(payload.turnover_rp/paid_per_auto_rp)
+    max_auto_expected = min(
+        max_auto_by_paid_turnover,
+        max(0, math.floor(max(0, gross_budget_rp)/expected_cost_per_auto_rp)),
+    )
+    max_auto_high_gifts = min(
+        max_auto_by_paid_turnover,
+        max(0, math.floor(max(0, gross_budget_rp)/high_gift_cost_per_auto_rp)),
+    )
+    sessions_over_turnover = payload.auto_sessions > max_auto_by_paid_turnover
     # Same exact multiplier distribution as generator; local seeded RNG never drives gameplay.
     rng = random.Random(payload.seed)
     multipliers, weights = zip(*dist)
@@ -349,8 +362,14 @@ def simulate(payload):
             period_expected_surplus_rp=period_expected_surplus_rp,
             period_worst_case_surplus_rp=period_worst_surplus_rp,
             break_even_turnover_rp=break_even_turnover_rp,
-            feasible_expected_pool=period_expected_surplus_rp>=0,
-            feasible_worst_case_pool=period_worst_surplus_rp>=0),
+            max_auto_by_paid_turnover=max_auto_by_paid_turnover,
+            max_auto_sessions_expected=max_auto_expected,
+            max_auto_sessions_high_gift=max_auto_high_gifts,
+            available_extra_auto_sessions_expected=max(0,max_auto_expected-payload.auto_sessions),
+            remaining_promotional_headroom_rp=period_expected_surplus_rp,
+            planned_auto_exceeds_paid_turnover=sessions_over_turnover,
+            feasible_expected_pool=period_expected_surplus_rp>=0 and not sessions_over_turnover,
+            feasible_worst_case_pool=period_worst_surplus_rp>=0 and not sessions_over_turnover),
         expected_net=(expected-1)*payload.stake,
         payout_probability_percent=positive_probability*100,
         average_rounds_per_positive_payout=(1/positive_probability if positive_probability else None),
