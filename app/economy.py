@@ -13,7 +13,7 @@ import secrets
 import time
 from decimal import Decimal, ROUND_HALF_UP
 from functools import lru_cache
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 from . import spin
 from .sound_cloud import require_admin
@@ -21,6 +21,9 @@ from .sound_cloud import require_admin
 router = APIRouter(prefix='/api/admin/economy', tags=['virtual economy admin'])
 SCALE = 1_000_000
 VIRTUAL_RP_PER_COIN = 40
+MIN_PUBLISH_RTP = Decimal('85')
+MAX_PUBLISH_RTP = Decimal('98')
+ENGINE_MODEL = 'fixed-independent-csprng-v1'
 KEYS = ('NO_MATCH', 'PAIR_SUM', 'PAIR_PRODUCT', 'RANK_5', 'RANK_4', 'RANK_3', 'RANK_2', 'RANK_1')
 
 class Config(BaseModel):
@@ -49,7 +52,7 @@ class Config(BaseModel):
         return self
 
 PRESET = Config(stake_options=[10,20,25,50,100,250],
-    percentages=dict(zip(KEYS, ['93.359','5','1','0.5','0.1','0.03','0.01','0.001'])),
+    percentages=dict(zip(KEYS, ['90.7347','8.5656','0.4','0.25','0.04','0.008','0.0015','0.0002'])),
     sum_cap=10, product_cap=20, multipliers=[300,150,80,40,25])
 
 class Simulation(BaseModel):
@@ -65,7 +68,22 @@ class Simulation(BaseModel):
 class Target(BaseModel):
     model_config = ConfigDict(extra='forbid')
     config: Config
-    margin_percent: Decimal = Field(ge=0, le=99)
+    margin_percent: Decimal = Field(ge=2, le=15)
+
+
+def rtp_percent(config: Config) -> float:
+    return sum(multiplier * probability for multiplier, probability in distribution(config)) * 100
+
+
+def assert_publish_guardrails(config: Config) -> float:
+    rtp = rtp_percent(config)
+    if rtp < float(MIN_PUBLISH_RTP) or rtp > float(MAX_PUBLISH_RTP):
+        raise HTTPException(
+            422,
+            f'RTP teoretis {rtp:.4f}% di luar batas publish '
+            f'{MIN_PUBLISH_RTP}–{MAX_PUBLISH_RTP}%. Draft tetap dapat disimulasikan.',
+        )
+    return rtp
 
 
 def target_config(payload):
@@ -192,14 +210,17 @@ def simulate(payload):
         endings.append(balance); played.append(count)
         stopped += count < payload.rounds
     endings.sort()
+    positive_probability = sum(p for m,p in dist if m>0)
     return dict(rtp_percent=expected*100, expected_gross=expected*payload.stake,
+        engine_model=ENGINE_MODEL,
         operator_margin_percent=(1-expected)*100,
         operator_expected_per_round=-((expected-1)*payload.stake),
         projection=dict(turnover_rp=payload.turnover_rp,expected_payout_rp=expected*payload.turnover_rp,
             gross_result_rp=(1-expected)*payload.turnover_rp,costs_rp=payload.costs_rp,
             net_result_rp=(1-expected)*payload.turnover_rp-payload.costs_rp),
         expected_net=(expected-1)*payload.stake,
-        payout_probability_percent=sum(p for m,p in dist if m>0)*100,
+        payout_probability_percent=positive_probability*100,
+        average_rounds_per_positive_payout=(1/positive_probability if positive_probability else None),
         profit_probability_percent=sum(p for m,p in dist if m>1)*100,
         break_even_probability_percent=sum(p for m,p in dist if m==1)*100,
         loss_probability_percent=sum(p for m,p in dist if m<1)*100,
@@ -220,7 +241,9 @@ def read_config(request: Request, response: Response):
         response.headers['Cache-Control']='no-store'
         return dict(revision=revision,active=config.model_dump(mode='json') if config else None,
             draft=(config or PRESET).model_dump(mode='json'),virtual_rp_per_coin=VIRTUAL_RP_PER_COIN,
-            legacy_rtp_percent=195.36 if config is None else None)
+            legacy_rtp_percent=195.36 if config is None else None,
+            engine_model=ENGINE_MODEL,
+            publish_rtp_range=[float(MIN_PUBLISH_RTP), float(MAX_PUBLISH_RTP)])
     finally: db.close()
 
 
@@ -234,6 +257,7 @@ def simulation(request: Request, response: Response, payload: Simulation):
 @router.post('/publish')
 def publish(request: Request, response: Response, payload: Publish):
     require_admin(request)
+    theoretical_rtp = assert_publish_guardrails(payload.config)
     from . import orbit
     db=orbit.open_db()
     try:
@@ -245,7 +269,8 @@ def publish(request: Request, response: Response, payload: Publish):
         db.execute('INSERT INTO economy_configs VALUES(?,?,?)',(revision,payload.config.model_dump_json(),time.time()))
         db.commit()
         response.headers['Cache-Control']='no-store'
-        return dict(revision=revision,new_rounds_only=True)
+        return dict(revision=revision,new_rounds_only=True,rtp_percent=theoretical_rtp,
+                    engine_model=ENGINE_MODEL)
     finally:
         if db.in_transaction: db.rollback()
         db.close()
@@ -256,3 +281,38 @@ def target(request: Request, response: Response, payload: Target):
     require_admin(request)
     response.headers['Cache-Control']='no-store'
     return target_config(payload)
+
+
+@router.get('/performance')
+def performance(request: Request, response: Response,
+                days: int = Query(default=30, ge=1, le=365)):
+    """Actual completed-round economics, isolated from player-facing APIs."""
+    require_admin(request)
+    from . import orbit
+    db = orbit.open_db()
+    try:
+        since = time.time() - days * 86400
+        row = db.execute('''SELECT COUNT(*) rounds,COUNT(DISTINCT account_id) players,
+            COALESCE(SUM(stake),0) turnover,COALESCE(SUM(payout),0) payout
+            FROM orbit_rounds WHERE finished_at IS NOT NULL AND finished_at>=?''', (since,)).fetchone()
+        by_combo = db.execute('''SELECT combo,COUNT(*) rounds,COALESCE(SUM(stake),0) turnover,
+            COALESCE(SUM(payout),0) payout FROM orbit_rounds
+            WHERE finished_at IS NOT NULL AND finished_at>=?
+            GROUP BY combo ORDER BY rounds DESC,combo''', (since,)).fetchall()
+        revision, config = active(db)
+        turnover, payout = int(row['turnover']), int(row['payout'])
+        gross = turnover - payout
+        response.headers['Cache-Control'] = 'no-store'
+        return dict(days=days,as_of=int(time.time()),rounds=int(row['rounds']),players=int(row['players']),
+            turnover_coin=turnover,payout_coin=payout,gross_coin=gross,
+            turnover_rp=turnover*VIRTUAL_RP_PER_COIN,payout_rp=payout*VIRTUAL_RP_PER_COIN,
+            gross_rp=gross*VIRTUAL_RP_PER_COIN,
+            actual_rtp_percent=(payout/turnover*100 if turnover else None),
+            active_revision=revision,
+            theoretical_rtp_percent=(rtp_percent(config) if config else 195.36),
+            engine_model=(ENGINE_MODEL if config else 'legacy-80-percent-gate'),
+            by_combo=[dict(combo=item['combo'],rounds=int(item['rounds']),
+                turnover_coin=int(item['turnover']),payout_coin=int(item['payout'])) for item in by_combo],
+            note='Hanya ronde selesai dalam periode ini. Nilai aktual dapat menyimpang dari RTP teoretis, terutama pada sampel kecil.')
+    finally:
+        db.close()

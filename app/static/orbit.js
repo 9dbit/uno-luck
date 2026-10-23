@@ -197,16 +197,16 @@ async function pickOne(){
       // A winning round is scored by exactly one tier-specific jackpot cue.
       // Do not overlap RESULT SOUND with the user-selected JACKPOT 1–5 file.
       if(sfxEnabled && last.combo==='NO_MATCH')window.UNOLuckSound?.result(false);
-      if(!last.bonus)window.UNOLuckMotion?.result(last);
+      if(!last.bonus||last.payout<=0)window.UNOLuckMotion?.result(last);
       if(last.combo==='COLOR_MATCH'){
         const title=last.tier?.title||'LUCKY COLOR WIN';
         say(`${title}! Kembali ${idMoney(last.payout)} · selisih ${last.delta>=0?'+':''}${idMoney(last.delta)} koin`);
         winBurst(last.cards[0]);
         await window.UNOLuckCelebration?.present(last);
-      }else if(last.bonus){
+      }else if(last.bonus&&last.payout>0){
         say(`${last.bonus.kind==='PAIR_PRODUCT'?'Bonus perkalian':'Bonus penjumlahan'} · +${idMoney(last.payout)} Coin · ${virtualRp(last.payout)}`);
         showNumericBonus(last);
-      }else{say('Belum ada kecocokan warna. Mulai ronde baru!');}
+      }else{say(last.bonus?'Angka kembar menghasilkan payout 0. Mulai ronde baru!':'Belum ada kecocokan warna. Mulai ronde baru!');}
     }else say(`Kartu ${['kiri','tengah','kanan'][phase-1]} terpilih. SPIN ${phase+1}/3 berikutnya.`);
     navigator.vibrate?.(18);
     return true;

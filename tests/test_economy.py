@@ -47,8 +47,8 @@ def test_auth_no_config_leak_and_origin(client):
     {'sum_cap':0}, {'product_cap':17}, {'multipliers':[200,80,30,10,2]},
     {'percentages':{**config()['percentages'],'NO_MATCH':'100'}},
     {'percentages':{**config()['percentages'],'PAIR_SUM':'NaN'}},
-    {'percentages':{**config()['percentages'],'PAIR_SUM':'5.00001','NO_MATCH':'93.35899'}},
-    {'percentages':{**config()['percentages'],'PAIR_PRODUCT':'0.5','NO_MATCH':'93.859'}},
+    {'percentages':{**config()['percentages'],'PAIR_SUM':'8.56561','NO_MATCH':'90.73469'}},
+    {'percentages':{**config()['percentages'],'PAIR_PRODUCT':'0.2','NO_MATCH':'90.9347'}},
 ])
 def test_invalid_config_blocked(change):
     with pytest.raises(ValidationError): economy.Config.model_validate(config()|change)
@@ -58,13 +58,14 @@ def test_exact_math_independent_enumeration():
     cfg=economy.PRESET
     numbers=[h for h in itertools.product(range(10),repeat=3) if h[0]==h[1] or h[1]==h[2] or h[0]==h[2]]
     assert len(numbers)==280
-    expected=.05*sum(min(sum(h),10) for h in numbers)/280+.01*sum(min(h[0]*h[1]*h[2],20) for h in numbers)/280
-    expected += .005*25+.001*40+.0003*80+.0001*150+.00001*300
+    expected=.085656*sum(min(sum(h),10) for h in numbers)/280+.004*sum(min(h[0]*h[1]*h[2],20) for h in numbers)/280
+    expected += .0025*25+.0004*40+.00008*80+.000015*150+.000002*300
     result=economy.simulate(economy.Simulation(config=cfg))
     assert result['rtp_percent']==pytest.approx(expected*100)
-    assert result['rtp_percent']==pytest.approx(79.025)
+    assert result['rtp_percent']==pytest.approx(89.99952285714286)
     assert sum(x['percent'] for x in result['distribution'])==pytest.approx(100)
-    assert result['payout_probability_percent']<6.641 # zero product outcomes are not wins
+    assert result['payout_probability_percent']==pytest.approx(9.156129642857143)
+    assert result['average_rounds_per_positive_payout']==pytest.approx(10.921645)
     assert result['expected_net']==pytest.approx((expected-1)*10)
     assert result==economy.simulate(economy.Simulation(config=cfg))
     empty=economy.simulate(economy.Simulation(config=cfg,balance=9))
@@ -85,7 +86,7 @@ def test_settlement_snapshot_replay_and_ledger(client,monkeypatch,faces,colors,c
     first=pick(client,1).json()
     assert first['round']['bonus'] is None and first['round']['payout'] is None
     assert first['account']['balance']==990
-    changed=config();changed['multipliers']=[600,300,150,80,50];changed['product_cap']=30
+    changed=config();changed['multipliers']=[400,200,100,50,30];changed['product_cap']=25
     changed['stake_options']=[10,25,50]
     assert publish(client,changed,1).status_code==200
     assert pick(client,2).status_code==200
@@ -170,14 +171,14 @@ def test_operator_projection_and_target_are_read_only(client):
     before=client.get('/api/orbit/state').json()['account']['balance']
     result=client.post('/api/admin/economy/simulate',headers=HEAD,json={
         'config':config(),'turnover_rp':1000000,'costs_rp':50000}).json()
-    assert result['operator_margin_percent']==pytest.approx(20.975)
-    assert result['projection']['expected_payout_rp']==pytest.approx(790250)
-    assert result['projection']['gross_result_rp']==pytest.approx(209750)
-    assert result['projection']['net_result_rp']==pytest.approx(159750)
-    response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':20})
+    assert result['operator_margin_percent']==pytest.approx(10.000477142857136)
+    assert result['projection']['expected_payout_rp']==pytest.approx(899995.2285714286)
+    assert result['projection']['gross_result_rp']==pytest.approx(100004.77142857136)
+    assert result['projection']['net_result_rp']==pytest.approx(50004.77142857136)
+    response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':10})
     assert response.status_code==200
     result=response.json();proposed=result['config']
-    assert abs(result['actual_margin_percent']-20)<.05
+    assert abs(result['actual_margin_percent']-10)<.05
     from decimal import Decimal
     assert sum(Decimal(v) for v in proposed['percentages'].values())==100
     for field in ('multipliers','sum_cap','product_cap','stake_options'):assert proposed[field]==config()[field]
@@ -185,16 +186,16 @@ def test_operator_projection_and_target_are_read_only(client):
     assert result['actual_margin_percent']==pytest.approx(calc['operator_margin_percent'])
     assert client.get('/api/admin/economy',headers=HEAD).json()['revision']==0
     assert client.get('/api/orbit/state').json()['account']['balance']==before
-    assert client.post('/api/admin/economy/target',json={'config':config(),'margin_percent':20}).status_code==403
-    assert client.post('/api/admin/economy/target',headers=HEAD|{'origin':'https://evil.example'},json={'config':config(),'margin_percent':20}).status_code==403
+    assert client.post('/api/admin/economy/target',json={'config':config(),'margin_percent':10}).status_code==403
+    assert client.post('/api/admin/economy/target',headers=HEAD|{'origin':'https://evil.example'},json={'config':config(),'margin_percent':10}).status_code==403
 
 
-@pytest.mark.parametrize('margin',[-1,100,'NaN','Infinity'])
+@pytest.mark.parametrize('margin',[-1,0,1.9999,15.0001,100,'NaN','Infinity'])
 def test_invalid_target_blocked(client,margin):
     assert client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':margin}).status_code==422
 
 
-def test_target_never_silently_drops_rare_category(client):
+def test_target_outside_publish_guardrail_is_rejected(client):
     assert client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':99}).status_code==422
 
 
@@ -202,6 +203,26 @@ def test_target_handles_changed_caps_and_payouts(client):
     c=config();c['multipliers']=[23,22,21,20,19];c['sum_cap']=5;c['product_cap']=18
     c['percentages']={**c['percentages'],'NO_MATCH':'20','PAIR_SUM':'79.4','PAIR_PRODUCT':'0.6','RANK_1':'0','RANK_2':'0','RANK_3':'0','RANK_4':'0','RANK_5':'0'}
     # This is feasible: lowering RTP scales down paying probabilities and increases NO MATCH.
-    response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':c,'margin_percent':20})
+    response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':c,'margin_percent':10})
     assert response.status_code==200
-    assert response.json()['actual_margin_percent']==pytest.approx(20,abs=.05)
+    assert response.json()['actual_margin_percent']==pytest.approx(10,abs=.05)
+
+
+def test_publish_guardrail_and_actual_performance(client,monkeypatch):
+    too_low=config();too_low['percentages']={
+        'NO_MATCH':'93.359','PAIR_SUM':'5','PAIR_PRODUCT':'1','RANK_5':'0.5',
+        'RANK_4':'0.1','RANK_3':'0.03','RANK_2':'0.01','RANK_1':'0.001'}
+    blocked=publish(client,too_low)
+    assert blocked.status_code==422 and '85' in blocked.json()['detail']
+    assert publish(client).status_code==200
+    monkeypatch.setattr(economy,'draw',lambda cfg:hand((2,2,1),('red','blue','green')))
+    pick(client,1);pick(client,2);pick(client,3)
+    assert client.get('/api/admin/economy/performance').status_code==403
+    result=client.get('/api/admin/economy/performance?days=30',headers=HEAD).json()
+    assert result['rounds']==1 and result['players']==1
+    assert result['turnover_coin']==10 and result['payout_coin']==50 and result['gross_coin']==-40
+    assert result['actual_rtp_percent']==500
+    assert result['theoretical_rtp_percent']==pytest.approx(89.99952285714286)
+    assert result['active_revision']==1 and result['engine_model']==economy.ENGINE_MODEL
+    assert result['by_combo']==[{'combo':'PAIR_SUM','rounds':1,'turnover_coin':10,'payout_coin':50}]
+    assert client.get('/api/admin/economy/performance?days=0',headers=HEAD).status_code==422
