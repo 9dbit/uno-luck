@@ -35,6 +35,7 @@ function splashRemaining(){
   return 0;
 }
 let cloudProfiles=new Map(), cloudRevision='', cloudReady=false, cloudError='';
+let sampleFallbackAllowed=false, sampleAudioActive=false, readOnlyMirror=false;
 let cloudMixer=null, mixerPublishTimer=null;
 let cloudFetch=null, adminKey='';
 try{sessionStorage.removeItem('uno-sound-admin-key');}catch(_){}
@@ -56,7 +57,13 @@ async function syncCloud(force=false){
     if(!response.ok)throw Error('Cloud catalog HTTP '+response.status);
     data=await response.json();
     }finally{clearTimeout(timeout);}
-    if(data.ready!==true){cloudReady=false;cloudError='Cloud storage belum siap';return false;}
+    sampleFallbackAllowed=data.sample_fallback_allowed===true;
+    readOnlyMirror=data.readonly_mirror===true;
+    if(data.ready!==true){
+      cloudReady=false;
+      cloudError=data.error||'Cloud storage belum siap';
+      return false;
+    }
     cloudReady=true;cloudError='';
     if(data.revision!==cloudRevision){
       const oldSplash=cloudProfiles.get('soft-tech-splash-screen')?.revision;
@@ -101,7 +108,8 @@ async function verifyAdminKey(value){
   return true;
 }
 function cloudStatus(){return {ready:cloudReady,revision:cloudRevision,
-  online:cloudProfiles.size,error:cloudError,admin:hasAdminKey()};}
+  online:cloudProfiles.size,error:cloudError,admin:hasAdminKey(),
+  readonlyMirror:readOnlyMirror,sampleFallback:sampleAudioActive};}
 async function publishCue(key,{remove=false}={}){
   if(!known.has(key))throw Error('Sound cue tidak dikenal');
   if(!hasAdminKey())throw Error('Kunci admin diperlukan untuk publish sound ke semua perangkat.');
@@ -457,23 +465,40 @@ function isMusicWebAudioPlaying(){return Boolean(loop?.source);}
 async function prepareSplashMedia(){
   await syncCloud();
   const cfg=liveProfile('soft-tech-splash-screen');
-  if(!cfg.custom&&cfg.source!=='custom'){
+  const hasPublishedOrLocal=Boolean(cfg.custom||cfg.source==='custom');
+  if(!hasPublishedOrLocal&&!sampleFallbackAllowed){
     splashError=cloudError?'Koneksi Sound Cloud belum tersedia. Coba lagi setelah jaringan tersambung.':
       'File Soft Tech Splash belum tersedia di Sound Cloud.';
     return false;
   }
+  sampleAudioActive=!hasPublishedOrLocal&&sampleFallbackAllowed;
   if(splashUrl)return true;
   if(splashPreparation)return splashPreparation;
   splashPreparation=(async()=>{
     if(cfg.source==='custom'&&cfg.url){
       splashUrl=cfg.url;
+    }else if(sampleAudioActive){
+      // The default is ONLY allowed for an explicitly isolated QA instance.
+      // It never edits or replaces the authoritative published Sound Cloud.
+      splashUrl='/assets/audio/tier-1.mp3';
     }else{
       const file=await readFile('soft-tech-splash-screen');
       if(!file)throw Error('File splash lokal tidak ditemukan. Publikasikan dari desktop.');
       const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
       splashUrl=URL.createObjectURL(typed);
     }
-    useFallbackSource('soft-tech-splash-screen',splashUrl);
+    const player=useFallbackSource('soft-tech-splash-screen',splashUrl);
+    if(sampleAudioActive){
+      // iOS Safari HTMLMedia playback is primed before the trusted PLAY tap.
+      await Promise.race([
+        new Promise((resolve,reject)=>{
+          if(player.readyState>=1){resolve(true);return;}
+          player.addEventListener('loadedmetadata',()=>resolve(true),{once:true});
+          player.addEventListener('error',()=>reject(Error('Audio sampel QA tidak dapat dimuat')),{once:true});
+        }),
+        new Promise((_,reject)=>setTimeout(()=>reject(Error('Audio sampel QA timeout')),5000))
+      ]);
+    }
     await warmBuffer('soft-tech-splash-screen');
     void warmBuffer('spinning-sound');
     void warmBuffer('chosen-card');
@@ -944,7 +969,11 @@ function show(host){
         (!cloudProfiles.has(key)||local.fileName!==cloudProfiles.get(key)?.fileName));
     }).length;
     const auth=state.admin?' · ADMIN AKTIF':' · READ-ONLY';
-    cloudInfo.textContent=state.ready?
+    cloudInfo.textContent=state.readonlyMirror?
+      'QA: MIRROR SOUND CLOUD READ-ONLY · suara yang dipublikasikan di staging direlay tanpa mengubah sumber.':
+      state.sampleFallback?
+      'QA: AUDIO SAMPLE · publikasi Sound Cloud belum dapat diakses; audio asli tidak diganti.':
+      state.ready?
       (state.online?
         'TERHUBUNG · '+state.online+' / 12 kanal dipublikasikan'+auth+
         (unpublished?' · '+unpublished+' draft lokal perlu PUBLISH':''):
@@ -1253,6 +1282,7 @@ window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(t
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
   get lastError(){return lastError;},get splashError(){return splashError;},
+  get sampleAudioActive(){return sampleAudioActive;},
   get mediaUnlocked(){return mediaUnlocked;},
   get activeCelebrationCue(){
     return celebrationNode?.key||fallbackKey?.startsWith('jackpot-')&&fallbackKey||null;
