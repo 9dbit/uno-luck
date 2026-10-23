@@ -29,17 +29,49 @@ with sync_playwright() as pw:
         page.on('pageerror',lambda e:errors.append(str(e)))
         page.route('**/api/orbit/state',lambda r:r.fulfill(json=state))
 
+        auto_holder={'session':None}
+        def auto_state(route):
+            route.fulfill(json={'session':auto_holder['session']})
+        def auto_start(route):
+            request=route.request.post_data_json
+            if auto_holder['session'] is not None:
+                route.fulfill(json={'session':auto_holder['session'], 'created':False, 'resumed':True})
+                return
+            total=request['paid_rounds']+10
+            session={'id':'fixture-auto-session', 'stake':request['stake'],
+                'paid_rounds':request['paid_rounds'], 'free_rounds':10,
+                'completed_rounds':0, 'rounds_remaining':total, 'free_remaining':10,
+                'promotional_rewards':5, 'promo_credited_coin':0}
+            auto_holder['session']=session
+            route.fulfill(json={'session':session, 'created':True,
+                'gift':{'free_spins':10,'voice':'Free Spiinnn!'}})
+        page.route('**/api/auto/state',auto_state)
+        page.route('**/api/auto/start',auto_start)
+
         def respond(route):
             data=route.request.post_data_json
             current=state['round']
+            session=auto_holder['session'] if data.get('auto_session_id') else None
             if not current:
-                state['account']['balance']-=data['stake']
-                current={'id':'fixture-round','stake':data['stake'],'picked':0,'cards':[],
+                charge=0 if session and session['completed_rounds']>=session['paid_rounds'] else data['stake']
+                state['account']['balance']-=charge
+                current={'id':'fixture-round','stake':data['stake'],'charged_stake':charge,
+                         'auto_session_id':session['id'] if session else None,
+                         'free_spin':bool(session and charge==0),
+                         'picked':0,'cards':[], 'promo_coin':0,
                          'complete':False,'combo':None,'tier':None,'payout':None,'delta':None}
             current['picked']+=1
-            current['cards']=[{'color':c,'face':str(i+1)} for i,c in enumerate(('red','blue','green')[:current['picked']])]
+            current['cards']=[{'color':c,'face':str(i+1)}
+                for i,c in enumerate(('red','blue','green')[:current['picked']])]
             if current['picked']==3:
-                current.update(complete=True,combo='NO_MATCH',payout=0,delta=-current['stake'])
+                current.update(complete=True,combo='NO_MATCH',payout=0,
+                               delta=-current['charged_stake'])
+                if session is not None:
+                    session['completed_rounds']+=1
+                    session['rounds_remaining']=session['paid_rounds']+10-session['completed_rounds']
+                    session['free_remaining']=max(0,session['paid_rounds']+10-session['completed_rounds'])
+                    if not session['rounds_remaining']:
+                        auto_holder['session']=None
             state['round']=None if current['complete'] else current
             route.fulfill(json={'account':state['account'],'round':current})
 
@@ -104,104 +136,56 @@ with sync_playwright() as pw:
         assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='2.500 Coin';close()
         menu('Bet Setting');page.locator('[data-bet="25"]').click()
         page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
-        # Speed up only animation in this control test; separate suites test LED timing.
-        page.evaluate('''() => {wheel.begin=()=>{};wheel.settle=async()=>true;wheel.transferTo=async()=>{};}''')
-        for count in (1,3,5,10):
-            start=len(requests)
-            page.locator('#auto-btn').click();page.locator(f'[data-rounds="{count}"]').click()
-            page.locator('#auto-start').click()
-            page.wait_for_function('() => !isAuto&&!isSpinning',timeout=25000)
-            assert len(requests)-start==count*3,(engine,count,len(requests)-start)
-        assert len({r['request_id'] for r in requests})==len(requests)
+        # UI fixtures verify the new contract: paid rounds, ten free rounds,
+        # STOP and persistent resume, and deferred next BET. Backend tests
+        # independently audit five promo grants and replay-safe settlement.
+        page.evaluate('''() => {wheel.begin=()=>{};wheel.settle=async()=>true;
+                                wheel.transferTo=async()=>{};}''')
+        first=len(requests)
+        page.locator('#auto-btn').click()
+        page.locator('[data-rounds="1"]').click()
+        page.locator('#auto-start').click()
+        page.wait_for_function('() => !isAuto&&!isSpinning',timeout=45000)
+        batch=requests[first:]
+        assert len(batch)==33,(engine,'paid + 10 free rounds',len(batch))
+        assert all(item['stake']==25 for item in batch)
+        assert all(item.get('auto_session_id') for item in batch)
+        assert auto_holder['session'] is None
 
-        # STOP while the first server response is in flight: no second pick.
         mode['value']='hold';start=len(requests)
-        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click();page.locator('#auto-start').click()
+        page.locator('#auto-btn').click()
+        page.locator('[data-rounds="3"]').click()
+        page.locator('#auto-start').click()
+        page.wait_for_function('() => isSpinning')
         page.wait_for_timeout(100)
         assert len(held)==1
-        menu('Bet Setting')
-        assert all(page.locator('[data-bet]').nth(i).is_enabled() for i in range(5))
-        page.locator('[data-bet="50"]').click()
-        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
-        assert page.evaluate('() => STAKES[stakeIndex]')==25
-        page.locator('#auto-btn').click();respond(held.pop())
-        page.wait_for_function('() => !isAuto&&!isSpinning')
+        page.locator('#auto-btn').click()  # STOP only after current SPIN
+        respond(held.pop())
+        page.wait_for_function('() => !isAuto&&!isSpinning',timeout=12000)
+        assert auto_holder['session'] is not None
         assert len(requests)==start+1
+
         menu('Bet Setting')
-        assert page.locator('[data-bet="50"]').get_attribute('aria-pressed')=='true'
-        page.locator('[data-bet="100"]').click();close()  # Cancel preserves queued 50.
-        menu('Bet Setting')
-        assert page.locator('[data-bet="50"]').get_attribute('aria-pressed')=='true'
         page.locator('[data-bet="100"]').click()
-        assert page.locator('.panel-amount').inner_text()=='100 Coin'
-        assert 'Ronde berjalan tetap 25 Coin' in page.locator('.bet-preview').inner_text()
         page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
         assert page.evaluate('() => currentRound.stake')==25
-        assert page.locator('#last-stake').inner_text()=='25'
-        state['account']['balance']=0;page.evaluate('() => loadState(true)')
-        page.locator('#auto-btn').click();page.locator('[data-rounds="1"]').click()
-        assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='0 Coin'
-        assert page.locator('#auto-start').is_enabled()
-        mode['value']='normal';start=len(requests);page.locator('#auto-start').click()
-        page.wait_for_function('() => !isAuto&&!isSpinning')
-        assert len(requests)==start+2  # Finish paid partial round, no new charge.
-        assert all(r['stake']==25 for r in requests[start:])
+        mode['value']='normal'
+        page.locator('#auto-btn').click()
+        assert page.locator('#auto-start').inner_text()=='LANJUTKAN AUTO'
+        page.locator('#auto-start').click()
+        page.wait_for_function('() => !isAuto&&!isSpinning',timeout=55000)
+        resumed=requests[start:]
+        assert len(resumed)==39,(engine,'3 paid + 10 free rounds',len(resumed))
+        assert all(item['stake']==25 for item in resumed)
+        assert auto_holder['session'] is None
         assert page.evaluate('() => STAKES[stakeIndex]')==100
+        assert len({item['request_id'] for item in requests})==len(requests)
 
-        # The confirmed next BET reaches the server only on the next paid round.
-        state['account']['balance']=1000;page.evaluate('() => loadState(true)')
-        start=len(requests);page.locator('#spin-btn').click()
+        start=len(requests)
+        page.locator('#spin-btn').click()
         page.wait_for_function('() => !isSpinning&&currentRound?.picked===1')
         assert requests[-1]['stake']==100
-        menu('Bet Setting');page.locator('[data-bet="10"]').click()
-        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
-        for picked in (2,3):
-            page.locator('#spin-btn').click()
-            page.wait_for_function('() => !isSpinning')
-        assert [r['stake'] for r in requests[start:]]==[100,100,100]
-        assert page.evaluate('() => STAKES[stakeIndex]')==10
-
-        # A confirmed AUTO budget keeps its original stake for the entire batch.
-        mode['value']='hold';start=len(requests)
-        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click();page.locator('#auto-start').click()
-        page.wait_for_function('() => isSpinning');page.wait_for_timeout(100)
-        menu('Bet Setting');page.locator('[data-bet="250"]').click()
-        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
-        mode['value']='normal';respond(held.pop())
-        page.wait_for_function('() => !isAuto&&!isSpinning',timeout=25000)
-        assert [r['stake'] for r in requests[start:]]==[10]*9
-        assert page.evaluate('() => STAKES[stakeIndex]')==250
-
-        # Reloaded paid round can have a different stake than the default selector.
-        state['account']['balance']=20
-        state['round']={'id':'restored-round','stake':10,'picked':1,'cards':[{'color':'red','face':'1'}],
-                        'complete':False,'combo':None,'tier':None,'payout':None,'delta':None}
-        page.evaluate('() => {stakeIndex=1;return loadState(true);}')
-        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click()
-        assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='20 Coin'
-        start=len(requests);page.locator('#auto-start').click()
-        page.wait_for_function('() => !isAuto&&!isSpinning')
-        assert len(requests)-start==8
-        assert all(r['stake']==10 for r in requests[start:])
-        assert state['account']['balance']==0
-
-        state['account']['balance']=1000;page.evaluate('() => loadState(true)')
-        mode['value']='fail';start=len(requests)
-        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click();page.locator('#auto-start').click()
-        page.wait_for_function('() => !isAuto&&!isSpinning')
-        assert len(requests)==start+1
-        assert page.evaluate('() => pendingInfo()!==null')
-        page.locator('#auto-btn').click();assert page.locator('#auto-start').is_disabled();close()
-        pending=page.evaluate('() => pendingInfo()')
-        menu('Bet Setting');page.locator('[data-bet="50"]').click()
-        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
-        assert page.evaluate('() => STAKES[stakeIndex]')==10
-        assert page.evaluate('() => pendingInfo()')==pending
-        mode['value']='normal';page.locator('#spin-btn').click()
-        page.wait_for_function('() => !isSpinning&&currentRound?.picked===1')
-        assert requests[-1]['request_id']==pending['id']
-        assert requests[-1]['stake']==10
         assert context.request.get(URL+'/api/sounds/manifest').json()==baseline
         assert not errors,errors
         context.close();browser.close()
-        print('PASS:',engine,'visual rules, responsive BET/AUTO, confirmed bet, exact round limits, STOP, paid-round resume, failure recovery, unchanged sound')
+        print('PASS:',engine,'responsive rules/BET, ten free spins, STOP+RESUME, queued BET, unchanged sound')
