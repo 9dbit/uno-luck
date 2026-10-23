@@ -20,7 +20,7 @@ from . import spin, economy
 
 router = APIRouter(prefix="/api/orbit", tags=["UNO LUCK Orbit"])
 WIN_PERCENT = 80
-RULES_VERSION = 2
+RULES_VERSION = 3
 FACES = spin.FACES
 COLORS = spin.COLORS
 ACTION_TRIO = frozenset(('SKIP', 'REVERSE', '+2'))
@@ -256,12 +256,13 @@ def public_rules(config=None) -> dict:
     if config:
         for tier in tiers:
             tier['multiplier'] = config.multipliers[tier['rank']-1]
-        tiers[-1]['rule'] += ', selain bonus angka kembar'
+        tiers[-1]['rule'] += ', selain bonus pasangan angka / Draw Two'
     return {
         'mode': 'three-pick-orbit', 'virtual_only': True, 'rules_version': RULES_VERSION,
         'stake_options': config.stake_options if config else spin.COSTS,
         'virtual_rp_per_coin': economy.VIRTUAL_RP_PER_COIN,
-        'numeric_bonus': {'sum_cap':config.sum_cap,'product_cap':config.product_cap} if config else None,
+        'numeric_bonus': {'sum_cap':config.sum_cap,'product_cap':config.product_cap,
+                          'draw_two_match':True} if config else None,
         'base_payout_multiplier': config.multipliers[4] if config else 2, 'payout_multiplier': config.multipliers[4] if config else 2,
         'celebrations': tiers,
         'coin_cap': spin.COIN_CAP,
@@ -362,7 +363,9 @@ def pick(request: Request, response: Response, payload: PickRequest):
                 multiplier=CELEBRATIONS[rank]['multiplier'] if row['combo']=='COLOR_MATCH' else 0
                 if row['economy_json']:
                     snap=json.loads(row['economy_json'])
-                    classified=economy.classify(json.loads(row['cards_json']),economy.Config.model_validate(snap['config']))
+                    classified=economy.classify(
+                        json.loads(row['cards_json']), economy.Config.model_validate(snap['config']),
+                        draw_two_match=int(row['rules_version']) >= 3)
                     if classified != (row['combo'],snap['multiplier'],row['tier']):
                         raise RuntimeError('Invalid snapshotted payout; settlement blocked')
                     multiplier=snap['multiplier']

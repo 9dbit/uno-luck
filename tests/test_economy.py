@@ -92,6 +92,8 @@ def test_exact_math_independent_enumeration():
     ((3,3,2),('blue',)*3,'PAIR_PRODUCT',18),
     ((9,9,9),('blue',)*3,'PAIR_PRODUCT',20),
     ((0,0,0),('blue',)*3,'PAIR_PRODUCT',0),
+    (('+2','+2',4),('red','blue','yellow'),'PAIR_SUM',8),
+    (('+2','+2',4),('blue',)*3,'PAIR_PRODUCT',16),
     ((2,3,4),('blue',)*3,'COLOR_MATCH',40),
     ((2,5,9),('blue',)*3,'COLOR_MATCH',25),
 ])
@@ -151,6 +153,18 @@ def test_generator_boundaries_match_categories(monkeypatch):
             assert ('RANK_'+str(rank) if rank else combo)==key
         roll+=size
     assert roll==economy.SCALE
+
+
+def test_draw_two_pair_is_value_two_without_changing_distribution():
+    cfg=economy.PRESET
+    assert economy.bonus_faces((2,2,4))==['+2','+2','4']
+    assert economy.bonus_faces((2,4,6))==['2','4','6']
+    cards=hand(('+2','+2',4),('red','blue','yellow'))
+    assert economy.classify(cards,cfg)==('PAIR_SUM',8,None)
+    assert economy.classify(cards,cfg,draw_two_match=False)==('NO_MATCH',0,None)
+    mixed=hand(('+2',2,4),('red','blue','yellow'))
+    assert economy.classify(mixed,cfg)==('NO_MATCH',0,None)
+    assert economy.rtp_percent(cfg)==pytest.approx(89.99952285714286)
 
 
 def test_balance_cap_and_corrupted_snapshot(client,monkeypatch):

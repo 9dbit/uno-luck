@@ -133,12 +133,24 @@ def numeric_hands():
     return tuple(h for h in itertools.product(range(10), repeat=3) if len(set(h)) < 3)
 
 
-def classify(cards, config):
+def bonus_faces(hand):
+    """Render duplicated numeric twos as Draw Two without changing payout math.
+
+    The category probability and multiplier distribution remain identical to
+    ``numeric_hands``: this is a face variant of value 2, not another RNG lane.
+    """
+    return ['+2' if value == 2 and hand.count(2) >= 2 else str(value) for value in hand]
+
+
+def classify(cards, config, *, draw_two_match=True):
     from . import orbit
     faces = [str(c.get('face')) for c in cards]
-    if len(cards) == 3 and all(f in tuple(map(str, range(10))) for f in faces) and len(set(faces)) < 3 and all(c.get('color') in spin.COLORS for c in cards):
+    allowed = tuple(map(str, range(10))) + (('+2',) if draw_two_match else ())
+    if (len(cards) == 3 and all(f in allowed for f in faces)
+            and len(set(faces)) < 3 and all(c.get('color') in spin.COLORS for c in cards)):
+        values = [2 if face == '+2' else int(face) for face in faces]
         same = len({c['color'] for c in cards}) == 1
-        return ('PAIR_PRODUCT', min(math.prod(map(int, faces)), config.product_cap), None) if same else ('PAIR_SUM', min(sum(map(int, faces)), config.sum_cap), None)
+        return ('PAIR_PRODUCT', min(math.prod(values), config.product_cap), None) if same else ('PAIR_SUM', min(sum(values), config.sum_cap), None)
     rank = orbit.classify_rank(cards)
     return ('COLOR_MATCH', config.multipliers[rank-1], rank) if rank else ('NO_MATCH', 0, None)
 
@@ -159,7 +171,7 @@ def draw(config):
         if key == 'PAIR_SUM':
             # Select uniformly over all 60 ordered mixed-color triples.
             colors = secrets.choice(tuple(c for c in itertools.product(spin.COLORS, repeat=3) if len(set(c)) > 1))
-        cards = [dict(color=c, face=str(n)) for c,n in zip(colors, hand)]
+        cards = [dict(color=c, face=face) for c,face in zip(colors, bonus_faces(hand))]
     else:
         for _ in range(1000):
             if key == 'NO_MATCH':

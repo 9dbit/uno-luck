@@ -37,6 +37,19 @@ const URL=process.env.UNO_QA_URL||'http://127.0.0.1:8080';
    await page.evaluate(()=>{UNOLuckCelebration.close();return __present;});
    assert.equal(await page.evaluate(()=>UNOLuckCelebration.present({...__prize,payout:9999})),false);
    assert.equal(await page.evaluate(()=>UNOLuckCelebration.present({...__prize,combo:'PAIR_PRODUCT',tier:null})),false);
+   // Draw Two pair receives the small non-rank Coin celebration and rolling amount.
+   await page.goto(URL+'/?qa_draw_two_bonus=1');
+   await page.waitForFunction(()=>typeof showNumericBonus==='function'&&window.UNOLuckSound);
+   await page.evaluate(()=>showNumericBonus({stake:50,payout:400,delta:350,
+    bonus:{kind:'PAIR_SUM',multiplier:8},cards:[
+      {color:'blue',face:'+2'},{color:'blue',face:'+2'},{color:'yellow',face:'4'}]}));
+   const bonus=page.locator('#numeric-bonus');await bonus.waitFor({state:'visible'});
+   assert(await bonus.evaluate(node=>node.classList.contains('is-draw-two')));
+   assert.equal(await bonus.locator('.numeric-bonus-title').innerText(),'DRAW TWO MATCH');
+   await page.waitForTimeout(950);
+   assert.equal(await bonus.locator('.numeric-bonus-amount').innerText(),'+400 Coin');
+   assert((await page.locator('#win-particles .win-shard').count())>0||
+     await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches));
    await context.close();console.log(JSON.stringify({engine,fallback,result:'PASS'}));
   }
   await browser.close();

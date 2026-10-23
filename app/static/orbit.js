@@ -133,13 +133,13 @@ async function unlockAudio(){
   return Boolean(ok);
 }
 window.UNOLuckAudio={unlock:unlockAudio,preview:()=>sfx('tap'),get state(){return window.UNOLuckSound?.state||'inactive';}};
-function winBurst(card){
+function winBurst(card,count=36){
   const layer=$('win-particles');layer.replaceChildren();
   if(reducedMotion)return;
   const palette={red:'#ff2740',blue:'#0787ff',green:'#21ed6f',yellow:'#ffdc17'};
-  for(let i=0;i<36;i++){
+  for(let i=0;i<count;i++){
     const chip=document.createElement('i');chip.className='win-shard'+(i%5===0?' coin':'');
-    const theta=Math.PI*2*i/36,dist=40+Math.random()*130;
+    const theta=Math.PI*2*i/count,dist=30+Math.random()*(count<30?80:130);
     chip.style.setProperty('--dx',Math.cos(theta)*dist+'px');chip.style.setProperty('--dy',Math.sin(theta)*dist+'px');
     chip.style.setProperty('--rot',Math.floor(Math.random()*360)+'deg');
     chip.style.setProperty('--size',(5+Math.floor(Math.random()*9))+'px');
@@ -204,7 +204,8 @@ async function pickOne(){
         winBurst(last.cards[0]);
         await window.UNOLuckCelebration?.present(last);
       }else if(last.bonus&&last.payout>0){
-        say(`${last.bonus.kind==='PAIR_PRODUCT'?'Bonus perkalian':'Bonus penjumlahan'} · +${idMoney(last.payout)} Coin · ${virtualRp(last.payout)}`);
+        const drawTwo=(last.cards||[]).filter(card=>String(card.face)==='+2').length>=2;
+        say(`${drawTwo?'Draw Two Match':last.bonus.kind==='PAIR_PRODUCT'?'Bonus perkalian':'Bonus penjumlahan'} · +${idMoney(last.payout)} Coin · ${virtualRp(last.payout)}`);
         showNumericBonus(last);
       }else{say(last.bonus?'Angka kembar menghasilkan payout 0. Mulai ronde baru!':'Belum ada kecocokan warna. Mulai ronde baru!');}
     }else say(`Kartu ${['kiri','tengah','kanan'][phase-1]} terpilih. SPIN ${phase+1}/3 berikutnya.`);
@@ -235,8 +236,21 @@ let numericBonusTimer;
 function showNumericBonus(round){
   document.getElementById('numeric-bonus')?.remove();clearTimeout(numericBonusTimer);
   const toast=panelNode('aside','numeric-bonus');toast.id='numeric-bonus';toast.setAttribute('role','status');
-  toast.append(festiveArt('coins'),panelNode('strong','',`+${idMoney(round.payout)} Coin`),panelNode('span','',virtualRp(round.payout)));
+  const drawTwo=(round.cards||[]).filter(card=>String(card.face)==='+2').length>=2;
+  toast.classList.toggle('is-draw-two',drawTwo);
+  const amount=panelNode('strong','numeric-bonus-amount','+0 Coin');
+  toast.append(panelNode('small','numeric-bonus-title',drawTwo?'DRAW TWO MATCH':'PAIR MATCH'),
+    festiveArt('coins'),amount,
+    panelNode('span','',`${round.bonus?.multiplier||0}× BET · ${virtualRp(round.payout)}`));
   document.body.append(toast);
+  const target=Math.max(0,Number(round.payout)||0);
+  if(reducedMotion)amount.textContent=`+${idMoney(target)} Coin`;
+  else{
+    const started=performance.now(),duration=850;
+    const tick=now=>{const p=Math.min(1,(now-started)/duration);amount.textContent=`+${idMoney(Math.round(target*(1-Math.pow(1-p,3))))} Coin`;if(p<1&&amount.isConnected)requestAnimationFrame(tick);};
+    requestAnimationFrame(tick);
+  }
+  winBurst(round.cards?.find(card=>String(card.face)==='+2')||round.cards?.[0]||{color:'yellow'},18);
   if(sfxEnabled&&round.payout>0)window.UNOLuckSound?.numericBonus?.();
   numericBonusTimer=setTimeout(()=>toast.remove(),2400);
 }
@@ -354,7 +368,7 @@ function showRules(){
   }else paragraph(area,'Daftar kombinasi sedang disinkronkan dari server. Periksa koneksi sebelum bermain.');
   const details=panelNode('details','rules-details'),summary=panelNode('summary','','Cara bermain & ketentuan');details.append(summary);
   paragraph(details,'Gambar kartu di atas adalah contoh kombinasi. Hasil setiap ronde ditentukan oleh server. Wild dan Wild +4 tidak mempunyai warna; hanya tiga Wild sejenis yang memenuhi Rank 1/2.');
-  if(ruleset?.numeric_bonus)paragraph(area,`BONUS ANGKA KEMBAR · Tiga kartu angka dengan minimal dua angka sama: warna berbeda menjumlahkan angka (maks. ${ruleset.numeric_bonus.sum_cap}× BET); semua sewarna mengalikan angka (maks. ${ruleset.numeric_bonus.product_cap}× BET). Hanya satu hadiah per ronde. Angka 0 dapat menghasilkan payout 0. Bonus ini tanpa celebration.`);
+  if(ruleset?.numeric_bonus)paragraph(area,`PAIR MATCH · Tiga kartu dengan minimal dua angka sama, termasuk pasangan Draw Two (+2). +2 bernilai 2. Warna berbeda menjumlahkan nilainya (maks. ${ruleset.numeric_bonus.sum_cap}× BET); semua sewarna mengalikan nilainya (maks. ${ruleset.numeric_bonus.product_cap}× BET). Bonus mendapat tadaa dan selebrasi Coin kecil, bukan celebration Rank. Hanya satu hadiah per ronde; angka 0 dapat menghasilkan payout 0.`);
   paragraph(area,'NO MATCH · Tidak ada kombinasi yang cocok, tidak ada payout.');
   paragraph(details,'Tidak ada jaminan jackpot atau bonus setelah sejumlah spin.');
   paragraph(details,'AUTO maksimal 10 ronde, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
