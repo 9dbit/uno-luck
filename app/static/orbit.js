@@ -11,7 +11,7 @@ const MUTE_EFFECTS = 'uno_orbit_sfx';
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let account = null, currentRound=null, last=null, ruleset=null, stakeIndex=1, isSpinning=false;
 let nextBetIndex=null;
-let isTurbo=false, isAuto=false, cancelAuto=false, ringCards=[], wheel=null;
+let isTurbo=false, isAuto=false, autoStarting=false, cancelAuto=false, ringCards=[], wheel=null;
 let activeAutoSession=null, announceAutoGift=false;
 const AUTO_ROUNDS=[1,3,5,10];
 let autoRounds=10;
@@ -94,11 +94,11 @@ function syncAccount(a){
 }
 function updateButtons(){
   const stake=currentRound?.stake ?? STAKES[stakeIndex];
-  $('spin-btn').disabled=isSpinning||isAuto||!account||(!currentRound && account.balance<stake);
-  $('turbo-btn').disabled=isSpinning;
+  $('spin-btn').disabled=isSpinning||isAuto||autoStarting||!account||(!currentRound && account.balance<stake);
+  $('turbo-btn').disabled=isSpinning||autoStarting;
   $('turbo-btn').setAttribute('aria-pressed',String(isTurbo));
   $('auto-btn').setAttribute('aria-pressed',String(isAuto));
-  $('auto-btn').disabled=!isAuto&&(isSpinning||!account);
+  $('auto-btn').disabled=autoStarting||(!isAuto&&(isSpinning||!account));
   $('auto-btn').setAttribute('aria-label',isAuto?'Hentikan AUTO':'Pengaturan AUTO');
   $('auto-label').textContent=isAuto?'STOP':'AUTO';
 }
@@ -243,7 +243,7 @@ async function pickOne(){
     updateButtons();
   }
 }
-function canChangeBet(){return !!account&&!isSpinning&&!isAuto&&!currentRound&&!pendingInfo();}
+function canChangeBet(){return !!account&&!isSpinning&&!isAuto&&!autoStarting&&!currentRound&&!pendingInfo();}
 // Only promote a confirmed choice after the paid round, AUTO batch and any
 // uncertain request finish. Never change the stake used for an in-flight retry.
 function applyNextBet(){
@@ -316,7 +316,7 @@ function autoBudget(rounds){
   return rounds*stake;
 }
 async function autoLoop(roundLimit){
-  if(isAuto||isSpinning||!account||pendingInfo()||document.hidden||!AUTO_ROUNDS.includes(roundLimit))return;
+  if(isAuto||autoStarting||isSpinning||!account||pendingInfo()||document.hidden||!AUTO_ROUNDS.includes(roundLimit))return;
   if(currentRound&&currentRound.auto_session_id!==activeAutoSession?.id){
     say('Selesaikan ronde yang sedang berjalan sebelum melanjutkan AUTO.');
     return;
@@ -326,6 +326,7 @@ async function autoLoop(roundLimit){
     say('Saldo belum cukup untuk seluruh ronde AUTO berbayar.');
     return;
   }
+  autoStarting=true;updateButtons();
   try{
     void unlockAudio();
     const opened=await autoApi('/start','POST',
@@ -354,7 +355,7 @@ async function autoLoop(roundLimit){
   }catch(error){
     say(error.message||'Gagal memulai AUTO. Tidak ada saldo yang dipotong oleh tombol AUTO.');
   }finally{
-    isAuto=false;announceAutoGift=false;
+    isAuto=false;autoStarting=false;announceAutoGift=false;
     applyNextBet();updateButtons();
   }
 }
@@ -506,7 +507,7 @@ function coinValue(value,tag='span'){
 }
 function showAutoSettings(){
   if(isAuto){cancelAuto=true;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
-  if(isSpinning||!account)return;
+  if(isSpinning||autoStarting||!account)return;
   const area=playerPanel('Auto Play');$('modal').dataset.view='auto';let selected=activeAutoSession?.paid_rounds??autoRounds;
   panelHero(area,'cards','KEEP THE FUN GOING','Atur ritme bermain','Pilih ronde, lalu biarkan AUTO melanjutkan.');
   area.append(panelNode('p','panel-eyebrow','PILIH JUMLAH RONDE'));
@@ -536,7 +537,7 @@ function showAutoSettings(){
   function refresh(){
     for(const btn of grid.children)btn.setAttribute('aria-pressed',String(Number(btn.dataset.rounds)===selected));
     const required=autoBudget(selected);virtualBudget.textContent='Kebutuhan '+virtualRp(required)+' · 1 Coin = Rp40 virtual';total.querySelector('.coin-value-text').textContent=idMoney(required)+' Coin';balance.querySelector('.coin-value-text').textContent=idMoney(account?.balance??0)+' Coin';
-    const blocked=!!pendingInfo()||isSpinning||isAuto||!account||
+    const blocked=!!pendingInfo()||isSpinning||isAuto||autoStarting||!account||
       (!!currentRound&&currentRound.auto_session_id!==activeAutoSession?.id);
     start.disabled=blocked||account.balance<required;
     message.textContent=blocked?'Selesaikan ronde atau sinkronisasi SPIN terlebih dahulu.':account.balance<required?'Coin belum cukup untuk BET berbayar.':`${selected} ronde berbayar + 10 free spins · 5 hadiah PROMO · ${isTurbo?'TURBO':'NORMAL'}`;
