@@ -253,7 +253,9 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
         tier_view['multiplier'] = snap['multiplier']
     return {
         'id': round_row['id'], 'picked': picked, 'stake': round_row['stake'],
-        'charged_stake': round_row['charged_stake'], 'free_spin': bool(round_row['auto_session_id'] and round_row['charged_stake'] == 0),
+        'charged_stake': round_row['charged_stake'],
+        'auto_session_id': round_row['auto_session_id'],
+        'free_spin': bool(round_row['auto_session_id'] and round_row['charged_stake'] == 0),
         'cards': cards, 'complete': complete,
         'combo': round_row['combo'] if complete else None,
         'tier': tier_view,
@@ -350,7 +352,8 @@ def pick(request: Request, response: Response, payload: PickRequest):
         stamp=time.time()
         if row is None:
             revision, config = economy.active(db)
-            if payload.stake not in (config.stake_options if config else spin.COSTS):
+            if (payload.stake not in (config.stake_options if config else spin.COSTS)
+                    and not payload.auto_session_id):
                 raise HTTPException(422,'Tahapan BET berubah. Muat ulang pengaturan BET.')
             promotion = None
             charged_stake = payload.stake
