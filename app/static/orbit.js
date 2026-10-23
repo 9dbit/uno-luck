@@ -182,6 +182,10 @@ async function pickOne(){
     localStorage.setItem(pendingKey,JSON.stringify(pending));
   }
   isSpinning=true;updateButtons();
+  // A fresh SPIN 1/3 must not display the last completed hand and its NET.
+  // Until the server settles the new round, show three covered cards and
+  // pending WIN/NET instead of presenting a previous 0 as a new result.
+  if(expected===1&&!currentRound)paintRound(null);
   window.UNOLuckMatch?.clear();
   window.UNOLuckMotion?.beginSpin();
   void unlockAudio();
@@ -455,7 +459,7 @@ function showRules(){
   }else paragraph(area,'Daftar kombinasi sedang disinkronkan dari server. Periksa koneksi sebelum bermain.');
   const details=panelNode('details','rules-details'),summary=panelNode('summary','','Cara bermain & ketentuan');details.append(summary);
   paragraph(details,'Gambar kartu di atas adalah contoh kombinasi. Hasil setiap ronde ditentukan oleh server. Wild dan Wild +4 tidak mempunyai warna; hanya tiga Wild sejenis yang memenuhi Rank 1/2.');
-  if(ruleset?.numeric_bonus)paragraph(area,`PAIR MATCH · Tiga kartu dengan minimal dua angka sama, termasuk pasangan Draw Two (+2). +2 bernilai 2. Warna berbeda menjumlahkan nilainya (maks. ${ruleset.numeric_bonus.sum_cap}× BET); semua sewarna mengalikan nilainya (maks. ${ruleset.numeric_bonus.product_cap}× BET). Bonus mendapat tadaa dan selebrasi Coin kecil, bukan celebration Rank. Hanya satu hadiah per ronde; angka 0 dapat menghasilkan payout 0.`);
+  if(ruleset?.numeric_bonus)paragraph(area,`PAIR MATCH · Tiga kartu dengan minimal dua angka sama, termasuk pasangan Draw Two (+2). +2 bernilai 2. Warna berbeda menjumlahkan nilainya (maks. ${ruleset.numeric_bonus.sum_cap}× BET); semua sewarna mengalikan nilainya (maks. ${ruleset.numeric_bonus.product_cap}× BET). Jika perkalian bernilai 0 dan ketiga kartu sewarna, hasilnya menjadi Lucky Color Win Rank 5 agar tidak ada hadiah 0 untuk kombinasi menang. Bonus pasangan mendapat selebrasi Coin kecil. Hanya satu hadiah per ronde.`);
   if(ruleset?.color_bonus?.enabled){
     paragraph(area,`COLOR PAIR · Minimal dua kartu memiliki warna sama, kecuali jika memenuhi Rank/angka kembar yang lebih tinggi. Hadiah ${ruleset.color_bonus.pair_multiplier}× BET.`);
     paragraph(area,`COLOR SEQUENCE · Dua kartu berdampingan sewarna dengan angka berurutan. Hadiah ${ruleset.color_bonus.sequence_multiplier}× BET. Tiga angka sewarna berurutan tetap Golden Match.`);
