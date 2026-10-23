@@ -191,6 +191,16 @@ def numeric_hands():
     return tuple(h for h in itertools.product(range(10), repeat=3) if len(set(h)) < 3)
 
 
+@lru_cache(maxsize=1)
+def positive_product_hands():
+    """Numeric duplicate hands whose product pays a positive bonus.
+
+    A zero-valued triple in one color is instead a Color Match (Rank 5).
+    Restrict the product lane rather than secretly booking a 0-coin win.
+    """
+    return tuple(hand for hand in numeric_hands() if math.prod(hand)>0)
+
+
 def bonus_faces(hand):
     """Render duplicated numeric twos as Draw Two without changing payout math.
 
@@ -200,7 +210,7 @@ def bonus_faces(hand):
     return ['+2' if value == 2 and hand.count(2) >= 2 else str(value) for value in hand]
 
 
-def classify(cards, config, *, draw_two_match=True):
+def classify(cards, config, *, draw_two_match=True, zero_product_fallback=True):
     from . import orbit
     faces = [str(c.get('face')) for c in cards]
     allowed = tuple(map(str, range(10))) + (('+2',) if draw_two_match else ())
@@ -208,7 +218,16 @@ def classify(cards, config, *, draw_two_match=True):
             and len(set(faces)) < 3 and all(c.get('color') in spin.COLORS for c in cards)):
         values = [2 if face == '+2' else int(face) for face in faces]
         same = len({c['color'] for c in cards}) == 1
-        return ('PAIR_PRODUCT', min(math.prod(values), config.product_cap), None) if same else ('PAIR_SUM', min(sum(values), config.sum_cap), None)
+        if same:
+            product = math.prod(values)
+            if product == 0 and zero_product_fallback:
+                # A shared-color triple is visibly a Rank 5 win. Never
+                # advertise a winning three-blue hand that returns 0 Coin.
+                rank = orbit.classify_rank(cards)
+                if rank:
+                    return ('COLOR_MATCH', config.multipliers[rank-1], rank)
+            return ('PAIR_PRODUCT', min(product, config.product_cap), None)
+        return ('PAIR_SUM', min(sum(values), config.sum_cap), None)
     rank = orbit.classify_rank(cards)
     if rank:
         return ('COLOR_MATCH', config.multipliers[rank-1], rank)
@@ -238,7 +257,8 @@ def draw(config):
             key = candidate
             break
     if key in ('PAIR_SUM', 'PAIR_PRODUCT'):
-        hand = secrets.choice(numeric_hands())
+        hand = secrets.choice(
+            positive_product_hands() if key == 'PAIR_PRODUCT' else numeric_hands())
         color = secrets.choice(spin.COLORS)
         colors = [color] * 3
         if key == 'PAIR_SUM':
@@ -288,9 +308,12 @@ def distribution(config):
         elif key == 'COLOR_SEQUENCE':
             result[config.color_sequence_multiplier] += p
         elif key.startswith('PAIR_'):
-            counts = collections.Counter(min(sum(h),config.sum_cap) if key=='PAIR_SUM' else min(math.prod(h),config.product_cap) for h in numeric_hands())
+            hands = numeric_hands() if key == 'PAIR_SUM' else positive_product_hands()
+            counts = collections.Counter(
+                min(sum(h),config.sum_cap) if key=='PAIR_SUM'
+                else min(math.prod(h),config.product_cap) for h in hands)
             for multiplier, n in counts.items():
-                result[multiplier] += p * n / len(numeric_hands())
+                result[multiplier] += p * n / len(hands)
         else:
             result[config.multipliers[int(key[-1])-1] if key.startswith('RANK_') else 0] += p
     return sorted(result.items())
