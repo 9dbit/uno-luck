@@ -428,7 +428,13 @@ async function showWallet(view='all'){
       const stamp=new Date(item.created_at*1000);
       const time=document.createElement('time');time.dateTime=stamp.toISOString();
       time.textContent=stamp.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'});
-      const result=document.createElement('strong');result.textContent=item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':item.combo==='PAIR_SUM'?'BONUS PENJUMLAHAN':item.combo==='PAIR_PRODUCT'?'BONUS PERKALIAN':'NO MATCH');
+      const result=document.createElement('strong');result.textContent=
+        item.combo==='PAIR_PRODUCT'&&Number(item.payout)===0?'BONUS PERKALIAN (ATURAN LAMA)': 
+        item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':
+        item.combo==='PAIR_SUM'?'BONUS PENJUMLAHAN':
+        item.combo==='PAIR_PRODUCT'?'BONUS PERKALIAN':
+        item.combo==='COLOR_PAIR'?'COLOR PAIR':
+        item.combo==='COLOR_SEQUENCE'?'COLOR SEQUENCE':'ZONK / NO MATCH');
       const values=document.createElement('p');values.textContent=`BET ${idMoney(item.stake)} · PAYOUT/WIN ${idMoney(item.payout)} · NET ${item.delta>=0?'+':''}${idMoney(item.delta)}`;
       const rupiah=panelNode('p','wallet-rp',`BET ${virtualRp(item.stake)} · PAYOUT/WIN ${virtualRp(item.payout)} · NET ${virtualRp(item.delta)}`);
       row.append(time,result,values,rupiah);history.append(row);
