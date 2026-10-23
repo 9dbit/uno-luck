@@ -152,3 +152,14 @@ ordinary free-spin payouts still projected at average RTP. This is not an
 enforced runtime admission quota; the operator must actively plan promotion
 availability and may still have actual period losses. A proposed AUTO session
 count exceeding the period's total nominal paid BET is flagged as infeasible.
+
+### Server-enforced AUTO admission
+The **Pengaman Gift AUTO · Server** section in the authenticated Economy Lab
+controls three persisted settings: enable/disable new Gift AUTO sessions,
+virtual Coin booking budget per WIB day, and maximum accepted sessions per
+player per day. Default disabled, budget 0, per-player limit 1. Admin can view
+booked budget and remaining allocation. A session booking is atomic and
+idempotent; previously accepted sessions remain valid when the admin toggles
+the policy off. The actual paid-round RTP excludes free-round payouts, while
+effective period RTP includes free rounds and promo credits. Promotional budget
+is an admission gate, **not** a per-player win quota or guarantee of margin.
