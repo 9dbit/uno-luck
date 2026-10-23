@@ -75,14 +75,16 @@ def test_exact_math_independent_enumeration():
     assert len(numbers)==280
     nonzero=[h for h in numbers if h[0]*h[1]*h[2]>0]
     assert len(nonzero)==225
-    expected=.085656*sum(min(sum(h),10) for h in numbers)/280+.004*sum(min(h[0]*h[1]*h[2],20) for h in nonzero)/len(nonzero)
+    sum_nonzero=[h for h in numbers if sum(h)>0]
+    assert len(sum_nonzero)==279
+    expected=.085656*sum(min(sum(h),10) for h in sum_nonzero)/len(sum_nonzero)+.004*sum(min(h[0]*h[1]*h[2],20) for h in nonzero)/len(nonzero)
     expected += .0025*25+.0004*40+.00008*80+.000015*150+.000002*300
     result=economy.simulate(economy.Simulation(config=cfg))
     assert result['rtp_percent']==pytest.approx(expected*100)
-    assert result['rtp_percent']==pytest.approx(91.39145936507937)
+    assert result['rtp_percent']==pytest.approx(91.6621770609319)
     assert sum(x['percent'] for x in result['distribution'])==pytest.approx(100)
-    assert result['payout_probability_percent']==pytest.approx(9.234701071428573)
-    assert result['average_rounds_per_positive_payout']==pytest.approx(10.828720846134589)
+    assert result['payout_probability_percent']==pytest.approx(9.265292500000001)
+    assert result['average_rounds_per_positive_payout']==pytest.approx(10.79296741036508)
     assert result['expected_net']==pytest.approx((expected-1)*10)
     assert result==economy.simulate(economy.Simulation(config=cfg))
     empty=economy.simulate(economy.Simulation(config=cfg,balance=9))
@@ -208,7 +210,7 @@ def test_draw_two_pair_is_value_two_without_changing_distribution():
     assert economy.classify(cards,cfg,draw_two_match=False)==('NO_MATCH',0,None)
     mixed=hand(('+2',2,4),('red','blue','yellow'))
     assert economy.classify(mixed,cfg)==('NO_MATCH',0,None)
-    assert economy.rtp_percent(cfg)==pytest.approx(91.39145936507937)
+    assert economy.rtp_percent(cfg)==pytest.approx(91.6621770609319)
 
 
 def test_balance_cap_and_corrupted_snapshot(client,monkeypatch):
@@ -296,7 +298,7 @@ def test_publish_guardrail_and_actual_performance(client,monkeypatch):
     assert result['rounds']==1 and result['players']==1
     assert result['turnover_coin']==10 and result['payout_coin']==50 and result['gross_coin']==-40
     assert result['actual_rtp_percent']==500
-    assert result['theoretical_rtp_percent']==pytest.approx(91.39145936507937)
+    assert result['theoretical_rtp_percent']==pytest.approx(91.6621770609319)
     assert result['active_revision']==1 and result['engine_model']==economy.ENGINE_MODEL
     assert result['by_combo']==[{'combo':'PAIR_SUM','rounds':1,'turnover_coin':10,'payout_coin':50}]
     assert client.get('/api/admin/economy/performance?days=0',headers=HEAD).status_code==422
