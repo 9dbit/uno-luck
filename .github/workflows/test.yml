@@ -85,6 +85,7 @@ jobs:
           UNO_QA_ENGINE=chromium python tests/visual_qa_iphone15pro_fullbleed.py
           python tests/visual_qa_sound_studio.py
           python tests/visual_qa_jackpot_sfx.py
+          python tests/visual_qa_qa_audio_fallback.py
           python tests/visual_qa_ios_safari_audio.py
           python tests/visual_qa_gameplay_music.py
           python tests/visual_qa_shared_sound.py
