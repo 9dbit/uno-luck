@@ -122,12 +122,17 @@ def _margin_projection(db: sqlite3.Connection, policy: sqlite3.Row) -> dict:
     planned = int(policy['planned_paid_turnover_coin'])
     target = float(policy['target_margin_percent'])
     room = max(0, math.floor(planned * max(0, 100 - base_rtp - target) / 100))
-    estimated_after = planned * (1-base_rtp/100) - int(policy['daily_budget_coin'])
+    # Historical QA campaigns may have been configured under an older RTP.
+    # The server takes the LOWER of the configured cap and the recalculated
+    # cap. Never overbook a budget that would violate the margin forecast.
+    effective_budget = min(int(policy['daily_budget_coin']), room)
+    estimated_after = planned * (1-base_rtp/100) - effective_budget
     return {
         "economy_revision": revision,
         "base_rtp_percent": base_rtp,
         "projected_gross_margin_percent": 100-base_rtp,
         "max_affordable_budget_coin": room,
+        "effective_daily_budget_coin": effective_budget,
         "projected_surplus_coin": estimated_after,
         "projected_margin_percent": estimated_after/planned*100 if planned else None,
     }
@@ -143,11 +148,13 @@ def promo_budget_state(db: sqlite3.Connection) -> dict:
     budget = int(row['daily_budget_coin'])
     booked = int(summary['booked'])
     projection = _margin_projection(db, row)
+    limit = projection.get('effective_daily_budget_coin', 0)
     return {
         'enabled': bool(row['enabled']),
         'daily_budget_coin': budget,
         'booked_coin': booked,
-        'remaining_coin': max(0, budget-booked),
+        'remaining_coin': max(0, limit-booked),
+        'budget_adjusted_for_rtp': limit < budget,
         'sessions_today': int(summary['total']),
         'max_sessions_per_account_day': row['max_sessions_per_account_day'],
         'max_sessions_per_day': row['max_sessions_per_day'],
@@ -268,8 +275,7 @@ def start(request: Request, response: Response, payload: StartRequest):
         projection = _margin_projection(db, policy)
         if (projection['base_rtp_percent'] is None
                 or projection['projected_margin_percent'] is None
-                or projection['projected_margin_percent'] + 1e-7 < policy['target_margin_percent']
-                or policy['daily_budget_coin'] > projection['max_affordable_budget_coin']):
+                or projection['projected_margin_percent'] + 1e-7 < policy['target_margin_percent']):
             raise HTTPException(409, "Proyeksi margin periode tidak cukup untuk anggaran Gift. Koreksi target turnover dan budget di Economy Lab.")
         day = spin.now_wib_day()
         prior_count = db.execute("""SELECT COUNT(*) FROM auto_sessions
