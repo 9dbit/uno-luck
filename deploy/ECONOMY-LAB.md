@@ -144,3 +144,11 @@ redeems Coin, or allows withdrawals. Sound Cloud published files/revisions
 are deliberately unchanged. All work remains draft until integration QA,
 physical iPhone acceptance and an explicitly approved staging deployment.
 See `deploy/PERIOD-PRIZE-POOL.md` for the promotion funding analysis.
+
+The forecast now also displays a recommended **maximum number of AUTO
+sessions** supportable by the supplied BET turnover and target base RTP:
+one estimate at expected gift cost and one at maximum gift rate, with
+ordinary free-spin payouts still projected at average RTP. This is not an
+enforced runtime admission quota; the operator must actively plan promotion
+availability and may still have actual period losses. A proposed AUTO session
+count exceeding the period's total nominal paid BET is flagged as infeasible.
