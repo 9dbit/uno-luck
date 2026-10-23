@@ -145,6 +145,8 @@ def test_generator_boundaries_match_categories(monkeypatch):
     # Exercise exact interval boundaries rather than a noisy statistical test.
     for key in economy.KEYS:
         size=int(cfg.percentages[key]*10000)
+        if not size:
+            continue  # Newly added categories remain disabled in the historical preset.
         for value in (roll,roll+size-1):
             # Patch only selection randbelow; tier-4 also uses it for a face start.
             calls=iter([value])
