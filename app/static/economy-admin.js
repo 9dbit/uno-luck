@@ -51,16 +51,19 @@ async function loadPerformance(){const out=$('performance-results');out.textCont
 $('unlock').onclick=async()=>{key=$('admin-key').value;$('admin-key').value='';try{await load();}catch(e){status(e.message,true);}};
 $('reload').onclick=async()=>{try{await load();}catch(e){status(e.message,true);}};
 function syncTarget(fromAmount=false){
- const turnover=Number($('turnover').value),costs=Number($('costs').value);
- if(fromAmount){if(turnover>0)$('target-margin').value=((Number($('target-profit').value)+costs)/turnover*100).toFixed(4);}
- else $('target-profit').value=(turnover*Number($('target-margin').value)/100-costs).toFixed(2);
+ const turnover=Number($('turnover').value);
+ if(fromAmount){if(turnover>0)$('target-margin').value=(Number($('target-profit').value)/turnover*100).toFixed(4);}
+ else $('target-profit').value=(turnover*Number($('target-margin').value)/100).toFixed(2);
 }
 $('editor').addEventListener('input',e=>{if(['turnover','costs','target-margin','target-profit'].includes(e.target.id))syncTarget(e.target.id==='target-profit');$('target-status').textContent='Draft berubah. Simulasi menunjukkan margin aktual; target baru diterapkan ke draft setelah tombol Sesuaikan ditekan.';schedule();});
 $('fit-target').onclick=async()=>{
  clearTimeout(timer);const token=++sequence;validDraft=null;$('publish').disabled=true;$('fit-target').disabled=true;
- try{const d=await api('/target',{config:read(),margin_percent:$('target-margin').value});if(token!==sequence)return;
+ try{const d=await api('/target',{config:read(),margin_percent:$('target-margin').value,
+    turnover_rp:Number($('turnover').value),costs_rp:Number($('costs').value),
+    auto_sessions:Number($('promo-sessions').value),auto_paid_rounds:Number($('promo-paid-rounds').value),
+    stake:Number($('sim-stake').value)});if(token!==sequence)return;
  for(const [k,v] of Object.entries(d.config.percentages))$('p-'+k).value=v;
- $('target-status').textContent=`Target ${fmt(d.requested_margin_percent)}% → margin draft ${fmt(d.actual_margin_percent)}%. Selisih pembulatan ${fmt(d.rounding_difference_percent)} poin persentase. ${d.note}`;schedule();
+ $('target-status').textContent=`Target periode ${fmt(d.requested_margin_percent)}% → proyeksi margin periode ${fmt(d.actual_period_margin_percent??d.actual_margin_percent)}% (RTP dasar margin ${fmt(d.actual_margin_percent)}%). Selisih ${fmt(d.rounding_difference_percent)} poin. ${d.note}`;schedule();
  }catch(e){if(token===sequence){$('target-status').textContent=e.message;$('results').textContent='Penyesuaian gagal. Perbaiki input atau ubah target untuk menghitung ulang.';}}
  finally{$('fit-target').disabled=false;}
 };$('sim-stake').addEventListener('change',schedule);$('performance-days').addEventListener('change',loadPerformance);$('refresh-performance').addEventListener('click',loadPerformance);
