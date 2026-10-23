@@ -163,7 +163,7 @@ function newRequestId(){return typeof crypto.randomUUID==='function'?crypto.rand
    from the wheel to the upper-left, upper-center, or upper-right display. */
 const pendingKey='uno_orbit_pending_v08'; // Keep request recovery keys across upgrades.
 // The updater may only refresh between completed rounds, never during a pick.
-window.UNOLuckCanReload=()=>Boolean(account)&&!isSpinning&&!isAuto&&!currentRound&&
+window.UNOLuckCanReload=()=>Boolean(account)&&!isSpinning&&!isAuto&&!autoStarting&&!currentRound&&
   !pendingInfo()&&!$('modal').open&&$('celebration-overlay').hidden;
 function pendingInfo(){
   try{const data=JSON.parse(localStorage.getItem(pendingKey)||'null');
@@ -647,10 +647,10 @@ async function loadState(quiet=false){
     const payouts=ruleset?.celebrations?.map(t=>t.multiplier).filter(Number.isFinite);
     if(payouts?.length){$('reward-range').textContent=ruleset.numeric_bonus?'≤'+Math.max(...payouts)+'×':Math.min(...payouts)+'×–'+Math.max(...payouts)+'×';$('combination-label').textContent=ruleset.numeric_bonus?'5 rank + bonus':'5 kombinasi';}
     syncAccount(data.account);currentRound=data.round;
-    if(!isAuto){
+    if(!isAuto&&!autoStarting){
       try{activeAutoSession=(await autoApi('/state')).session;}catch(error){console.warn('AUTO state refresh:',error);}
     }
-    if(Array.isArray(ruleset?.stake_options)&&!isAuto){
+    if(Array.isArray(ruleset?.stake_options)&&!isAuto&&!autoStarting){
       const selected=STAKES[stakeIndex],queued=nextBetIndex===null?null:STAKES[nextBetIndex];
       STAKES=[...ruleset.stake_options];
       stakeIndex=Math.max(0,STAKES.indexOf(selected));
