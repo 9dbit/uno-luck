@@ -247,7 +247,7 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
         pattern = (CELEBRATIONS[saved_rank]['pattern']
                    if version >= 3 and saved_rank in CELEBRATIONS
                    else 'LEGACY_COLOR_MATCH')
-    tier_view = rank_details(saved_rank, legacy=version < RULES_VERSION) if complete and saved_rank else None
+    tier_view = rank_details(saved_rank, legacy=version < 3) if complete and saved_rank else None
     snap = json.loads(round_row['economy_json']) if round_row['economy_json'] else None
     if tier_view and snap:
         tier_view['multiplier'] = snap['multiplier']
@@ -277,11 +277,23 @@ def public_rules(config=None) -> dict:
         'virtual_rp_per_coin': economy.VIRTUAL_RP_PER_COIN,
         'numeric_bonus': {'sum_cap':config.sum_cap,'product_cap':config.product_cap,
                           'draw_two_match':True} if config else None,
+        'color_bonus': {
+            'enabled': bool(config.percentages['COLOR_PAIR'] or config.percentages['COLOR_SEQUENCE']),
+            'pair_multiplier': config.color_pair_multiplier,
+            'sequence_multiplier': config.color_sequence_multiplier,
+            'rule': 'Dua warna sama = Color Pair; dua kartu berdampingan sewarna dan berangka berurutan = Color Sequence. Tiga angka sewarna berurutan tetap Golden Match.'
+        } if config else None,
+        'auto_promotion': {
+            'free_spins': autoplay.FREE_ROUNDS,
+            'guaranteed_bonus_count': autoplay.PROMO_REWARDS,
+            'bonus_rate_options_percent': list(autoplay.PROMO_PERCENTS),
+            'disclosure': 'Bonus AUTO adalah hadiah promosi yang dijamin, bukan hasil RNG kartu. ZONK membayar 0 untuk permainan biasa.'
+        },
         'base_payout_multiplier': config.multipliers[4] if config else 2, 'payout_multiplier': config.multipliers[4] if config else 2,
         'celebrations': tiers,
         'coin_cap': spin.COIN_CAP,
         'spin_sequence': ['kiri','tengah','kanan'],
-        'note': 'Setiap ronde 3 SPIN dan 1 biaya. Payout rank ditentukan dari 3 kartu yang benar-benar muncul. NO MATCH tidak mendapat payout. Saldo dapat dibatasi 1.000.000 koin. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
+        'note': 'Setiap ronde 3 SPIN. BET dibayar sekali, kecuali free spins promosi. ZONK berarti hadiah permainan nol; bonus promosi tercatat terpisah. Saldo maksimal 1.000.000 koin. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
     }
 
 
@@ -291,19 +303,18 @@ def state(request: Request, response: Response):
     try:
         account = spin.get_account(request,response,db)
         row = current_round(db, account['id'])
-        hist = spin.spin_history(db, account['id'], 8)
-        for item in hist:
-            tier_row = db.execute('SELECT tier,rules_version,cards_json,economy_json FROM orbit_rounds WHERE id=? AND account_id=?', (item['id'], account['id'])).fetchone()
-            version = int(tier_row['rules_version']) if tier_row else 1
-            item['tier'] = (rank_details(tier_row['tier'] or 5, legacy=version < RULES_VERSION)
-                if tier_row and item['combo'] == 'COLOR_MATCH' else None)
-            item['pattern'] = (CELEBRATIONS[tier_row['tier']]['pattern']
-                if tier_row and version >= 3 and item['combo'] == 'COLOR_MATCH'
-                and tier_row['tier'] in CELEBRATIONS else
-                'LEGACY_COLOR_MATCH' if tier_row and item['combo'] == 'COLOR_MATCH' else None)
-            if tier_row and tier_row['economy_json'] and item['tier']:
-                item['tier']['multiplier'] = json.loads(tier_row['economy_json'])['multiplier']
-            item['rules_version'] = version
+        completed = db.execute(
+            'SELECT * FROM orbit_rounds WHERE account_id=? AND finished_at IS NOT NULL ORDER BY finished_at DESC,id DESC LIMIT 8',
+            (account['id'],)).fetchall()
+        hist = []
+        for completed_round in completed:
+            item = view_round(completed_round)
+            item['regular_payout'] = item['payout']
+            item['payout'] += item['promo_coin']
+            item['nominal_stake'] = item['stake']
+            item['stake'] = item['charged_stake']
+            item['created_at'] = completed_round['created_at']
+            hist.append(item)
         response.headers['Cache-Control'] = 'no-store'
         return {'account': spin.account_view(account), 'round': view_round(row),
                 'recent': hist, 'rules': public_rules(economy.active(db)[1])}
