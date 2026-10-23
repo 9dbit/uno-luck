@@ -24,7 +24,7 @@ SCALE = 1_000_000
 VIRTUAL_RP_PER_COIN = 40
 MIN_PUBLISH_RTP = Decimal('85')
 MAX_PUBLISH_RTP = Decimal('98')
-ENGINE_MODEL = 'fixed-independent-csprng-v1'
+ENGINE_MODEL = 'fixed-independent-csprng-v2-positive-pair'
 KEYS = ('NO_MATCH', 'COLOR_PAIR', 'COLOR_SEQUENCE', 'PAIR_SUM', 'PAIR_PRODUCT', 'RANK_5', 'RANK_4', 'RANK_3', 'RANK_2', 'RANK_1')
 
 class Config(BaseModel):
