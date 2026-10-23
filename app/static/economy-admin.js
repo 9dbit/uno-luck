@@ -1,6 +1,6 @@
 'use strict';
 (()=>{
-const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(n),rp=n=>'Rp'+fmt(n*40)+' virtual';
+const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('id-ID',{maximumFractionDigits:4}).format(n),rp=n=>'Rp'+fmt(n*40)+' virtual';
 const names={NO_MATCH:'NO MATCH',PAIR_SUM:'Angka kembar · jumlah',PAIR_PRODUCT:'Angka kembar · perkalian',RANK_5:'Lucky Color Win',RANK_4:'Golden Match',RANK_3:'Phoenix Color Blast',RANK_2:'Imperial Fortune',RANK_1:'Dragon King Jackpot'};
 let key='',revision=0,timer,sequence=0,validDraft=null;
 function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
