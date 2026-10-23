@@ -82,6 +82,7 @@ function virtualRp(n){return 'Rp'+idMoney(n*(ruleset?.virtual_rp_per_coin||40))+
 function syncAccount(a){
   if(!a)return;account=a;
   $('wallet-balance').title=virtualRp(a.balance)+' · tidak dapat dicairkan';
+  $('wallet-rupiah').textContent=virtualRp(a.balance);
   if(window.UNOLuckMotion)window.UNOLuckMotion.balance(a.balance,true);
   else $('wallet-balance').textContent=idMoney(a.balance);
   $('gift-btn').disabled=!a.daily_available&&!a.refill_available;
@@ -288,7 +289,7 @@ function showGift(){
   }
   paragraph(area,'Coin bersifat virtual, tidak dapat dibeli atau dicairkan.').className='panel-fine';
 }
-async function showWallet(){
+async function showWallet(view='all'){
   const area=playerPanel('Coin');$('modal').classList.add('coin-modal');$('modal').dataset.view='coin';
   const summary=document.createElement('div');summary.className='coin-summary';
   summary.append(festiveArt('coins'));
@@ -305,6 +306,17 @@ async function showWallet(){
     // A closed/replaced popup must not receive a delayed response.
     if(!history.isConnected||!$('modal').open)return;
     syncAccount(data.account);history.replaceChildren();
+    const recent=data.recent||[];
+    const dashboard=panelNode('section','wallet-dashboard');dashboard.setAttribute('aria-label','Ringkasan riwayat wallet');
+    dashboard.append(panelNode('p','panel-eyebrow',`RINGKASAN ${recent.length} RONDE TERAKHIR`));
+    for(const [label,key] of [['Total BET','stake'],['Total PAYOUT','payout'],['Hasil bersih WIN','delta']]){
+      const value=recent.reduce((sum,item)=>sum+(Number(item[key])||0),0);
+      const metric=panelNode('div','wallet-metric');metric.dataset.metric=key;
+      metric.classList.toggle('is-highlighted',(view==='payout'&&key==='payout')||(view==='win'&&key==='delta'));
+      metric.append(panelNode('span','',label),coinValue(value),panelNode('small','wallet-rp',virtualRp(value)));dashboard.append(metric);
+    }
+    dashboard.append(panelNode('p','panel-fine','PAYOUT adalah hadiah bruto. WIN adalah PAYOUT dikurangi BET. Ringkasan hanya mencakup riwayat yang ditampilkan, bukan seluruh masa bermain.'));
+    history.append(dashboard);
     if(!data.recent?.length)paragraph(history,'Belum ada bet selesai.');
     for(const item of data.recent||[]){
       const row=document.createElement('article');row.className='coin-history-row';
@@ -313,7 +325,8 @@ async function showWallet(){
       time.textContent=stamp.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'});
       const result=document.createElement('strong');result.textContent=item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':item.combo==='PAIR_SUM'?'BONUS PENJUMLAHAN':item.combo==='PAIR_PRODUCT'?'BONUS PERKALIAN':'NO MATCH');
       const values=document.createElement('p');values.textContent=`BET ${idMoney(item.stake)} · PAYOUT ${idMoney(item.payout)} · WIN ${item.delta>=0?'+':''}${idMoney(item.delta)}`;
-      row.append(time,result,values);history.append(row);
+      const rupiah=panelNode('p','wallet-rp',`BET ${virtualRp(item.stake)} · PAYOUT ${virtualRp(item.payout)} · WIN ${virtualRp(item.delta)}`);
+      row.append(time,result,values,rupiah);history.append(row);
     }
     if(data.recent?.length)paragraph(history,'Menampilkan '+data.recent.length+' bet terakhir.');
   }catch(error){if(history.isConnected){history.replaceChildren();paragraph(history,error.message);}}
@@ -573,7 +586,10 @@ function listeners(){
   $('spin-btn').addEventListener('click',pickOne);
   $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();void unlockAudio();say(isTurbo?'Turbo aktif, animasi lebih cepat.':'Turbo nonaktif.');});
   $('auto-btn').addEventListener('click',showAutoSettings);
-  $('wallet-open').addEventListener('click',showWallet);
+  $('wallet-open').addEventListener('click',()=>showWallet());
+  $('bet-open').addEventListener('click',showStakeChoices);
+  $('payout-open').addEventListener('click',()=>showWallet('payout'));
+  $('win-open').addEventListener('click',()=>showWallet('win'));
   $('gift-btn').addEventListener('click',showGift);
   $('profile-btn').addEventListener('click',showMenu);
   $('about-btn').addEventListener('click',showAbout);

@@ -50,6 +50,22 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     const before=await p.evaluate(()=>window.uiTapCalls.length);await locator.tap();
     assert.equal(await p.evaluate(()=>window.uiTapCalls.length),before+1,'exactly one push sound per tap');
    };
+   assert.equal(await p.locator('#wallet-rupiah').innerText(),'Rp38.000 virtual');
+   state.recent=[{created_at:1700000000,stake:25,payout:125,delta:100,combo:'PAIR_SUM'},
+     {created_at:1700000001,stake:25,payout:0,delta:-25,combo:'NO_MATCH'}];
+   for(const [id,view] of [['bet-open','bet'],['payout-open','coin'],['win-open','coin']]){
+    await tapOnce(p.locator('#'+id));assert.equal(await p.locator('#modal').getAttribute('data-view'),view);
+    if(view==='coin'){
+     await p.locator('.wallet-dashboard').waitFor();
+     assert.equal(await p.locator('[data-metric="payout"] .coin-value-text').innerText(),'125 Coin');
+     assert.equal(await p.locator('[data-metric="delta"] .wallet-rp').innerText(),'Rp3.000 virtual');
+     assert.equal(await p.locator('.coin-history-row').count(),2);
+     assert.equal(await p.locator('.wallet-metric.is-highlighted').getAttribute('data-metric'),id==='win-open'?'delta':'payout');
+    }
+    await p.screenshot({path:out+'/'+engine+'-'+id+'.png'});
+    await tapOnce(p.locator('#modal-close'));
+   }
+   state.recent=[];
    for(const [width,height] of [[320,568],[393,852],[430,932],[852,393]]){
     await p.setViewportSize({width,height});await tapOnce(p.locator('#auto-btn'));
     assert.equal(await p.locator('.auto-card-fan img').count(),12);
@@ -58,6 +74,7 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     await tapOnce(p.locator('[data-rounds="5"]'));
     assert.equal(await p.locator('[data-rounds="5"]').getAttribute('aria-pressed'),'true');
     assert.equal(await p.locator('.auto-budget .coin-value-text').nth(1).innerText(),'100 Coin');
+    await p.locator('.auto-budget img').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));
     assert(await p.locator('.auto-budget img').evaluateAll(imgs=>imgs.every(i=>i.complete&&i.naturalWidth>0)));
     assert(await p.locator('.modal-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'no horizontal overflow');
     await p.screenshot({path:out+'/'+engine+'-auto-'+width+'x'+height+'.png'});
