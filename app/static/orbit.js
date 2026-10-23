@@ -12,6 +12,7 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let account = null, currentRound=null, last=null, ruleset=null, stakeIndex=1, isSpinning=false;
 let nextBetIndex=null;
 let isTurbo=false, isAuto=false, cancelAuto=false, ringCards=[], wheel=null;
+let activeAutoSession=null, announceAutoGift=false;
 const AUTO_ROUNDS=[1,3,5,10];
 let autoRounds=10;
 let audioContext=null, musicTimer=null, musicEnabled=localStorage.getItem(MUTE_MUSIC)!=='off';
@@ -58,8 +59,8 @@ function paintRound(round,preview=false,animateMetrics=false){
     slot.replaceChildren(element);
     slot.classList.remove('picked');
   }
-  const stake=round?.stake ?? STAKES[stakeIndex];
-  const payout=round?.complete?round.payout:null;
+  const stake=round?.charged_stake ?? round?.stake ?? STAKES[stakeIndex];
+  const payout=round?.complete?round.payout+(round.promo_coin||0):null;
   const delta=round?.complete?round.delta:null;
   if(window.UNOLuckMotion) window.UNOLuckMotion.numbers({stake,payout,delta,animate:animateMetrics});
   else {
@@ -121,6 +122,14 @@ async function legacyBonus(endpoint){
   if(!response.ok)throw Error(data.detail||'Gagal mengklaim hadiah');
   return data;
 }
+async function autoApi(path,method='GET',body){
+  const response=await fetch('/api/auto'+path,{method,credentials:'same-origin',
+    cache:'no-store',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},
+    ...(body?{body:JSON.stringify(body)}:{})});
+  const data=await response.json().catch(()=>null);
+  if(!response.ok||!data)throw Error(data?.detail||'AUTO server tidak tersedia.');
+  return data;
+}
 function sfx(name){if(sfxEnabled)window.UNOLuckSound?.play(name);}
 function startMusic(){
   if(!musicEnabled||document.hidden)return false;
@@ -164,7 +173,8 @@ function pendingInfo(){
 async function pickOne(){
   if(isSpinning||!account)return false;
   const stake=currentRound?.stake ?? STAKES[stakeIndex];
-  if(!currentRound && account.balance<stake){say('Saldo virtual tidak cukup. Klaim hadiah harian.');return false;}
+  const freeAuto = isAuto && activeAutoSession && activeAutoSession.completed_rounds >= activeAutoSession.paid_rounds;
+  if(!currentRound && account.balance<stake && !freeAuto){say('Saldo virtual tidak cukup. Klaim hadiah harian.');return false;}
   const expected=(currentRound?.picked||0)+1;
   let pending=pendingInfo();
   if(!pending||pending.expected!==expected){
@@ -179,7 +189,7 @@ async function pickOne(){
   let confirmed=null;
   try {
     wheel.begin({turbo:isTurbo});
-    confirmed=await api('/pick','POST',{request_id:pending.id,stake});
+    confirmed=await api('/pick','POST',{request_id:pending.id,stake,auto_session_id:isAuto?activeAutoSession?.id??null:null});
     const phase=confirmed.round.picked;
     const card=confirmed.round.cards[phase-1];
     if(!card)throw Error('Server belum memberikan kartu terpilih');
@@ -192,7 +202,12 @@ async function pickOne(){
     $('result-'+(phase-1))?.classList.add('picked');
     window.UNOLuckMotion?.pick(phase-1);
     syncAccount(confirmed.account);
+    if(isAuto&&announceAutoGift&&phase===1){
+      announceAutoGift=false;showAutoGift();
+    }
     if(confirmed.round.complete){
+      if(isAuto&&activeAutoSession)activeAutoSession.completed_rounds++;
+
       last=confirmed.round;
       // A winning round is scored by exactly one tier-specific jackpot cue.
       // Do not overlap RESULT SOUND with the user-selected JACKPOT 1–5 file.
@@ -205,9 +220,12 @@ async function pickOne(){
         await window.UNOLuckCelebration?.present(last);
       }else if(last.bonus&&last.payout>0){
         const drawTwo=(last.cards||[]).filter(card=>String(card.face)==='+2').length>=2;
-        say(`${drawTwo?'Draw Two Match':last.bonus.kind==='PAIR_PRODUCT'?'Bonus perkalian':'Bonus penjumlahan'} · +${idMoney(last.payout)} Coin · ${virtualRp(last.payout)}`);
+        const kinds={PAIR_SUM:'Bonus penjumlahan',PAIR_PRODUCT:'Bonus perkalian',
+          COLOR_PAIR:'Color Pair',COLOR_SEQUENCE:'Color Sequence'};
+        say(`${drawTwo?'Draw Two Match':kinds[last.bonus.kind]||'Bonus warna'} · +${idMoney(last.payout)} Coin · ${virtualRp(last.payout)}`);
         showNumericBonus(last);
-      }else{say(last.bonus?'Angka kembar menghasilkan payout 0. Mulai ronde baru!':'Belum ada kecocokan warna. Mulai ronde baru!');}
+      }else{say(last.bonus?'Payout permainan 0. Mulai ronde baru!':'ZONK · Tidak ada kemenangan permainan.');}
+      if(last.promo_coin>0)showPromotionalWin(last.promo_coin);
     }else say(`Kartu ${['kiri','tengah','kanan'][phase-1]} terpilih. SPIN ${phase+1}/3 berikutnya.`);
     navigator.vibrate?.(18);
     return true;
@@ -239,7 +257,8 @@ function showNumericBonus(round){
   const drawTwo=(round.cards||[]).filter(card=>String(card.face)==='+2').length>=2;
   toast.classList.toggle('is-draw-two',drawTwo);
   const amount=panelNode('strong','numeric-bonus-amount','+0 Coin');
-  toast.append(panelNode('small','numeric-bonus-title',drawTwo?'DRAW TWO MATCH':'PAIR MATCH'),
+  const bonusTitles={COLOR_PAIR:'COLOR PAIR',COLOR_SEQUENCE:'COLOR SEQUENCE',PAIR_SUM:'PAIR MATCH',PAIR_PRODUCT:'PAIR MATCH'};
+  toast.append(panelNode('small','numeric-bonus-title',drawTwo?'DRAW TWO MATCH':bonusTitles[round.bonus?.kind]||'BONUS'),
     festiveArt('coins'),amount,
     panelNode('span','',`${round.bonus?.multiplier||0}× BET · ${virtualRp(round.payout)}`));
   document.body.append(toast);
