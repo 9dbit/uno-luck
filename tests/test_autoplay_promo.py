@@ -269,12 +269,12 @@ def test_operator_margin_budget_guardrail_and_global_slots(client):
     assert not client.get("/api/admin/economy/promo-policy",
         headers=ADMIN_HEADERS).json()["enabled"]
     funded = client.post("/api/admin/economy/promo-policy", headers=ADMIN_HEADERS,
-        json={"enabled":True,"daily_budget_coin":3000,
+        json={"enabled":True,"daily_budget_coin":2800,
               "max_sessions_per_account_day":1,"max_sessions_per_day":2,
               "planned_paid_turnover_coin":80000,"target_margin_percent":5})
     assert funded.status_code == 200, funded.text
     cfg = funded.json()
-    assert cfg["max_affordable_budget_coin"] >= 3000
+    assert cfg["max_affordable_budget_coin"] >= 2800
     assert cfg["projected_margin_percent"] >= cfg["target_margin_percent"]
     assert cfg["max_sessions_per_day"] == 2
 
