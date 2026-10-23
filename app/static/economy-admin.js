@@ -15,9 +15,12 @@ async function loadPromoPolicy(){
     $('promo-policy-total-limit').value=d.max_sessions_per_day;
     $('promo-policy-turnover').value=d.planned_paid_turnover_coin;
     $('promo-policy-margin').value=d.target_margin_percent;
+    const activeCap=Number(d.effective_daily_budget_coin??d.daily_budget_coin);
+    const capNotice=d.budget_adjusted_for_rtp?
+      `Budget efektif diturunkan otomatis dari ${fmt(d.daily_budget_coin)} menjadi ${fmt(activeCap)} Coin demi target margin. `:'';
     const projection=d.projected_surplus_coin==null?'RTP baru belum dipublikasikan':
       `RTP ${fmt(d.base_rtp_percent)}% · estimasi surplus setelah anggaran Rp${fmt(d.projected_surplus_coin*40)} virtual (${fmt(d.projected_margin_percent)}% dari target turnover) · budget maksimum untuk menjaga target margin ${fmt(d.max_affordable_budget_coin)} Coin.`;
-    display.textContent=`Hari WIB ${d.budget_day_wib}: ${fmt(d.sessions_today)}/${fmt(d.max_sessions_per_day)} sesi · ${fmt(d.booked_coin)} Coin dialokasikan · ${fmt(d.remaining_coin)} Coin tersisa. ${d.enabled?'Gift AUTO aktif':'Gift AUTO belum diaktifkan'}. ${projection} ${d.note}`;
+    display.textContent=`Hari WIB ${d.budget_day_wib}: ${fmt(d.sessions_today)}/${fmt(d.max_sessions_per_day)} sesi · ${fmt(d.booked_coin)} Coin dialokasikan · ${fmt(d.remaining_coin)} Coin tersisa. ${d.enabled?'Gift AUTO aktif':'Gift AUTO belum diaktifkan'}. ${capNotice}${projection} ${d.note}`;
     display.classList.remove('error');
   }catch(e){display.textContent='Gagal mengambil status Gift: '+e.message;display.classList.add('error');}
 }
