@@ -394,26 +394,47 @@ def performance(request: Request, response: Response,
     try:
         since = time.time() - days * 86400
         row = db.execute('''SELECT COUNT(*) rounds,COUNT(DISTINCT account_id) players,
-            COALESCE(SUM(stake),0) turnover,COALESCE(SUM(payout),0) payout
+            COALESCE(SUM(charged_stake),0) turnover,
+            COALESCE(SUM(payout),0) regular_payout,
+            COALESCE(SUM(promo_coin),0) promo_payout,
+            COALESCE(SUM(CASE WHEN charged_stake=0 THEN payout ELSE 0 END),0) free_payout,
+            COALESCE(SUM(CASE WHEN charged_stake=0 THEN 1 ELSE 0 END),0) free_rounds
             FROM orbit_rounds WHERE finished_at IS NOT NULL AND finished_at>=?''', (since,)).fetchone()
-        by_combo = db.execute('''SELECT combo,COUNT(*) rounds,COALESCE(SUM(stake),0) turnover,
-            COALESCE(SUM(payout),0) payout FROM orbit_rounds
+        by_combo = db.execute('''SELECT combo,COUNT(*) rounds,
+            COALESCE(SUM(charged_stake),0) turnover,
+            COALESCE(SUM(payout+promo_coin),0) payout FROM orbit_rounds
             WHERE finished_at IS NOT NULL AND finished_at>=?
             GROUP BY combo ORDER BY rounds DESC,combo''', (since,)).fetchall()
+        from . import autoplay
+        active_sessions = db.execute('SELECT * FROM auto_sessions WHERE finished_at IS NULL').fetchall()
+        reserved_coin = sum(autoplay.remaining_liability(session) for session in active_sessions)
         revision, config = active(db)
-        turnover, payout = int(row['turnover']), int(row['payout'])
+        turnover = int(row['turnover'])
+        regular_payout = int(row['regular_payout'])
+        promo_payout = int(row['promo_payout'])
+        payout = regular_payout + promo_payout
         gross = turnover - payout
         response.headers['Cache-Control'] = 'no-store'
         return dict(days=days,as_of=int(time.time()),rounds=int(row['rounds']),players=int(row['players']),
             turnover_coin=turnover,payout_coin=payout,gross_coin=gross,
             turnover_rp=turnover*VIRTUAL_RP_PER_COIN,payout_rp=payout*VIRTUAL_RP_PER_COIN,
             gross_rp=gross*VIRTUAL_RP_PER_COIN,
+            regular_payout_coin=regular_payout, regular_payout_rp=regular_payout*VIRTUAL_RP_PER_COIN,
+            promotional_payout_coin=promo_payout, promotional_payout_rp=promo_payout*VIRTUAL_RP_PER_COIN,
+            free_spin_payout_coin=int(row['free_payout']),
+            free_spin_payout_rp=int(row['free_payout'])*VIRTUAL_RP_PER_COIN,
+            free_rounds=int(row['free_rounds']),
+            pending_bonus_liability_coin=reserved_coin,
+            pending_bonus_liability_rp=reserved_coin*VIRTUAL_RP_PER_COIN,
+            result_after_reserved_coin=gross-reserved_coin,
+            result_after_reserved_rp=(gross-reserved_coin)*VIRTUAL_RP_PER_COIN,
+            actual_regular_rtp_percent=(regular_payout/turnover*100 if turnover else None),
             actual_rtp_percent=(payout/turnover*100 if turnover else None),
             active_revision=revision,
             theoretical_rtp_percent=(rtp_percent(config) if config else 195.36),
             engine_model=(ENGINE_MODEL if config else 'legacy-80-percent-gate'),
             by_combo=[dict(combo=item['combo'],rounds=int(item['rounds']),
                 turnover_coin=int(item['turnover']),payout_coin=int(item['payout'])) for item in by_combo],
-            note='Hanya ronde selesai dalam periode ini. Nilai aktual dapat menyimpang dari RTP teoretis, terutama pada sampel kecil.')
+            note='Pool virtual: BET yang benar-benar dipotong minus payout regular (termasuk free spins) minus hadiah promo. Pending bonus adalah kewajiban masa depan; belum termasuk perkiraan payout free spins yang belum dimainkan. Surplus periode tidak dijamin.')
     finally:
         db.close()
