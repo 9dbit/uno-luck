@@ -205,3 +205,76 @@ def test_music_mirror_is_validated_published_and_only_applies_to_music(sound_sto
             })}).status_code == 200
         jackpot = browser.get(API + "/manifest").json()["cues"]["jackpot-1"]
         assert "mirror" not in jackpot and "mirrorCrossfadeMs" not in jackpot
+
+
+def test_isolated_qa_sound_mirror_is_read_only_and_same_origin(monkeypatch):
+    import json
+    from app import sound_cloud
+    monkeypatch.delenv("UNO_SOUND_STORAGE_DIR", raising=False)
+    monkeypatch.setenv("UNO_SOUND_READONLY_SOURCE",
+                       "https://uno-luck-render-staging.onrender.com")
+    monkeypatch.setenv("UNO_QA_SAMPLE_AUDIO_FALLBACK", "1")
+    class Remote:
+        def __init__(self, data, content_type):
+            self.body = data
+            self.headers = {"content-type": content_type, "content-length": str(len(data))}
+        def __enter__(self): return self
+        def __exit__(self, *_): return None
+        def read(self, size=-1): return self.body[:size] if size>=0 else self.body
+    calls = []
+    def fake_urlopen(request, timeout=0):
+        calls.append((request.get_full_url(),request.get_method(),timeout))
+        assert request.get_method() == "GET"
+        assert request.get_full_url().startswith(
+            "https://uno-luck-render-staging.onrender.com/api/sounds/")
+        if request.get_full_url().endswith("/manifest"):
+            return Remote(json.dumps({
+                "ready":True,"revision":"read-only-original",
+                "cues":{"soft-tech-splash-screen":{"source":"custom",
+                        "start":0,"stop":1,"fileDuration":1,
+                        "fadeIn":0,"fadeOut":0,"repeat":False,
+                        "fileName":"original.wav","revision":"123abc"}},
+                "mixer":{"master":0.9,"music":0.22,"sfx":0.85}
+            }).encode(),"application/json")
+        return Remote(WAV,"audio/wav")
+    monkeypatch.setattr(sound_cloud.urllib.request,"urlopen",fake_urlopen)
+    with TestClient(app) as browser:
+        manifest=browser.get("/api/sounds/manifest")
+        assert manifest.status_code==200
+        data=manifest.json()
+        assert data["ready"] and data["readonly_mirror"]
+        assert data["sample_fallback_allowed"]
+        assert data["mixer"]["sfx"]==0.85
+        url=data["cues"]["soft-tech-splash-screen"]["url"]
+        assert url.startswith("/api/sounds/files/")
+        assert "uno-luck-render-staging" not in url
+        audio=browser.get(url)
+        assert audio.status_code==200 and audio.content==WAV
+        assert audio.headers["content-type"].startswith("audio/wav")
+        assert all(method=="GET" for _,method,_ in calls)
+        assert browser.put("/api/sounds/cues/soft-tech-splash-screen",
+            content=WAV,headers={"x-uno-sound-admin":TOKEN}).status_code in (403,503)
+
+
+def test_qa_audio_fallback_only_if_opted_in(monkeypatch):
+    import urllib.error
+    from app import sound_cloud
+    monkeypatch.delenv("UNO_SOUND_STORAGE_DIR",raising=False)
+    monkeypatch.setenv("UNO_SOUND_READONLY_SOURCE",
+                       "https://uno-luck-render-staging.onrender.com")
+    def unreachable(*_args,**_kwargs):
+        raise urllib.error.URLError("QA upstream offline")
+    monkeypatch.setattr(sound_cloud.urllib.request,"urlopen",unreachable)
+    with TestClient(app) as client:
+        monkeypatch.setenv("UNO_QA_SAMPLE_AUDIO_FALLBACK","1")
+        response=client.get("/api/sounds/manifest")
+        assert response.status_code==200
+        assert response.json()["ready"] is False
+        assert response.json()["sample_fallback_allowed"] is True
+        monkeypatch.delenv("UNO_QA_SAMPLE_AUDIO_FALLBACK")
+        response=client.get("/api/sounds/manifest").json()
+        assert response["sample_fallback_allowed"] is False
+    monkeypatch.setenv("UNO_SOUND_READONLY_SOURCE","https://evil.example")
+    with TestClient(app) as client:
+        response=client.get("/api/sounds/manifest").json()
+        assert response["ready"] is False
