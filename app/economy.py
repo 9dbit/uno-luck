@@ -8,6 +8,7 @@ import collections
 import itertools
 import json
 import math
+import os
 import random
 import secrets
 import time
@@ -170,6 +171,12 @@ class Publish(BaseModel):
 def schema(db):
     db.execute('''CREATE TABLE IF NOT EXISTS economy_configs (
         revision INTEGER PRIMARY KEY, config_json TEXT NOT NULL, created_at REAL NOT NULL)''')
+    # Only a separately configured, blank QA database can opt into a starting
+    # versioned fixed-RNG economy. Existing production revisions are untouched.
+    if os.getenv('UNO_QA_BOOTSTRAP_ECONOMY') == '1':
+        db.execute('''INSERT OR IGNORE INTO economy_configs
+            (revision,config_json,created_at) VALUES(1,?,?)''',
+            (PRESET.model_dump_json(),time.time()))
 
 
 def active(db):
@@ -404,6 +411,9 @@ class AutoBudgetPolicy(BaseModel):
     enabled: bool = False
     daily_budget_coin: StrictInt = Field(ge=0, le=1_000_000_000)
     max_sessions_per_account_day: StrictInt = Field(ge=1, le=20)
+    max_sessions_per_day: StrictInt = Field(default=2, ge=1, le=100000)
+    planned_paid_turnover_coin: StrictInt = Field(default=0, ge=0, le=1_000_000_000)
+    target_margin_percent: float = Field(default=5.0, ge=0, le=15)
 
 
 @router.get('/promo-policy')
@@ -426,11 +436,25 @@ def save_auto_policy(request: Request, response: Response, payload: AutoBudgetPo
     db = orbit.open_db()
     try:
         db.execute('BEGIN IMMEDIATE')
+        revision, cfg = active(db)
+        if payload.enabled:
+            if not revision or not cfg:
+                raise HTTPException(422, 'Aktifkan Economy Engine RTP 85–98% dahulu; aturan legacy tidak aman untuk promo.')
+            base_rtp = rtp_percent(cfg)
+            spend_room = int(payload.planned_paid_turnover_coin *
+                             max(0, 100-base_rtp-payload.target_margin_percent)/100)
+            if (payload.daily_budget_coin <= 0
+                    or payload.planned_paid_turnover_coin <= 0
+                    or payload.daily_budget_coin > spend_room):
+                raise HTTPException(422, 'Anggaran Gift melebihi ruang margin dari proyeksi turnover. Perkecil budget atau ubah proyeksi.')
         db.execute("""UPDATE auto_promo_policy SET enabled=?,
-            daily_budget_coin=?,max_sessions_per_account_day=?,updated_at=?
+            daily_budget_coin=?,max_sessions_per_account_day=?,
+            max_sessions_per_day=?,planned_paid_turnover_coin=?,
+            target_margin_percent=?,updated_at=?
             WHERE id=1""",
             (int(payload.enabled),payload.daily_budget_coin,
-             payload.max_sessions_per_account_day,time.time()))
+             payload.max_sessions_per_account_day,payload.max_sessions_per_day,
+             payload.planned_paid_turnover_coin,payload.target_margin_percent,time.time()))
         result = autoplay.promo_budget_state(db)
         db.commit()
         response.headers['Cache-Control'] = 'no-store'
