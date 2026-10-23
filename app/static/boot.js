@@ -91,7 +91,10 @@
   },8000);
   function onPlay(){
     if(released||started||retrying||!playButton||playButton.disabled)return;
-    const musicWanted=localStorage.getItem('uno_orbit_music')!=='off';
+    // The user chose WITH SOUND, which overrides older stored mute toggles.
+    // Do not change any sound file, custom trim or published mixer volume.
+    window.UNOLuckAudio?.enableFromSplash?.();
+    const musicWanted=true;
     if(!splashReady||(musicWanted&&!musicReady)){
       reportAudioError(!splashReady?
         (studio()?.splashError||'File custom splash belum selesai dimuat.'):
