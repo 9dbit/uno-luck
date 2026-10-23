@@ -51,16 +51,25 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     assert.equal(await p.evaluate(()=>window.uiTapCalls.length),before+1,'exactly one push sound per tap');
    };
    assert.equal(await p.locator('#wallet-rupiah').innerText(),'Rp38.000 virtual');
+   assert.deepEqual(await p.locator('.result-bar>div>small').allInnerTexts(),['BET','PAYOUT/WIN','NET']);
+   assert((await p.locator('#win-open').getAttribute('aria-label')).includes('NET'));
    state.recent=[{created_at:1700000000,stake:25,payout:125,delta:100,combo:'PAIR_SUM'},
      {created_at:1700000001,stake:25,payout:0,delta:-25,combo:'NO_MATCH'}];
    for(const [id,view] of [['bet-open','bet'],['payout-open','coin'],['win-open','coin']]){
     await tapOnce(p.locator('#'+id));assert.equal(await p.locator('#modal').getAttribute('data-view'),view);
     if(view==='coin'){
      await p.locator('.wallet-dashboard').waitFor();
+     assert.equal(await p.locator('[data-metric="payout"]>span').first().innerText(),'Total PAYOUT/WIN');
+     assert.equal(await p.locator('[data-metric="delta"]>span').first().innerText(),'Total NET');
      assert.equal(await p.locator('[data-metric="payout"] .coin-value-text').innerText(),'125 Coin');
      assert.equal(await p.locator('[data-metric="delta"] .wallet-rp').innerText(),'Rp3.000 virtual');
      assert.equal(await p.locator('.coin-history-row').count(),2);
      assert.equal(await p.locator('.wallet-metric.is-highlighted').getAttribute('data-metric'),id==='win-open'?'delta':'payout');
+     if(id==='win-open'){
+      const loss=await p.locator('.coin-history-row').last().innerText();
+      assert(loss.includes('NET -25'),'a lost bet is described as negative NET, not negative WIN');
+      assert(loss.includes('-Rp1.000 virtual'),'negative virtual rupiah uses a leading minus sign');
+     }
     }
     await p.screenshot({path:out+'/'+engine+'-'+id+'.png'});
     await tapOnce(p.locator('#modal-close'));

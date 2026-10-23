@@ -78,7 +78,7 @@ function renderProgress(picked){
   $('spin-step').textContent=`${next+1} / 3`;
   const btn=$('spin-btn');btn.setAttribute('aria-label',`SPIN ${next+1} dari 3`);
 }
-function virtualRp(n){return 'Rp'+idMoney(n*(ruleset?.virtual_rp_per_coin||40))+' virtual';}
+function virtualRp(n){return (n<0?'-':'')+'Rp'+idMoney(Math.abs(n)*(ruleset?.virtual_rp_per_coin||40))+' virtual';}
 function syncAccount(a){
   if(!a)return;account=a;
   $('wallet-balance').title=virtualRp(a.balance)+' · tidak dapat dicairkan';
@@ -324,13 +324,13 @@ async function showWallet(view='all'){
     const recent=data.recent||[];
     const dashboard=panelNode('section','wallet-dashboard');dashboard.setAttribute('aria-label','Ringkasan riwayat wallet');
     dashboard.append(panelNode('p','panel-eyebrow',`RINGKASAN ${recent.length} RONDE TERAKHIR`));
-    for(const [label,key] of [['Total BET','stake'],['Total PAYOUT','payout'],['Hasil bersih WIN','delta']]){
+    for(const [label,key] of [['Total BET','stake'],['Total PAYOUT/WIN','payout'],['Total NET','delta']]){
       const value=recent.reduce((sum,item)=>sum+(Number(item[key])||0),0);
       const metric=panelNode('div','wallet-metric');metric.dataset.metric=key;
-      metric.classList.toggle('is-highlighted',(view==='payout'&&key==='payout')||(view==='win'&&key==='delta'));
+      metric.classList.toggle('is-highlighted',(view==='payout'&&key==='payout')||(view==='net'&&key==='delta'));
       metric.append(panelNode('span','',label),coinValue(value),panelNode('small','wallet-rp',virtualRp(value)));dashboard.append(metric);
     }
-    dashboard.append(panelNode('p','panel-fine','PAYOUT adalah hadiah bruto. WIN adalah PAYOUT dikurangi BET. Ringkasan hanya mencakup riwayat yang ditampilkan, bukan seluruh masa bermain.'));
+    dashboard.append(panelNode('p','panel-fine','PAYOUT/WIN adalah hadiah bruto. NET adalah PAYOUT dikurangi BET, sehingga bisa negatif saat tidak mendapat hadiah. Ringkasan hanya mencakup riwayat yang ditampilkan, bukan seluruh masa bermain.'));
     history.append(dashboard);
     if(!data.recent?.length)paragraph(history,'Belum ada bet selesai.');
     for(const item of data.recent||[]){
@@ -339,8 +339,8 @@ async function showWallet(view='all'){
       const time=document.createElement('time');time.dateTime=stamp.toISOString();
       time.textContent=stamp.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'});
       const result=document.createElement('strong');result.textContent=item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':item.combo==='PAIR_SUM'?'BONUS PENJUMLAHAN':item.combo==='PAIR_PRODUCT'?'BONUS PERKALIAN':'NO MATCH');
-      const values=document.createElement('p');values.textContent=`BET ${idMoney(item.stake)} · PAYOUT ${idMoney(item.payout)} · WIN ${item.delta>=0?'+':''}${idMoney(item.delta)}`;
-      const rupiah=panelNode('p','wallet-rp',`BET ${virtualRp(item.stake)} · PAYOUT ${virtualRp(item.payout)} · WIN ${virtualRp(item.delta)}`);
+      const values=document.createElement('p');values.textContent=`BET ${idMoney(item.stake)} · PAYOUT/WIN ${idMoney(item.payout)} · NET ${item.delta>=0?'+':''}${idMoney(item.delta)}`;
+      const rupiah=panelNode('p','wallet-rp',`BET ${virtualRp(item.stake)} · PAYOUT/WIN ${virtualRp(item.payout)} · NET ${virtualRp(item.delta)}`);
       row.append(time,result,values,rupiah);history.append(row);
     }
     if(data.recent?.length)paragraph(history,'Menampilkan '+data.recent.length+' bet terakhir.');
@@ -604,7 +604,7 @@ function listeners(){
   $('wallet-open').addEventListener('click',()=>showWallet());
   $('bet-open').addEventListener('click',showStakeChoices);
   $('payout-open').addEventListener('click',()=>showWallet('payout'));
-  $('win-open').addEventListener('click',()=>showWallet('win'));
+  $('win-open').addEventListener('click',()=>showWallet('net'));
   $('gift-btn').addEventListener('click',showGift);
   $('profile-btn').addEventListener('click',showMenu);
   $('about-btn').addEventListener('click',showAbout);
