@@ -20,7 +20,7 @@ from . import spin, economy, autoplay
 
 router = APIRouter(prefix="/api/orbit", tags=["UNO LUCK Orbit"])
 WIN_PERCENT = 80
-RULES_VERSION = 4
+RULES_VERSION = 5
 FACES = spin.FACES
 COLORS = spin.COLORS
 ACTION_TRIO = frozenset(('SKIP', 'REVERSE', '+2'))
@@ -425,7 +425,8 @@ def pick(request: Request, response: Response, payload: PickRequest):
                     snap=json.loads(row['economy_json'])
                     classified=economy.classify(
                         json.loads(row['cards_json']), economy.Config.model_validate(snap['config']),
-                        draw_two_match=int(row['rules_version']) >= 3)
+                        draw_two_match=int(row['rules_version']) >= 3,
+                        zero_product_fallback=int(row['rules_version']) >= 5)
                     if classified != (row['combo'],snap['multiplier'],row['tier']):
                         raise RuntimeError('Invalid snapshotted payout; settlement blocked')
                     multiplier=snap['multiplier']
