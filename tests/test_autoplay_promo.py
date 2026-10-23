@@ -134,3 +134,18 @@ def test_all_ten_free_spins_and_five_independent_promotional_credits(client, mon
     assert metrics["pending_bonus_liability_coin"] == 0
     wallet = client.get("/api/orbit/state").json()["recent"]
     assert len(wallet) == 8 and all(round_["free_spin"] for round_ in wallet)
+
+
+def test_period_margin_target_accounts_for_guaranteed_promotions():
+    cfg = economy.PRESET
+    result = economy.target_config(economy.Target(
+        config=cfg, margin_percent="10", turnover_rp=1000000,
+        costs_rp=0, auto_sessions=1, auto_paid_rounds=10, stake=10))
+    assert abs(result["actual_period_margin_percent"] - 10) < .05
+    assert result["actual_margin_percent"] > 10
+    assert result["actual_period_surplus_rp"] > 0
+
+    with pytest.raises(Exception):
+        economy.target_config(economy.Target(
+            config=cfg, margin_percent="10", turnover_rp=1000000,
+            costs_rp=0, auto_sessions=100, auto_paid_rounds=10, stake=10))
