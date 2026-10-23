@@ -31,6 +31,19 @@ const OUT=process.env.UNO_QA_OUT||'artifacts/uno-economy';fs.mkdirSync(OUT,{recu
  await page.locator('#admin-key').fill(process.env.UNO_SOUND_ADMIN_TOKEN||'qa-fixture-only-key');
  await page.locator('#unlock').click();
  await page.locator('#publish').waitFor();await page.waitForFunction(()=>!document.querySelector('#publish').disabled);
+ if(!fixture){
+  await page.waitForFunction(()=>document.querySelector('#promo-policy-status').textContent.includes('Hari WIB'));
+  assert.equal(await page.locator('#promo-policy-enabled').isChecked(),false);
+  await page.locator('#promo-policy-budget').fill('5000');
+  await page.locator('#promo-policy-account-limit').fill('2');
+  await page.locator('#promo-policy-save').click();
+  await page.waitForFunction(()=>document.querySelector('#promo-policy-status').textContent.includes('Policy tersimpan'));
+  assert((await page.locator('#promo-policy-status').innerText()).includes('Gift AUTO nonaktif'));
+  await page.locator('#promo-policy-budget').fill('0');
+  await page.locator('#promo-policy-account-limit').fill('1');
+  await page.locator('#promo-policy-save').click();
+  await page.waitForFunction(()=>document.querySelector('#promo-policy-status').textContent.includes('Policy tersimpan'));
+ }
  const initial=await page.locator('#results').innerText();assert(initial.includes('89,9995')||initial.includes('90'),initial);
  await page.locator('#p-PAIR_SUM').fill('6');
  await page.waitForTimeout(600);assert(await page.locator('#publish').isDisabled());
