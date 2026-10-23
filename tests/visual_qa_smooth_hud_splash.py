@@ -67,7 +67,7 @@ with sync_playwright() as p:
         }""")
         assert not view["overflow"],(width,height,view)
         assert len(view["items"])==3
-        assert [item["labelText"] for item in view["items"]]==["BET","PAYOUT","WIN"]
+        assert [item["labelText"] for item in view["items"]]==["BET","PAYOUT/WIN","NET"]
         for item in view["items"]:
             assert item["display"]=="flex" and item["direction"]=="row",(width,height,item)
             assert item["whiteSpace"]=="nowrap",(width,height,item)
