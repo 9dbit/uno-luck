@@ -399,6 +399,48 @@ def read_config(request: Request, response: Response):
     finally: db.close()
 
 
+class AutoBudgetPolicy(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    enabled: bool = False
+    daily_budget_coin: StrictInt = Field(ge=0, le=1_000_000_000)
+    max_sessions_per_account_day: StrictInt = Field(ge=1, le=20)
+
+
+@router.get('/promo-policy')
+def read_auto_policy(request: Request, response: Response):
+    """Admin-only daily AUTO promotion budget and reserved virtual liabilities."""
+    require_admin(request)
+    from . import orbit, autoplay
+    db = orbit.open_db()
+    try:
+        response.headers['Cache-Control'] = 'no-store'
+        return autoplay.promo_budget_state(db)
+    finally:
+        db.close()
+
+
+@router.post('/promo-policy')
+def save_auto_policy(request: Request, response: Response, payload: AutoBudgetPolicy):
+    require_admin(request)
+    from . import orbit, autoplay
+    db = orbit.open_db()
+    try:
+        db.execute('BEGIN IMMEDIATE')
+        db.execute("""UPDATE auto_promo_policy SET enabled=?,
+            daily_budget_coin=?,max_sessions_per_account_day=?,updated_at=?
+            WHERE id=1""",
+            (int(payload.enabled),payload.daily_budget_coin,
+             payload.max_sessions_per_account_day,time.time()))
+        result = autoplay.promo_budget_state(db)
+        db.commit()
+        response.headers['Cache-Control'] = 'no-store'
+        return result
+    finally:
+        if db.in_transaction:
+            db.rollback()
+        db.close()
+
+
 @router.post('/simulate')
 def simulation(request: Request, response: Response, payload: Simulation):
     require_admin(request)
