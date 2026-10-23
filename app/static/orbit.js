@@ -317,8 +317,8 @@ function autoBudget(rounds){
 }
 async function autoLoop(roundLimit){
   if(isAuto||isSpinning||!account||pendingInfo()||document.hidden||!AUTO_ROUNDS.includes(roundLimit))return;
-  if(currentRound&&!activeAutoSession){
-    say('Selesaikan ronde yang sedang berjalan sebelum mulai AUTO dengan Gift.');
+  if(currentRound&&currentRound.auto_session_id!==activeAutoSession?.id){
+    say('Selesaikan ronde yang sedang berjalan sebelum melanjutkan AUTO.');
     return;
   }
   const requestedStake=activeAutoSession?.stake ?? STAKES[stakeIndex];
@@ -453,9 +453,13 @@ function showRules(){
   const details=panelNode('details','rules-details'),summary=panelNode('summary','','Cara bermain & ketentuan');details.append(summary);
   paragraph(details,'Gambar kartu di atas adalah contoh kombinasi. Hasil setiap ronde ditentukan oleh server. Wild dan Wild +4 tidak mempunyai warna; hanya tiga Wild sejenis yang memenuhi Rank 1/2.');
   if(ruleset?.numeric_bonus)paragraph(area,`PAIR MATCH · Tiga kartu dengan minimal dua angka sama, termasuk pasangan Draw Two (+2). +2 bernilai 2. Warna berbeda menjumlahkan nilainya (maks. ${ruleset.numeric_bonus.sum_cap}× BET); semua sewarna mengalikan nilainya (maks. ${ruleset.numeric_bonus.product_cap}× BET). Bonus mendapat tadaa dan selebrasi Coin kecil, bukan celebration Rank. Hanya satu hadiah per ronde; angka 0 dapat menghasilkan payout 0.`);
-  paragraph(area,'NO MATCH · Tidak ada kombinasi yang cocok, tidak ada payout.');
-  paragraph(details,'Tidak ada jaminan jackpot atau bonus setelah sejumlah spin.');
-  paragraph(details,'AUTO maksimal 10 ronde, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
+  if(ruleset?.color_bonus?.enabled){
+    paragraph(area,`COLOR PAIR · Minimal dua kartu memiliki warna sama, kecuali jika memenuhi Rank/angka kembar yang lebih tinggi. Hadiah ${ruleset.color_bonus.pair_multiplier}× BET.`);
+    paragraph(area,`COLOR SEQUENCE · Dua kartu berdampingan sewarna dengan angka berurutan. Hadiah ${ruleset.color_bonus.sequence_multiplier}× BET. Tiga angka sewarna berurutan tetap Golden Match.`);
+  }
+  paragraph(area,'ZONK · Tidak ada kemenangan dari kombinasi kartu, payout permainan 0.');
+  paragraph(details,'Hadiah permainan biasa dan jackpot Rank tetap ditentukan RNG independen, tanpa jaminan hasil tertentu. Untuk AUTO, 5 bonus promosi dijamin setelah memulai sesi berbayar, ditempatkan acak pada 10 free spins dan dicatat terpisah dari hasil kartu.');
+  paragraph(details,'AUTO maksimal 10 ronde berbayar ditambah 10 ronde gratis, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
   area.append(details);
 }
 function showStakeChoices(){
@@ -503,13 +507,14 @@ function coinValue(value,tag='span'){
 function showAutoSettings(){
   if(isAuto){cancelAuto=true;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
   if(isSpinning||!account)return;
-  const area=playerPanel('Auto Play');$('modal').dataset.view='auto';let selected=autoRounds;
+  const area=playerPanel('Auto Play');$('modal').dataset.view='auto';let selected=activeAutoSession?.paid_rounds??autoRounds;
   panelHero(area,'cards','KEEP THE FUN GOING','Atur ritme bermain','Pilih ronde, lalu biarkan AUTO melanjutkan.');
   area.append(panelNode('p','panel-eyebrow','PILIH JUMLAH RONDE'));
-  paragraph(area,'Setiap ronde membuka tiga kartu. AUTO dapat dihentikan setelah SPIN yang sedang berjalan.');
+  paragraph(area,'Gift pada SPIN pertama: 10 ronde gratis + lima bonus PROMO yang dijamin pada posisi acak. Besar tiap bonus: 30%, 50%, atau 100% dari total BET ronde berbayar sesi ini. Hasil kartu setiap ronde tetap random. AUTO dapat dihentikan dan dilanjutkan.');
   const grid=panelNode('div','auto-grid');grid.setAttribute('role','group');grid.setAttribute('aria-label','Jumlah ronde AUTO');area.append(grid);
   for(const rounds of AUTO_ROUNDS){
     const btn=modalButton(grid,'',()=>{selected=rounds;refresh();});btn.dataset.rounds=String(rounds);
+    if(activeAutoSession&&rounds!==activeAutoSession.paid_rounds)btn.disabled=true;
     btn.setAttribute('aria-label',rounds+' ronde');
     const cards=panelNode('span','auto-card-fan');cards.setAttribute('aria-hidden','true');
     for(const color of ['red','blue','green']){const card=panelNode('img','');card.src=`/assets/art/v2/card-${color}.webp`;card.alt='';cards.append(card);}
@@ -522,18 +527,19 @@ function showAutoSettings(){
     panelNode('dt','','Total kebutuhan'),total,panelNode('dt','','Saldo tersedia'),balance);area.append(budget);
   const message=panelNode('p','panel-note','');message.setAttribute('role','status');area.append(message);
   const virtualBudget=paragraph(area,'');virtualBudget.className='panel-fine';
-  if(currentRound)paragraph(area,'Ronde yang sudah dimulai dihitung sebagai ronde pertama. BET ronde tersebut sudah dipotong.');
-  else paragraph(area,'Kebutuhan coin dihitung tanpa mengandalkan hadiah dari ronde berikutnya.');
-  const start=panelAction('MULAI AUTO',()=>{
+  if(activeAutoSession)paragraph(area,'Sesi sebelumnya masih aktif. Lanjutkan untuk menggunakan sisa ronde gratis dan bonus yang belum diklaim.');
+  else paragraph(area,'Jumlah ronde pilihan adalah ronde berbayar. Setelahnya AUTO menambahkan 10 free spins. Bonus promosi terpisah dari kemenangan kartu; ZONK tetap payout permainan 0.');
+  const start=panelAction(activeAutoSession?'LANJUTKAN AUTO':'MULAI AUTO',()=>{
     if(isAuto||isSpinning||pendingInfo()||!account||account.balance<autoBudget(selected)){refresh();return;}
     autoRounds=selected;closeModal();void autoLoop(selected);
   });start.id='auto-start';
   function refresh(){
     for(const btn of grid.children)btn.setAttribute('aria-pressed',String(Number(btn.dataset.rounds)===selected));
     const required=autoBudget(selected);virtualBudget.textContent='Kebutuhan '+virtualRp(required)+' · 1 Coin = Rp40 virtual';total.querySelector('.coin-value-text').textContent=idMoney(required)+' Coin';balance.querySelector('.coin-value-text').textContent=idMoney(account?.balance??0)+' Coin';
-    const blocked=!!pendingInfo()||isSpinning||isAuto||!account;
+    const blocked=!!pendingInfo()||isSpinning||isAuto||!account||
+      (!!currentRound&&currentRound.auto_session_id!==activeAutoSession?.id);
     start.disabled=blocked||account.balance<required;
-    message.textContent=blocked?'Selesaikan sinkronisasi SPIN sebelum memulai AUTO.':account.balance<required?'Coin belum cukup. Pilih jumlah ronde lebih kecil atau ubah BET.':`${selected} ronde · ${isTurbo?'TURBO aktif':'Kecepatan normal'}`;
+    message.textContent=blocked?'Selesaikan ronde atau sinkronisasi SPIN terlebih dahulu.':account.balance<required?'Coin belum cukup untuk BET berbayar.':`${selected} ronde berbayar + 10 free spins · 5 hadiah PROMO · ${isTurbo?'TURBO':'NORMAL'}`;
   }
   refresh();
 }
@@ -640,6 +646,9 @@ async function loadState(quiet=false){
     const payouts=ruleset?.celebrations?.map(t=>t.multiplier).filter(Number.isFinite);
     if(payouts?.length){$('reward-range').textContent=ruleset.numeric_bonus?'≤'+Math.max(...payouts)+'×':Math.min(...payouts)+'×–'+Math.max(...payouts)+'×';$('combination-label').textContent=ruleset.numeric_bonus?'5 rank + bonus':'5 kombinasi';}
     syncAccount(data.account);currentRound=data.round;
+    if(!isAuto){
+      try{activeAutoSession=(await autoApi('/state')).session;}catch(error){console.warn('AUTO state refresh:',error);}
+    }
     if(Array.isArray(ruleset?.stake_options)&&!isAuto){
       const selected=STAKES[stakeIndex],queued=nextBetIndex===null?null:STAKES[nextBetIndex];
       STAKES=[...ruleset.stake_options];
