@@ -145,6 +145,7 @@ with sync_playwright() as pw:
         page.locator('#auto-btn').click()
         page.locator('[data-rounds="1"]').click()
         page.locator('#auto-start').click()
+        page.wait_for_function('() => isAuto',timeout=8000)
         page.wait_for_function('() => !isAuto&&!isSpinning',timeout=45000)
         batch=requests[first:]
         assert len(batch)==33,(engine,'paid + 10 free rounds',len(batch))
@@ -173,6 +174,7 @@ with sync_playwright() as pw:
         page.locator('#auto-btn').click()
         assert page.locator('#auto-start').inner_text()=='LANJUTKAN AUTO'
         page.locator('#auto-start').click()
+        page.wait_for_function('() => isAuto',timeout=8000)
         page.wait_for_function('() => !isAuto&&!isSpinning',timeout=55000)
         resumed=requests[start:]
         assert len(resumed)==39,(engine,'3 paid + 10 free rounds',len(resumed))
