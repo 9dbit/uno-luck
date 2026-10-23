@@ -274,25 +274,89 @@ function showNumericBonus(round){
   if(sfxEnabled&&round.payout>0)window.UNOLuckSound?.numericBonus?.();
   numericBonusTimer=setTimeout(()=>toast.remove(),2400);
 }
-function autoBudget(rounds){return (rounds-(currentRound?1:0))*(currentRound?.stake??STAKES[stakeIndex]);}
-async function autoLoop(roundLimit){
-  if(isAuto||isSpinning||!account||pendingInfo()||document.hidden||
-      !AUTO_ROUNDS.includes(roundLimit)||account.balance<autoBudget(roundLimit))return;
-  // Keep the confirmed setup stake after a restored paid round completes.
-  const autoStakeIndex=STAKES.indexOf(currentRound?.stake??STAKES[stakeIndex]);
-  if(autoStakeIndex<0){say('BET ronde lama tidak tersedia untuk AUTO. Selesaikan ronde dengan SPIN, lalu pilih BET baru.');return;}
-  stakeIndex=autoStakeIndex;
-  isAuto=true;cancelAuto=false;updateButtons();
-  // The selected limit includes an existing paid partial round. Each card
-  // still uses the same server-issued pick and persistent request ID.
-  for(let rounds=0;rounds<roundLimit&&!cancelAuto&&!document.hidden;rounds++){
-    for(let k=(currentRound?.picked||0);k<3&&!cancelAuto&&!document.hidden;k++){
-      const done=await pickOne();if(!done){cancelAuto=true;break;}if(cancelAuto)break;
-      await wait(isTurbo?130:230);
-    }
-    if(!cancelAuto)await wait(isTurbo?270:510);
+function showAutoGift(){
+  document.getElementById('auto-gift-banner')?.remove();
+  const toast=panelNode('aside','numeric-bonus auto-gift-banner');
+  toast.id='auto-gift-banner';toast.setAttribute('role','status');
+  toast.append(panelNode('small','numeric-bonus-title','JACKPOT GIFT'),
+    festiveArt('gift'),panelNode('strong','numeric-bonus-amount','10 FREE SPINS'),
+    panelNode('span','','5 bonus PROMO acak 30%, 50% atau 100% dari total BET sesi. Kartu tetap acak.'));
+  document.body.append(toast);
+  winBurst({color:'yellow'},28);
+  if(sfxEnabled){
+    sfx('coin');
+    try{
+      if('speechSynthesis' in window){
+        const voice=new SpeechSynthesisUtterance('Free Spiinnn!');
+        voice.lang='en-US';voice.rate=.88;voice.pitch=1.28;voice.volume=.95;
+        window.speechSynthesis.cancel();window.speechSynthesis.speak(voice);
+      }
+    }catch(error){console.warn('Free Spin voice unavailable',error);}
   }
-  isAuto=false;applyNextBet();updateButtons();
+  setTimeout(()=>toast.remove(),3800);
+}
+function showPromotionalWin(coin){
+  if(!coin)return;
+  document.getElementById('auto-promo-win')?.remove();
+  const toast=panelNode('aside','numeric-bonus auto-gift-banner');
+  toast.id='auto-promo-win';toast.setAttribute('role','status');
+  toast.append(panelNode('small','numeric-bonus-title','AUTO PROMO GIFT'),
+    festiveArt('coins'),panelNode('strong','numeric-bonus-amount','+'+idMoney(coin)+' Coin'),
+    panelNode('span','','Hadiah promosi terpisah dari payout kartu · '+virtualRp(coin)));
+  document.body.append(toast);
+  if(sfxEnabled)sfx('coin');
+  setTimeout(()=>toast.remove(),2800);
+}
+function autoBudget(rounds){
+  const stake=activeAutoSession?.stake ?? currentRound?.stake ?? STAKES[stakeIndex];
+  if(activeAutoSession){
+    const paidRemaining=Math.max(0,activeAutoSession.paid_rounds-activeAutoSession.completed_rounds-(currentRound?1:0));
+    return paidRemaining*stake;
+  }
+  return rounds*stake;
+}
+async function autoLoop(roundLimit){
+  if(isAuto||isSpinning||!account||pendingInfo()||document.hidden||!AUTO_ROUNDS.includes(roundLimit))return;
+  if(currentRound&&!activeAutoSession){
+    say('Selesaikan ronde yang sedang berjalan sebelum mulai AUTO dengan Gift.');
+    return;
+  }
+  const requestedStake=activeAutoSession?.stake ?? STAKES[stakeIndex];
+  if(account.balance<autoBudget(roundLimit)){
+    say('Saldo belum cukup untuk seluruh ronde AUTO berbayar.');
+    return;
+  }
+  try{
+    void unlockAudio();
+    const opened=await autoApi('/start','POST',
+      {request_id:newRequestId(),paid_rounds:roundLimit,stake:requestedStake});
+    activeAutoSession=opened.session;
+    announceAutoGift=Boolean(opened.created);
+    const idx=STAKES.indexOf(activeAutoSession.stake);
+    if(idx<0)throw Error('BET dari sesi AUTO sebelumnya tidak tersedia lagi.');
+    stakeIndex=idx;
+    isAuto=true;cancelAuto=false;updateButtons();
+    if(opened.resumed)say('Melanjutkan Free Spins dari sesi sebelumnya.');
+    const remaining=activeAutoSession.rounds_remaining;
+    for(let rounds=0;rounds<remaining&&!cancelAuto&&!document.hidden;rounds++){
+      for(let k=(currentRound?.picked||0);k<3&&!cancelAuto&&!document.hidden;k++){
+        const done=await pickOne();
+        if(!done){cancelAuto=true;break;}
+        if(cancelAuto)break;
+        await wait(isTurbo?130:230);
+      }
+      if(!cancelAuto)await wait(isTurbo?270:510);
+    }
+    if(activeAutoSession && activeAutoSession.completed_rounds >=
+       activeAutoSession.paid_rounds+activeAutoSession.free_rounds){
+      activeAutoSession=null;
+    }
+  }catch(error){
+    say(error.message||'Gagal memulai AUTO. Tidak ada saldo yang dipotong oleh tombol AUTO.');
+  }finally{
+    isAuto=false;announceAutoGift=false;
+    applyNextBet();updateButtons();
+  }
 }
 function modal(title){delete $('modal').dataset.view;$('modal-back').hidden=title==='Menu';$('modal').classList.remove('coin-modal','player-panel');$('modal').querySelector('.panel-actions')?.remove();$('modal-title').textContent=title;$('modal-content').replaceChildren();$('modal-content').scrollTop=0;if(!$('modal').open)$('modal').showModal();return $('modal-content');}
 function paragraph(parent,text){const p=document.createElement('p');p.textContent=text;parent.append(p);return p;}
