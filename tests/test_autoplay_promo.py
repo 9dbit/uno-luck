@@ -91,6 +91,11 @@ def test_all_ten_free_spins_and_five_independent_promotional_credits(client, mon
     monkeypatch.setattr(orbit, "choose_cards", lambda: [
         {"color":"red","face":"1"}, {"color":"yellow","face":"4"},
         {"color":"green","face":"8"}])
+    # The QA fixture now has an active fixed-RTP economy; pin its otherwise
+    # random card generator in this integration test so the ledger is exact.
+    monkeypatch.setattr(economy, "draw", lambda _config: [
+        {"color":"red","face":"1"}, {"color":"yellow","face":"4"},
+        {"color":"green","face":"8"}])
     assert save_policy(client).status_code == 200
     request = {"request_id": "auto-start-test-unique-001", "stake":10, "paid_rounds":1}
     started = client.post("/api/auto/start", headers=CLIENT_HEADERS, json=request)
