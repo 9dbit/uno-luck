@@ -16,11 +16,11 @@ import sqlite3
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from . import spin, economy
+from . import spin, economy, autoplay
 
 router = APIRouter(prefix="/api/orbit", tags=["UNO LUCK Orbit"])
 WIN_PERCENT = 80
-RULES_VERSION = 3
+RULES_VERSION = 4
 FACES = spin.FACES
 COLORS = spin.COLORS
 ACTION_TRIO = frozenset(('SKIP', 'REVERSE', '+2'))
@@ -77,6 +77,7 @@ def rank_details(rank: int | None, *, legacy: bool = False) -> dict | None:
 class PickRequest(BaseModel):
     request_id: str = Field(min_length=12, max_length=80)
     stake: int = 25
+    auto_session_id: str | None = None
 
 
 def create_schema(db: sqlite3.Connection) -> None:
@@ -86,6 +87,9 @@ def create_schema(db: sqlite3.Connection) -> None:
             account_id TEXT NOT NULL REFERENCES accounts(id),
             start_key TEXT NOT NULL,
             stake INTEGER NOT NULL,
+            charged_stake INTEGER,
+            auto_session_id TEXT,
+            promo_coin INTEGER NOT NULL DEFAULT 0,
             cards_json TEXT NOT NULL,
             picked INTEGER NOT NULL CHECK(picked BETWEEN 1 AND 3),
             payout INTEGER NOT NULL DEFAULT 0,
@@ -109,6 +113,7 @@ def create_schema(db: sqlite3.Connection) -> None:
     # Existing guest rounds survive the upgrade; legacy matching rounds default
     # to the previous 2x when they are eventually completed.
     economy.schema(db)
+    autoplay.schema(db)
     existing = {r['name'] for r in db.execute('PRAGMA table_info(orbit_rounds)').fetchall()}
     if 'tier' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN tier INTEGER CHECK(tier BETWEEN 1 AND 5)')
@@ -118,6 +123,13 @@ def create_schema(db: sqlite3.Connection) -> None:
 
     if 'economy_json' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN economy_json TEXT')
+    if 'charged_stake' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN charged_stake INTEGER')
+    if 'auto_session_id' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN auto_session_id TEXT')
+    if 'promo_coin' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN promo_coin INTEGER NOT NULL DEFAULT 0')
+    db.execute('UPDATE orbit_rounds SET charged_stake=stake WHERE charged_stake IS NULL')
 
 
 def open_db() -> sqlite3.Connection:
@@ -227,13 +239,13 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
     complete = picked == 3
     saved_rank = (round_row['tier'] or 5) if round_row['combo'] == 'COLOR_MATCH' else None
     version = int(round_row['rules_version'])
-    if complete and version >= RULES_VERSION and round_row['combo'] == 'COLOR_MATCH':
+    if complete and version >= 3 and round_row['combo'] == 'COLOR_MATCH':
         if classify_rank(dealt) != saved_rank:
             raise RuntimeError('Stored prize rank contradicts actual dealt cards')
     pattern = None
     if complete and round_row['combo'] == 'COLOR_MATCH':
         pattern = (CELEBRATIONS[saved_rank]['pattern']
-                   if version >= RULES_VERSION and saved_rank in CELEBRATIONS
+                   if version >= 3 and saved_rank in CELEBRATIONS
                    else 'LEGACY_COLOR_MATCH')
     tier_view = rank_details(saved_rank, legacy=version < RULES_VERSION) if complete and saved_rank else None
     snap = json.loads(round_row['economy_json']) if round_row['economy_json'] else None
@@ -241,13 +253,15 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
         tier_view['multiplier'] = snap['multiplier']
     return {
         'id': round_row['id'], 'picked': picked, 'stake': round_row['stake'],
+        'charged_stake': round_row['charged_stake'], 'free_spin': bool(round_row['auto_session_id'] and round_row['charged_stake'] == 0),
         'cards': cards, 'complete': complete,
         'combo': round_row['combo'] if complete else None,
         'tier': tier_view,
-        'bonus': {'kind':round_row['combo'],'multiplier':snap['multiplier']} if complete and snap and round_row['combo'].startswith('PAIR_') else None,
+        'bonus': {'kind':round_row['combo'],'multiplier':snap['multiplier']} if complete and snap and round_row['combo'] in ('PAIR_SUM','PAIR_PRODUCT','COLOR_PAIR','COLOR_SEQUENCE') else None,
         'pattern': pattern, 'rules_version': version,
         'payout': round_row['payout'] if complete else None,
-        'delta': round_row['payout'] - round_row['stake'] if complete else None,
+        'promo_coin': round_row['promo_coin'] if complete else None,
+        'delta': (round_row['payout'] + round_row['promo_coin'] - round_row['charged_stake']) if complete else None,
     }
 
 
@@ -284,7 +298,7 @@ def state(request: Request, response: Response):
             item['tier'] = (rank_details(tier_row['tier'] or 5, legacy=version < RULES_VERSION)
                 if tier_row and item['combo'] == 'COLOR_MATCH' else None)
             item['pattern'] = (CELEBRATIONS[tier_row['tier']]['pattern']
-                if tier_row and version >= RULES_VERSION and item['combo'] == 'COLOR_MATCH'
+                if tier_row and version >= 3 and item['combo'] == 'COLOR_MATCH'
                 and tier_row['tier'] in CELEBRATIONS else
                 'LEGACY_COLOR_MATCH' if tier_row and item['combo'] == 'COLOR_MATCH' else None)
             if tier_row and tier_row['economy_json'] and item['tier']:
