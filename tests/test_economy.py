@@ -137,7 +137,7 @@ def test_zero_product_rank_five_new_version_and_legacy_snapshot(client,monkeypat
     assert first['account']['balance']==975
     assert pick(client,2,25).status_code==200
     corrected=pick(client,3,25).json()
-    assert corrected['round']['rules_version']==5 if 'rules_version' in corrected['round'] else corrected['round']['tier']['rank']==5
+    assert client.get('/api/orbit/state').json()['rules']['rules_version']==5
     assert corrected['round']['combo']=='COLOR_MATCH'
     assert corrected['round']['tier']['rank']==5
     assert corrected['round']['payout']==625
