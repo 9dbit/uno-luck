@@ -128,8 +128,7 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
    assert.deepEqual(requests.map(r=>r.stake),[25,25]);
    await p.locator('#spin-btn').tap();await p.waitForFunction(()=>!isSpinning);assert.equal(requests.at(-1).stake,100);
    for(let i=0;i<2;i++){await p.locator('#spin-btn').tap();await p.waitForFunction(()=>!isSpinning);}
-   // Finish the manual round before starting an independently persisted Auto batch.
-   await p.locator('#spin-btn').tap();await p.waitForFunction(()=>!isSpinning);
+   // The previous manual round is complete. AUTO begins a new paid batch.
    hold=true;const start=requests.length;
    await p.locator('#auto-btn').tap();await p.locator('[data-rounds="3"]').tap();await p.locator('#auto-start').tap();
    await p.waitForFunction(()=>isSpinning);await p.waitForTimeout(100);assert(held);
