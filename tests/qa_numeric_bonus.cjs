@@ -23,6 +23,19 @@ const URL=process.env.UNO_QA_URL||'http://127.0.0.1:8080';
    const after=await page.evaluate(()=>({plays:__bonusPlays,osc:__bonusOscillators}));
    if(fallback||await page.evaluate(()=>!window.AudioContext&&!window.webkitAudioContext))assert.equal(after.plays-before.plays,1);else assert.equal(after.osc-before.osc,4);
    await page.evaluate(()=>UNOLuckSound.setEnabled(false));assert.equal(await page.evaluate(()=>UNOLuckSound.numericBonus()),false);
+   // Dynamic server payout must retain celebration; numeric bonuses must not.
+   await page.evaluate(()=>{
+    window.UNOLuckSound.celebration=async()=>({played:false,duration:0});
+    window.__prize={complete:true,combo:'COLOR_MATCH',stake:10,payout:250,delta:240,rules_version:2,
+      pattern:'COLOR_MATCH',cards:[2,5,9].map(n=>({color:'blue',face:String(n)})),
+      tier:{rank:5,title:'LUCKY COLOR WIN',multiplier:25,pattern:'COLOR_MATCH'}};
+    window.__present=UNOLuckCelebration.present(__prize);
+   });
+   await page.locator('#celebration-overlay').waitFor({state:'visible'});
+   assert((await page.locator('#celebration-amount').innerText()).includes('250'));
+   await page.evaluate(()=>{UNOLuckCelebration.close();return __present;});
+   assert.equal(await page.evaluate(()=>UNOLuckCelebration.present({...__prize,payout:9999})),false);
+   assert.equal(await page.evaluate(()=>UNOLuckCelebration.present({...__prize,combo:'PAIR_PRODUCT',tier:null})),false);
    await context.close();console.log(JSON.stringify({engine,fallback,result:'PASS'}));
   }
   await browser.close();
