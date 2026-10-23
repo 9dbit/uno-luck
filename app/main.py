@@ -21,12 +21,16 @@ from fastapi.staticfiles import StaticFiles
 from .engine import COLORS, RuleError, UnoGame
 from .spin import router as spin_router
 from .orbit import router as orbit_router
+from .tournament import router as tournament_router
 from .sound_cloud import router as sound_cloud_router, sound_health
 
 APP_ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
+from .economy import router as economy_router
+app.include_router(economy_router)
 app.include_router(spin_router)
 app.include_router(orbit_router)
+app.include_router(tournament_router)
 app.include_router(sound_cloud_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")
 

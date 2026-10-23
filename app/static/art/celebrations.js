@@ -56,7 +56,10 @@
     const selected=preview?rank:result.tier.rank;
     const cfg=lookup[selected];
     if(!Number.isInteger(selected)||!cfg)return false;
-    if(!preview && (result.tier.title!==cfg.name || result.tier.multiplier!==cfg.multiplier ||
+    if(!preview && (result.tier.title!==cfg.name || !Number.isInteger(result.tier.multiplier) || result.tier.multiplier<1 || result.tier.multiplier>10000 ||
+      !Number.isInteger(result.stake) || result.stake<=0 || !Number.isInteger(result.payout) ||
+      result.payout<0 || result.payout>result.stake*result.tier.multiplier || result.delta!==result.payout-result.stake ||
+      result.cards?.length!==3 ||
       !result.cards?.every(card=>card.color===result.cards[0].color) ||
       (result.rules_version>=2 && result.tier.pattern!==result.pattern)))return false;
     const token=++generation;
@@ -74,7 +77,10 @@
     overlay.setAttribute('role',local?'region':'dialog');
     overlay.setAttribute('aria-modal',String(!local));
     overlay.setAttribute('aria-label',`${cfg.name} peringkat ${selected}${preview?' preview':''}`);
-    $('celebration-art').src=`/assets/art/v3/tier-${selected}.webp`;
+    // Original rank artwork contains baked-in legacy multipliers. Use clean 3D art
+    // for configured payouts so the image cannot contradict the server amount.
+    $('celebration-art').src=!preview&&result.tier.multiplier!==cfg.multiplier?
+      '/assets/art/festive/trophy.svg':`/assets/art/v3/tier-${selected}.webp`;
     $('celebration-title').textContent=cfg.name;
     const matchedPattern=$('celebration-pattern');
     if(matchedPattern){

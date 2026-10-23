@@ -90,7 +90,7 @@ with sync_playwright() as pw:
             page.screenshot(path=str(OUT/f'{engine}-bet-{width}x{height}.png'));close()
             page.locator('#auto-btn').click();bounds()
             page.locator('[data-rounds="3"]').click()
-            assert page.locator('.auto-budget dd').nth(1).inner_text()=='75 Coin'
+            assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='75 Coin'
             page.screenshot(path=str(OUT/f'{engine}-auto-{width}x{height}.png'));close()
         assert requests==[],requests
         page.set_viewport_size({'width':393,'height':852})
@@ -101,7 +101,7 @@ with sync_playwright() as pw:
         assert page.locator('#last-stake').inner_text()=='250'
         page.locator('#auto-btn').click();page.locator('[data-rounds="10"]').click()
         assert page.locator('#auto-start').is_disabled()
-        assert page.locator('.auto-budget dd').nth(1).inner_text()=='2.500 Coin';close()
+        assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='2.500 Coin';close()
         menu('Bet Setting');page.locator('[data-bet="25"]').click()
         page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
         # Speed up only animation in this control test; separate suites test LED timing.
@@ -120,20 +120,57 @@ with sync_playwright() as pw:
         page.wait_for_timeout(100)
         assert len(held)==1
         menu('Bet Setting')
-        assert page.get_by_role('button',name='GUNAKAN BET',exact=True).is_disabled();close()
+        assert all(page.locator('[data-bet]').nth(i).is_enabled() for i in range(5))
+        page.locator('[data-bet="50"]').click()
+        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
+        assert page.evaluate('() => STAKES[stakeIndex]')==25
         page.locator('#auto-btn').click();respond(held.pop())
         page.wait_for_function('() => !isAuto&&!isSpinning')
         assert len(requests)==start+1
         menu('Bet Setting')
-        assert all(page.locator('[data-bet]').nth(i).is_disabled() for i in range(5))
-        assert page.get_by_role('button',name='GUNAKAN BET',exact=True).is_disabled();close()
+        assert page.locator('[data-bet="50"]').get_attribute('aria-pressed')=='true'
+        page.locator('[data-bet="100"]').click();close()  # Cancel preserves queued 50.
+        menu('Bet Setting')
+        assert page.locator('[data-bet="50"]').get_attribute('aria-pressed')=='true'
+        page.locator('[data-bet="100"]').click()
+        assert page.locator('.panel-amount').inner_text()=='100 Coin'
+        assert 'Ronde berjalan tetap 25 Coin' in page.locator('.bet-preview').inner_text()
+        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
+        assert page.evaluate('() => currentRound.stake')==25
+        assert page.locator('#last-stake').inner_text()=='25'
         state['account']['balance']=0;page.evaluate('() => loadState(true)')
         page.locator('#auto-btn').click();page.locator('[data-rounds="1"]').click()
-        assert page.locator('.auto-budget dd').nth(1).inner_text()=='0 Coin'
+        assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='0 Coin'
         assert page.locator('#auto-start').is_enabled()
         mode['value']='normal';start=len(requests);page.locator('#auto-start').click()
         page.wait_for_function('() => !isAuto&&!isSpinning')
         assert len(requests)==start+2  # Finish paid partial round, no new charge.
+        assert all(r['stake']==25 for r in requests[start:])
+        assert page.evaluate('() => STAKES[stakeIndex]')==100
+
+        # The confirmed next BET reaches the server only on the next paid round.
+        state['account']['balance']=1000;page.evaluate('() => loadState(true)')
+        start=len(requests);page.locator('#spin-btn').click()
+        page.wait_for_function('() => !isSpinning&&currentRound?.picked===1')
+        assert requests[-1]['stake']==100
+        menu('Bet Setting');page.locator('[data-bet="10"]').click()
+        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
+        for picked in (2,3):
+            page.locator('#spin-btn').click()
+            page.wait_for_function('() => !isSpinning')
+        assert [r['stake'] for r in requests[start:]]==[100,100,100]
+        assert page.evaluate('() => STAKES[stakeIndex]')==10
+
+        # A confirmed AUTO budget keeps its original stake for the entire batch.
+        mode['value']='hold';start=len(requests)
+        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click();page.locator('#auto-start').click()
+        page.wait_for_function('() => isSpinning');page.wait_for_timeout(100)
+        menu('Bet Setting');page.locator('[data-bet="250"]').click()
+        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
+        mode['value']='normal';respond(held.pop())
+        page.wait_for_function('() => !isAuto&&!isSpinning',timeout=25000)
+        assert [r['stake'] for r in requests[start:]]==[10]*9
+        assert page.evaluate('() => STAKES[stakeIndex]')==250
 
         # Reloaded paid round can have a different stake than the default selector.
         state['account']['balance']=20
@@ -141,7 +178,7 @@ with sync_playwright() as pw:
                         'complete':False,'combo':None,'tier':None,'payout':None,'delta':None}
         page.evaluate('() => {stakeIndex=1;return loadState(true);}')
         page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click()
-        assert page.locator('.auto-budget dd').nth(1).inner_text()=='20 Coin'
+        assert page.locator('.auto-budget .coin-value-text').nth(1).inner_text()=='20 Coin'
         start=len(requests);page.locator('#auto-start').click()
         page.wait_for_function('() => !isAuto&&!isSpinning')
         assert len(requests)-start==8
@@ -155,6 +192,15 @@ with sync_playwright() as pw:
         assert len(requests)==start+1
         assert page.evaluate('() => pendingInfo()!==null')
         page.locator('#auto-btn').click();assert page.locator('#auto-start').is_disabled();close()
+        pending=page.evaluate('() => pendingInfo()')
+        menu('Bet Setting');page.locator('[data-bet="50"]').click()
+        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
+        assert page.evaluate('() => STAKES[stakeIndex]')==10
+        assert page.evaluate('() => pendingInfo()')==pending
+        mode['value']='normal';page.locator('#spin-btn').click()
+        page.wait_for_function('() => !isSpinning&&currentRound?.picked===1')
+        assert requests[-1]['request_id']==pending['id']
+        assert requests[-1]['stake']==10
         assert context.request.get(URL+'/api/sounds/manifest').json()==baseline
         assert not errors,errors
         context.close();browser.close()

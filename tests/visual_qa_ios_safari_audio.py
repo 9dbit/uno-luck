@@ -22,11 +22,22 @@ IOS_UA=('Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) '
         'Version/18.6 Mobile/15E148 Safari/604.1')
 BROKEN_AUDIO_CONTEXT="""
   (()=>{
+    window.__preGestureAudio={resume:0,start:0,play:0};
+    const mediaPlay=HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play=function(...args){
+      window.__preGestureAudio.play++;
+      return mediaPlay.apply(this,args);
+    };
+    const sourceStart=AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start=function(...args){
+      window.__preGestureAudio.start++;
+      return sourceStart.apply(this,args);
+    };
     const NativeAudioContext=window.AudioContext;
     if(!NativeAudioContext)return;
     window.AudioContext=class InterruptedContext extends NativeAudioContext {
       get state(){return 'interrupted';}
-      resume(){return Promise.resolve();}
+      resume(){window.__preGestureAudio.resume++;return Promise.resolve();}
     };
   })();
 """
@@ -43,7 +54,11 @@ with sync_playwright() as p:
     page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
     # A fresh splash never autoplays. The one visible PLAY button is the
     # only required touch to unlock the custom sound and enter gameplay.
-    assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
+    # Pre-decoding may create an interrupted context. No playback or unlock
+    # may occur before PLAY, even when the decoder has already been prepared.
+    page.locator('#boot-play').wait_for(state='visible',timeout=17000)
+    assert page.evaluate("window.UNOLuckSound.webAudioState") in ('inactive','interrupted')
+    assert page.evaluate('window.__preGestureAudio')=={'resume':0,'start':0,'play':0}
     page.locator('#boot-play').click(timeout=17000)
     page.locator('#game-shell').wait_for(state='visible',timeout=25000)
 
@@ -69,7 +84,8 @@ with sync_playwright() as p:
     page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
     assert page.locator('#boot-start-sound').count()==0
     assert page.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').custom")
-    assert page.evaluate("window.UNOLuckSound.webAudioState")=='inactive'
+    assert page.evaluate("window.UNOLuckSound.webAudioState") in ('inactive','interrupted')
+    assert page.evaluate('window.__preGestureAudio')=={'resume':0,'start':0,'play':0}
     page.evaluate("""() => {
         window.__iosMediaPlays=0;
         const original=HTMLMediaElement.prototype.play;

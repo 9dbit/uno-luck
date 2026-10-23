@@ -19,7 +19,7 @@ with sync_playwright() as pw:
         page.locator('#game-shell').wait_for(state='visible',timeout=26000)
         assert page.locator('.balance-readout small').inner_text()=='Coin'
         page.locator('#profile-btn').click()
-        assert page.locator('#modal-content > button').all_text_contents()==['Game Rules','Profile','Sound On','Bet Setting']
+        assert page.locator('.menu-tile').evaluate_all('(nodes)=>nodes.map(n=>n.getAttribute("aria-label"))') == ['Turnamen','Game Rules','Bet Setting','Profile','Sound On']
         page.get_by_role('button',name='Sound On',exact=True).click()
         assert page.evaluate("localStorage.getItem('uno_orbit_music')")=='off'
         assert page.evaluate("localStorage.getItem('uno_orbit_sfx')")=='off'
@@ -59,6 +59,8 @@ with sync_playwright() as pw:
             page.locator('#wallet-open').click()
             page.locator('.coin-history-row').nth(7).wait_for()
             assert page.locator('#modal-content button').count()==0
+            # Measure scroll stability after the actual opening animation settles.
+            page.locator('.modal-card').evaluate('(e)=>Promise.all(e.getAnimations().map(a=>a.finished))')
             top=page.locator('#coin-total').bounding_box()['y']
             page.locator('.coin-history').evaluate('(e)=>e.scrollTop=e.scrollHeight')
             assert abs(page.locator('#coin-total').bounding_box()['y']-top)<1

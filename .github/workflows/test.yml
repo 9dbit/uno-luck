@@ -1,7 +1,7 @@
 name: Test UNO LUCK Spin
 on:
   push:
-    branches: [main, 'fix/uno-v13-solid-uno-led-emissive-20261019']
+    branches: [main, 'fix/uno-v13-solid-uno-led-emissive-20261019', 'feat/uno-player-hub-tournament-20261022']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -24,6 +24,7 @@ jobs:
       - run: node --check app/static/viewport-v11.js
       - run: node --check app/static/orbit.js
       - run: node --check app/static/admin.js
+      - run: node --check app/static/economy-admin.js
       - run: node --check app/static/pwa-update.js
       - run: node --check app/static/art/motion.js
       - run: node --check app/static/art/ledwheel.js
@@ -48,6 +49,8 @@ jobs:
         run: |
           export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-${GITHUB_RUN_ID}"
           export UNO_SOUND_ADMIN_TOKEN="uno-ci-only-shared-sound-secret-for-playwright-2026"
+          export UNO_QA_ADMIN_PASSWORD="ci-password-test-only"
+          export UNO_ADMIN_PASSWORD_HASH="$(python -c 'import os; from app.admin_auth import hash_password; print(hash_password(os.environ["UNO_QA_ADMIN_PASSWORD"]))')"
           python tests/seed_ci_published_sounds.py
           python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-server.log 2>&1 &
           for i in $(seq 1 30); do
@@ -55,9 +58,26 @@ jobs:
             sleep 1
           done
           python -m py_compile tests/visual_qa_shared_sound.py tests/visual_qa_smooth_hud_splash.py tests/visual_qa_iphone15pro_fullbleed.py
+          npm install --no-save --package-lock=false playwright
+          python tests/visual_qa_admin_password.py
+          node tests/qa_numeric_bonus.cjs
+          UNO_SPIN_DB_PATH=/tmp/uno-economy-qa.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8081 > /tmp/uno-economy-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8081/health >/dev/null; then break; fi
+            sleep 1
+          done
+          UNO_QA_URL=http://127.0.0.1:8081 node tests/qa_economy.cjs
+          UNO_SPIN_DB_PATH=/tmp/uno-economy-webkit.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8082 > /tmp/uno-economy-webkit.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8082/health >/dev/null; then break; fi
+            sleep 1
+          done
+          UNO_QA_URL=http://127.0.0.1:8082 UNO_QA_ENGINE=webkit node tests/qa_economy.cjs
           python tests/visual_qa_led_chase.py
           python tests/visual_qa_player_admin.py
           python tests/visual_qa_player_panels.py
+          node tests/qa_player_hub.cjs
+          node tests/qa_bet_next_round.cjs
           python tests/visual_qa_pwa_recovery.py
           python tests/visual_qa_solid_led.py
           python tests/visual_qa_smooth_hud_splash.py
@@ -74,9 +94,13 @@ jobs:
         with:
           name: uno-v11-sound-studio-responsive
           path: |
+            artifacts/uno-admin-password/*
+            artifacts/uno-economy/*
             artifacts/uno-v13-solid-led/*
             artifacts/uno-v1143-player-admin/*
             artifacts/uno-v1146-player-panels/*
+            artifacts/uno-v1148-player-hub/*
+            artifacts/uno-v1149-bet/*
             artifacts/uno-v1144-pwa-recovery/*
             artifacts/uno-v11-led-chase/*.png
             artifacts/uno-v11-gameplay-music/*.png

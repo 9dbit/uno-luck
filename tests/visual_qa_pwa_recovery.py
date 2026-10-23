@@ -41,7 +41,7 @@ with sync_playwright() as pw:
         page.wait_for_function("() => document.getElementById('connection-status').textContent==='ONLINE'")
         assert page.locator('#spin-btn').is_enabled()
         page.locator('#profile-btn').tap()
-        assert page.locator('#modal-content > button').all_text_contents() == ['Game Rules','Profile','Sound On','Bet Setting']
+        assert page.locator('.menu-tile').evaluate_all('(nodes)=>nodes.map(n=>n.getAttribute("aria-label"))') == ['Turnamen','Game Rules','Bet Setting','Profile','Sound On']
         page.locator('#modal-close').tap()
         page.screenshot(path=str(OUT/f'{engine}-recovered.png'))
         assert context.request.get(URL+'/api/sounds/manifest').json() == baseline

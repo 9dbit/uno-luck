@@ -36,7 +36,8 @@ function splashRemaining(){
 }
 let cloudProfiles=new Map(), cloudRevision='', cloudReady=false, cloudError='';
 let cloudMixer=null, mixerPublishTimer=null;
-let cloudFetch=null, adminKey=sessionStorage.getItem('uno-sound-admin-key')||'';
+let cloudFetch=null, adminKey='';
+try{sessionStorage.removeItem('uno-sound-admin-key');}catch(_){}
 const liveProfile=key=>cloudProfiles.get(key)||profiles[key]||{};
 const editProfile=key=>profiles[key]||cloudProfiles.get(key)||{};
 async function syncCloud(force=false){
@@ -86,16 +87,17 @@ async function syncCloud(force=false){
   }).finally(()=>{cloudFetch=null;});
   return cloudFetch;
 }
-function hasAdminKey(){return adminKey.length>=32;}
+function hasAdminKey(){return Boolean(adminKey);}
 async function verifyAdminKey(value){
-  const entered=String(value||'').trim();
-  if(entered.length<32)throw Error('Masukkan kunci admin Sound Studio dari Railway (minimal 32 karakter).');
+  const entered=String(value||'');
+  if(!entered)throw Error('Masukkan password atau kunci admin.');
   const response=await fetch('/api/sounds/admin/check',
     {headers:{'X-UNO-Sound-Admin':entered},cache:'no-store'});
   if(!response.ok)throw Error(response.status===403?
-    'Kunci admin salah. Salin dari Railway → Variables → UNO_SOUND_ADMIN_TOKEN.':
+    'Password atau kunci admin salah.':response.status===429?
+    'Terlalu banyak percobaan. Coba lagi dalam 60 detik.':
     'Verifikasi admin gagal: HTTP '+response.status);
-  adminKey=entered;sessionStorage.setItem('uno-sound-admin-key',entered);
+  adminKey=entered;
   return true;
 }
 function cloudStatus(){return {ready:cloudReady,revision:cloudRevision,
@@ -959,10 +961,10 @@ function show(host){
   const adminSection=element('details','studio-cloud-admin');
   const adminTitle=element('summary',null,'PUBLISH SOUND DARI DESKTOP · ADMIN');
   const adminGuide=element('p','studio-note',
-    'Kunci hanya ada di Railway → uno-luck-web → staging → Variables → UNO_SOUND_ADMIN_TOKEN. Kunci disimpan pada tab ini, tidak dikirim ke perangkat pemain.');
+    'Gunakan password admin yang sama dengan Economy Lab atau kunci admin. Akses hanya berlaku selama halaman ini terbuka.');
   const keyInput=element('input','studio-admin-key');
   keyInput.type='password';keyInput.autocomplete='off';
-  keyInput.placeholder='Masukkan kunci admin (32+ karakter)';
+  keyInput.placeholder='Masukkan password atau kunci admin';
   keyInput.setAttribute('aria-label','Kunci admin Sound Cloud');
   const login=element('button','studio-cloud-button','VERIFIKASI KUNCI');
   login.type='button';

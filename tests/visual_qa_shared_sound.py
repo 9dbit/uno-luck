@@ -80,6 +80,36 @@ with sync_playwright() as p:
         remote=d.request.get(URL+item["url"].lstrip("/"))
         assert remote.ok and remote.body()==FILE.read_bytes()
 
+    # A healthy context uses the predecoded WebAudio lane. Verify the published
+    # trim really starts after PLAY, finishes before gameplay and hands off BGM.
+    web=browser.new_context(viewport={"width":390,"height":844},has_touch=True)
+    web.add_init_script("""(() => {
+      window.__webStarts=[];window.__webGestureSeen=false;
+      document.addEventListener('pointerdown',e=>{if(e.isTrusted)window.__webGestureSeen=true;},true);
+      const start=AudioBufferSourceNode.prototype.start;
+      AudioBufferSourceNode.prototype.start=function(...args){
+        if(this.buffer?.length>1)window.__webStarts.push({gesture:window.__webGestureSeen,
+          offset:args[1],duration:args[2],loop:this.loop});
+        return start.apply(this,args);
+      };
+    })();""")
+    w=web.new_page();w.on("pageerror",lambda err:errors.append(str(err)))
+    w.goto(URL,wait_until="domcontentloaded")
+    w.locator('#boot-play').wait_for(state='visible',timeout=17000)
+    assert w.evaluate('window.__webStarts')==[]
+    w.locator('#boot-play').tap()
+    w.wait_for_function('() => UNOLuckSoundStudio.splashRemaining()>0',timeout=4000)
+    assert w.evaluate('window.UNOLuckSound.webAudioState')=='running'
+    starts=w.evaluate('window.__webStarts')
+    assert any(x['gesture'] and not x['loop'] and abs(x['offset']-.35)<.01
+               and abs(x['duration']-2.05)<.01 for x in starts),starts
+    w.locator('#game-shell').wait_for(state='visible',timeout=26000)
+    assert w.evaluate('window.UNOLuckSoundStudio.splashRemaining()')==0
+    w.wait_for_function('() => UNOLuckSoundStudio.isMusicWebAudioPlaying()',timeout=4000)
+    assert not w.evaluate('window.UNOLuckSoundStudio.isMusicMediaPlaying()')
+    assert all(x['gesture'] for x in w.evaluate('window.__webStarts'))
+    web.close()
+
     # Mobile is a completely different browser context: no desktop uploads
     # exist in this context. Only server manifest + files can supply audio.
     mobile=browser.new_context(
@@ -87,9 +117,14 @@ with sync_playwright() as p:
         is_mobile=True,has_touch=True,user_agent=IOS_UA)
     m=mobile.new_page()
     m.on("pageerror",lambda err:errors.append(str(err)))
-    # Safari policy simulation: explicit PLAY must start the published cue
-    # inside the button's trusted pointer activation window.
+    # Safari fallback simulation: when WebAudio stays interrupted, explicit PLAY
+    # must start both native players inside trusted pointer activation.
     m.add_init_script("""(() => {
+      const NativeContext=window.AudioContext;
+      window.AudioContext=class InterruptedContext extends NativeContext {
+        get state(){return 'interrupted';}
+        resume(){return Promise.resolve();}
+      };
       window.__splashAttempts=[];
       window.__bgmAttempts=[];
       window.__splashGesture=false;
@@ -135,7 +170,7 @@ with sync_playwright() as p:
     assert m.evaluate("window.UNOLuckSoundStudio.publishedProfile('soft-tech-splash-screen').source")=="custom"
     assert m.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').stop")==2.4
     assert m.evaluate("window.UNOLuckSoundStudio.cloudStatus().ready")
-    # The first trusted menu click, not auto boot, initiates Safari unlock.
+    # Opening the menu preserves the audio lane already unlocked by PLAY.
     m.locator("#profile-btn").click()
     m.locator("#modal-close").click()
     assert m.evaluate("window.UNOLuckSound.webAudioState") in ("running","interrupted","media-fallback")
