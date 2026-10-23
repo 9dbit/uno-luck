@@ -103,7 +103,8 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     assert.equal(await p.locator('.auto-budget .coin-value-icon').count(),3);
     await tapOnce(p.locator('[data-rounds="5"]'));
     assert.equal(await p.locator('[data-rounds="5"]').getAttribute('aria-pressed'),'true');
-    assert.equal(await p.locator('.auto-budget .coin-value-text').nth(1).innerText(),'100 Coin');
+    // AUTO now starts after finishing the partial manual round. Five NEW paid rounds cost 5x25.
+    assert.equal(await p.locator('.auto-budget .coin-value-text').nth(1).innerText(),'125 Coin');
     await p.locator('.auto-budget img').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));
     assert(await p.locator('.auto-budget img').evaluateAll(imgs=>imgs.every(i=>i.complete&&i.naturalWidth>0)));
     assert(await p.locator('.modal-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'no horizontal overflow');
