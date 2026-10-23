@@ -23,6 +23,12 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
+def save_policy(c, enabled=True, budget=10000, per_account=1):
+    return c.post("/api/admin/economy/promo-policy", headers=ADMIN_HEADERS,
+        json={"enabled":enabled, "daily_budget_coin":budget,
+              "max_sessions_per_account_day":per_account})
+
+
 def request_pick(c, seq, phase, stake, session_id):
     return c.post("/api/orbit/pick", headers=CLIENT_HEADERS,
         json={"request_id": f"autoplay-round-{seq}-phase-{phase}-unique",
@@ -78,6 +84,7 @@ def test_all_ten_free_spins_and_five_independent_promotional_credits(client, mon
     monkeypatch.setattr(orbit, "choose_cards", lambda: [
         {"color":"red","face":"1"}, {"color":"yellow","face":"4"},
         {"color":"green","face":"8"}])
+    assert save_policy(client).status_code == 200
     request = {"request_id": "auto-start-test-unique-001", "stake":10, "paid_rounds":1}
     started = client.post("/api/auto/start", headers=CLIENT_HEADERS, json=request)
     assert started.status_code == 200, started.text
@@ -87,6 +94,11 @@ def test_all_ten_free_spins_and_five_independent_promotional_credits(client, mon
     assert opened["gift"]["voice"] == "Free Spiinnn!"
     session_id = opened["session"]["id"]
 
+    policy = client.get("/api/admin/economy/promo-policy",headers=ADMIN_HEADERS).json()
+    assert policy["enabled"] is True
+    assert policy["sessions_today"] == 1
+    assert policy["booked_coin"] >= 115
+    assert policy["remaining_coin"] == 10000 - policy["booked_coin"]
     state_before = client.get("/api/auto/state").json()["session"]
     assert state_before["reserved_bonus_coin"] >= 15
     resumed = client.post("/api/auto/start", headers=CLIENT_HEADERS,
@@ -159,3 +171,76 @@ def test_period_margin_target_accounts_for_guaranteed_promotions():
         economy.target_config(economy.Target(
             config=cfg, margin_percent="10", turnover_rp=1000000,
             costs_rp=0, auto_sessions=100, auto_paid_rounds=10, stake=10))
+
+
+def test_promo_default_off_admin_auth_and_replay(client):
+    req = {"request_id":"auto-gift-auth-default-off-1","stake":10,"paid_rounds":1}
+    assert client.get("/api/admin/economy/promo-policy").status_code==403
+    assert client.post("/api/admin/economy/promo-policy",
+        json={"enabled":True,"daily_budget_coin":1000,
+              "max_sessions_per_account_day":1}).status_code==403
+    setting = client.get("/api/admin/economy/promo-policy",headers=ADMIN_HEADERS).json()
+    assert not setting["enabled"] and setting["daily_budget_coin"]==0
+    blocked=client.post("/api/auto/start",headers=CLIENT_HEADERS,json=req)
+    assert blocked.status_code==409
+    assert save_policy(client,budget=100).status_code==200
+    blocked=client.post("/api/auto/start",headers=CLIENT_HEADERS,json=req)
+    assert blocked.status_code==409 and "Anggaran" in blocked.json()["detail"]
+    assert save_policy(client,budget=200).status_code==200
+    started=client.post("/api/auto/start",headers=CLIENT_HEADERS,json=req)
+    assert started.status_code==200, started.text
+    sid=started.json()["session"]["id"]
+    first_budget=client.get("/api/admin/economy/promo-policy",headers=ADMIN_HEADERS).json()
+    assert 115<=first_budget["booked_coin"]<=150
+    assert first_budget["sessions_today"]==1
+    replay=client.post("/api/auto/start",headers=CLIENT_HEADERS,json=req)
+    assert replay.status_code==200 and replay.json()["created"] is False
+    assert replay.json()["session"]["id"]==sid
+    assert client.get("/api/admin/economy/promo-policy",
+        headers=ADMIN_HEADERS).json()["booked_coin"]==first_budget["booked_coin"]
+    # Changing policy never revokes a previously accepted promotional session.
+    assert save_policy(client,enabled=False,budget=0).status_code==200
+    resumed=client.post("/api/auto/start",headers=CLIENT_HEADERS,
+        json={**req,"request_id":"auto-gift-resume-existing-2"})
+    assert resumed.status_code==200 and resumed.json()["session"]["id"]==sid
+    assert resumed.json()["resumed"] is True
+    assert client.get("/api/auto/state").json()["session"]["rounds_remaining"]==11
+
+
+def test_promo_budget_and_account_cap_no_hidden_outcomes(client, monkeypatch):
+    from app import autoplay
+    assert save_policy(client,budget=300,per_account=1).status_code==200
+    req={"request_id":"one-per-day-unique-auto-1","stake":10,"paid_rounds":1}
+    start=client.post("/api/auto/start",headers=CLIENT_HEADERS,json=req)
+    assert start.status_code==200
+    aid=start.json()["session"]["id"]
+    # Even after finishing a session, player cannot repeatedly farm same-day gifts.
+    monkeypatch.setattr(orbit,"choose_cards",lambda:[
+        {"color":"red","face":"1"},{"color":"yellow","face":"4"},{"color":"green","face":"8"}])
+    for index in range(11):
+        for phase in range(3):
+            answer=request_pick(client,100+index,phase+1,10,aid)
+            assert answer.status_code==200,answer.text
+    again=client.post("/api/auto/start",headers=CLIENT_HEADERS,
+        json={**req,"request_id":"same-day-second-auto-2"})
+    assert again.status_code==409 and "Batas sesi" in again.json()["detail"]
+    # Second account competes with same shared budget, not a new pool.
+    client.cookies.clear()
+    assert client.get("/api/orbit/state").status_code==200
+    second=client.post("/api/auto/start",headers=CLIENT_HEADERS,
+        json={**req,"request_id":"different-account-budget-1"})
+    assert second.status_code==200
+    policy=client.get("/api/admin/economy/promo-policy",headers=ADMIN_HEADERS).json()
+    assert policy["sessions_today"]==2
+    assert policy["booked_coin"]<=300
+    third_req={**req,"request_id":"third-account-budget-1"}
+    client.cookies.clear()
+    assert client.get("/api/orbit/state").status_code==200
+    third=client.post("/api/auto/start",headers=CLIENT_HEADERS,json=third_req)
+    assert third.status_code==409 and "Anggaran" in third.json()["detail"]
+    # WIB daily budget resets on next day, without rewriting historical entries.
+    monkeypatch.setattr(spin,"now_wib_day",lambda:"2099-01-01")
+    next_day=client.get("/api/admin/economy/promo-policy",
+        headers=ADMIN_HEADERS).json()
+    assert next_day["booked_coin"]==0 and next_day["sessions_today"]==0
+    assert client.post("/api/auto/start",headers=CLIENT_HEADERS,json=third_req).status_code==200
