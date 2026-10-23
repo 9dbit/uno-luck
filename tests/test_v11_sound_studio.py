@@ -36,7 +36,7 @@ def test_editing_is_real_and_persistent_without_server_upload():
 def test_real_game_events_and_boot_use_studio_cues():
     assert 'sound-studio.js?v=1155' in H
     assert 'sound-studio.css?v=1120' in H
-    assert H.index('sound.js?v=1152') < H.index('sound-studio.js?v=1155') < H.index('orbit.js?v=1155')
+    assert H.index('sound.js?v=1152') < H.index('sound-studio.js?v=1155') < H.index('orbit.js?v=1157')
     assert "installStudio,channels,prepareContext,playCue,result" in S
     assert "studio?.isCustomized(cue)" in S
     assert "studio?.isCustomized('background-music')" in S
