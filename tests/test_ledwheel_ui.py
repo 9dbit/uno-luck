@@ -59,6 +59,8 @@ def test_ledger_probability_and_request_deduplication_unchanged():
     assert 'secrets.randbelow(100) < WIN_PERCENT' in SERVER
     assert 'def choose_cards()' in SERVER
     assert "db.execute('SELECT round_id,selected_count FROM orbit_requests" in SERVER
-    assert 'new_balance=acct[\'balance\']-payload.stake' in SERVER
+    assert 'charged_stake = payload.stake' in SERVER
+    assert "new_balance=acct['balance']-charged_stake" in SERVER
+    assert "autoplay.round_terms(promotion)" in SERVER
     assert "multiplier * row['stake']" in SERVER and 'CELEBRATIONS' in SERVER
     assert 'fetch(' not in WHEEL
