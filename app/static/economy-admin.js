@@ -12,7 +12,12 @@ async function loadPromoPolicy(){
     $('promo-policy-enabled').checked=Boolean(d.enabled);
     $('promo-policy-budget').value=d.daily_budget_coin;
     $('promo-policy-account-limit').value=d.max_sessions_per_account_day;
-    display.textContent=`Hari WIB ${d.budget_day_wib}: ${fmt(d.sessions_today)} sesi · ${fmt(d.booked_coin)} Coin dialokasikan · ${fmt(d.remaining_coin)} Coin tersisa. ${d.enabled?'Gift AUTO aktif':'Gift AUTO belum diaktifkan'}. ${d.note}`;
+    $('promo-policy-total-limit').value=d.max_sessions_per_day;
+    $('promo-policy-turnover').value=d.planned_paid_turnover_coin;
+    $('promo-policy-margin').value=d.target_margin_percent;
+    const projection=d.projected_surplus_coin==null?'RTP baru belum dipublikasikan':
+      `RTP ${fmt(d.base_rtp_percent)}% · estimasi surplus setelah anggaran Rp${fmt(d.projected_surplus_coin*40)} virtual (${fmt(d.projected_margin_percent)}% dari target turnover) · budget maksimum untuk menjaga target margin ${fmt(d.max_affordable_budget_coin)} Coin.`;
+    display.textContent=`Hari WIB ${d.budget_day_wib}: ${fmt(d.sessions_today)}/${fmt(d.max_sessions_per_day)} sesi · ${fmt(d.booked_coin)} Coin dialokasikan · ${fmt(d.remaining_coin)} Coin tersisa. ${d.enabled?'Gift AUTO aktif':'Gift AUTO belum diaktifkan'}. ${projection} ${d.note}`;
     display.classList.remove('error');
   }catch(e){display.textContent='Gagal mengambil status Gift: '+e.message;display.classList.add('error');}
 }
@@ -21,13 +26,19 @@ async function savePromoPolicy(){
   button.disabled=true;display.textContent='Menyimpan batas promosi server…';
   try{
     const budget=Number($('promo-policy-budget').value),
-      limit=Number($('promo-policy-account-limit').value);
-    if(!Number.isSafeInteger(budget)||budget<0||!Number.isSafeInteger(limit)||limit<1)
-      throw Error('Budget dan batas sesi harus bilangan bulat.');
+      limit=Number($('promo-policy-account-limit').value),
+      totalLimit=Number($('promo-policy-total-limit').value),
+      turnover=Number($('promo-policy-turnover').value),
+      margin=Number($('promo-policy-margin').value);
+    if(!Number.isSafeInteger(budget)||budget<0||!Number.isSafeInteger(limit)||limit<1||
+       !Number.isSafeInteger(totalLimit)||totalLimit<1||
+       !Number.isSafeInteger(turnover)||turnover<0||!Number.isFinite(margin)||margin<0||margin>15)
+      throw Error('Periksa budget, target turnover, margin, dan batas sesi.');
     const d=await api('/promo-policy',{
       enabled:$('promo-policy-enabled').checked,daily_budget_coin:budget,
-      max_sessions_per_account_day:limit});
-    display.textContent=`Policy tersimpan. ${d.enabled?'Gift AUTO aktif':'Gift AUTO nonaktif'} · ${fmt(d.remaining_coin)} Coin tersedia pada ${d.budget_day_wib}. Sesi yang sudah diterima tetap berlaku.`;
+      max_sessions_per_account_day:limit,max_sessions_per_day:totalLimit,
+      planned_paid_turnover_coin:turnover,target_margin_percent:margin});
+    display.textContent=`Policy tersimpan. ${d.enabled?'Gift AUTO aktif':'Gift AUTO nonaktif'} · ${fmt(d.remaining_coin)} Coin tersedia pada ${d.budget_day_wib} · proyeksi margin ${fmt(d.projected_margin_percent??0)}% (target ${fmt(d.target_margin_percent)}%). Sesi yang diterima tetap berlaku.`;
     display.classList.remove('error');
   }catch(e){display.textContent=e.message;display.classList.add('error');}
   finally{button.disabled=false;}
