@@ -701,6 +701,19 @@ const initialConnectionTimer=setInterval(()=>{
   if(account){clearInterval(initialConnectionTimer);return;}
   recoverInitialConnection();
 },8000);
+function refreshAudioRetry(){
+  const button=$('audio-retry');
+  if(!button)return;
+  const studio=window.UNOLuckSoundStudio;
+  const ios=Boolean(studio?.isIOS?.());
+  const booted=!$('game-shell').classList.contains('is-booting');
+  const needs=ios&&booted&&musicEnabled&&!studio?.isMusicMediaPlaying?.();
+  button.hidden=!needs;
+  if(needs){
+    button.title=studio?.audioDiagnostics?.().lastError||
+      'iPhone menghentikan pemutaran musik. Ketuk untuk mengaktifkan suara.';
+  }
+}
 function listeners(){
   // One delegated activation handles dynamic menus, touch, mouse and keyboard.
   // Capture before handlers disable/remove controls; no sound on scroll or disabled choices.
@@ -714,6 +727,14 @@ function listeners(){
     // an extra async click SFX that may interrupt/steal its media route.
     if(control.id!=='boot-play')sfx('tap');
   },true);
+  $('audio-retry')?.addEventListener('click',()=>{
+    // The native .play() call must be the FIRST audio operation on this tap.
+    // Async work, if any, may follow; no file or volume configuration changes.
+    const resumed=window.UNOLuckSoundStudio?.playMusicGesture?.();
+    void unlockAudio();
+    void Promise.resolve(resumed).catch(error=>console.warn('[UNO AUDIO] restore',error))
+      .finally(()=>setTimeout(refreshAudioRetry,500));
+  });
   $('spin-btn').addEventListener('click',pickOne);
   $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();void unlockAudio();say(isTurbo?'Turbo aktif, animasi lebih cepat.':'Turbo nonaktif.');});
   $('auto-btn').addEventListener('click',showAutoSettings);
@@ -730,6 +751,12 @@ function listeners(){
   addEventListener('resize',layoutRing);
   // The intro is hands-free. Background Music is requested immediately on
   // entering gameplay, not only on a later touch or visibilitychange.
+  window.addEventListener('uno:boot-finished',()=>{
+    // Safari may pause a pre-armed muted track when gameplay unmutes it.
+    // Surface a genuine user-gesture recovery button only if that happens.
+    setTimeout(refreshAudioRetry,950);
+    setTimeout(refreshAudioRetry,3000);
+  });
   window.addEventListener('uno:boot-finished',async()=>{
     if(!musicEnabled)return;
     // Splash PLAY activated a separate music lane inside the user's native
@@ -751,6 +778,7 @@ function listeners(){
     if(musicEnabled&&(nativeIOS||window.UNOLuckSound?.webAudioState!=='running'))
       void window.UNOLuckSoundStudio?.playMusicGesture?.();
     void unlockAudio().then(yes=>{
+      refreshAudioRetry();
       const musicReady=!musicEnabled ||
         (nativeIOS?window.UNOLuckSoundStudio?.isMusicMediaPlaying?.():
           window.UNOLuckSound?.webAudioState==='running' ||
