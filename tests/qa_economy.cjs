@@ -44,6 +44,7 @@ const OUT=process.env.UNO_QA_OUT||'artifacts/uno-economy';fs.mkdirSync(OUT,{recu
   await page.locator('#promo-policy-save').click();
   await page.waitForFunction(()=>document.querySelector('#promo-policy-status').textContent.includes('Policy tersimpan'));
  }
+ await page.waitForFunction(()=>document.querySelector('#results')?.textContent.includes('Margin operator'));
  const initial=await page.locator('#results').innerText();assert(initial.includes('89,9995')||initial.includes('90'),initial);
  await page.locator('#p-PAIR_SUM').fill('6');
  await page.waitForTimeout(600);assert(await page.locator('#publish').isDisabled());
