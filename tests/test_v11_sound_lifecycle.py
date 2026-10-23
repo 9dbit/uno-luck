@@ -57,15 +57,15 @@ def test_bgm_independent_from_sfx_mute_and_no_unnecessary_restart():
     assert "if(studio?.isMusicMediaPlaying?.())return true" in SOUND
     assert "if(studio?.isMusicWebAudioPlaying?.())return true" in SOUND
     assert "if(!audioEnabled||document.hidden)return false" not in SOUND
-    assert "function setEnabled(v){audioEnabled=Boolean(v);if(!audioEnabled)stopSpin();}" in SOUND
+    assert "function setEnabled(v){audioEnabled=Boolean(v);if(!audioEnabled){stopSpin();bonusMedia?.pause();}}" in SOUND
     assert "const MUTE_MUSIC = 'uno_orbit_music'" in GAME
     assert "const MUTE_EFFECTS = 'uno_orbit_sfx'" in GAME
     assert "if(!musicEnabled||document.hidden)return false" in GAME
 
 def test_only_asset_versions_changed_not_cloud_settings():
-    assert "sound.js?v=1133" in HTML
+    assert "sound.js?v=1152" in HTML
     assert "sound-studio.js?v=1144" in HTML
-    assert "orbit.js?v=1151" in HTML
+    assert "orbit.js?v=1152" in HTML
     assert "boot.js?v=1144" in HTML
     assert "const KEY='uno_sound_studio_profiles_v1'" in STUDIO
     assert "await publishCue(key)" in STUDIO

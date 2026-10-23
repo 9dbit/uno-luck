@@ -24,6 +24,7 @@ jobs:
       - run: node --check app/static/viewport-v11.js
       - run: node --check app/static/orbit.js
       - run: node --check app/static/admin.js
+      - run: node --check app/static/economy-admin.js
       - run: node --check app/static/pwa-update.js
       - run: node --check app/static/art/motion.js
       - run: node --check app/static/art/ledwheel.js
@@ -61,6 +62,19 @@ jobs:
           npm install --no-save --package-lock=false playwright
           node tests/qa_player_hub.cjs
           node tests/qa_bet_next_round.cjs
+          node tests/qa_numeric_bonus.cjs
+          UNO_SPIN_DB_PATH=/tmp/uno-economy-qa.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8081 > /tmp/uno-economy-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8081/health >/dev/null; then break; fi
+            sleep 1
+          done
+          UNO_QA_URL=http://127.0.0.1:8081 node tests/qa_economy.cjs
+          UNO_SPIN_DB_PATH=/tmp/uno-economy-webkit.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8082 > /tmp/uno-economy-webkit.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8082/health >/dev/null; then break; fi
+            sleep 1
+          done
+          UNO_QA_URL=http://127.0.0.1:8082 UNO_QA_ENGINE=webkit node tests/qa_economy.cjs
           python tests/visual_qa_pwa_recovery.py
           python tests/visual_qa_solid_led.py
           python tests/visual_qa_smooth_hud_splash.py
@@ -77,6 +91,7 @@ jobs:
         with:
           name: uno-v11-sound-studio-responsive
           path: |
+            artifacts/uno-economy/*
             artifacts/uno-v13-solid-led/*
             artifacts/uno-v1143-player-admin/*
             artifacts/uno-v1146-player-panels/*

@@ -26,6 +26,8 @@ from .sound_cloud import router as sound_cloud_router, sound_health
 
 APP_ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
+from .economy import router as economy_router
+app.include_router(economy_router)
 app.include_router(spin_router)
 app.include_router(orbit_router)
 app.include_router(tournament_router)

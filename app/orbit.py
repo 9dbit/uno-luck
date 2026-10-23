@@ -16,7 +16,7 @@ import sqlite3
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from . import spin
+from . import spin, economy
 
 router = APIRouter(prefix="/api/orbit", tags=["UNO LUCK Orbit"])
 WIN_PERCENT = 80
@@ -108,12 +108,16 @@ def create_schema(db: sqlite3.Connection) -> None:
     """)
     # Existing guest rounds survive the upgrade; legacy matching rounds default
     # to the previous 2x when they are eventually completed.
+    economy.schema(db)
     existing = {r['name'] for r in db.execute('PRAGMA table_info(orbit_rounds)').fetchall()}
     if 'tier' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN tier INTEGER CHECK(tier BETWEEN 1 AND 5)')
     # Old/unfinished rounds keep their original pre-pattern rank and payout.
     if 'rules_version' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN rules_version INTEGER NOT NULL DEFAULT 1')
+
+    if 'economy_json' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN economy_json TEXT')
 
 
 def open_db() -> sqlite3.Connection:
@@ -231,23 +235,35 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
         pattern = (CELEBRATIONS[saved_rank]['pattern']
                    if version >= RULES_VERSION and saved_rank in CELEBRATIONS
                    else 'LEGACY_COLOR_MATCH')
+    tier_view = rank_details(saved_rank, legacy=version < RULES_VERSION) if complete and saved_rank else None
+    snap = json.loads(round_row['economy_json']) if round_row['economy_json'] else None
+    if tier_view and snap:
+        tier_view['multiplier'] = snap['multiplier']
     return {
         'id': round_row['id'], 'picked': picked, 'stake': round_row['stake'],
         'cards': cards, 'complete': complete,
         'combo': round_row['combo'] if complete else None,
-        'tier': rank_details(saved_rank, legacy=version < RULES_VERSION) if complete and round_row['combo'] == 'COLOR_MATCH' else None,
+        'tier': tier_view,
+        'bonus': {'kind':round_row['combo'],'multiplier':snap['multiplier']} if complete and snap and round_row['combo'].startswith('PAIR_') else None,
         'pattern': pattern, 'rules_version': version,
         'payout': round_row['payout'] if complete else None,
         'delta': round_row['payout'] - round_row['stake'] if complete else None,
     }
 
 
-def public_rules() -> dict:
+def public_rules(config=None) -> dict:
+    tiers = [rank_details(rank) for rank in sorted(CELEBRATIONS)]
+    if config:
+        for tier in tiers:
+            tier['multiplier'] = config.multipliers[tier['rank']-1]
+        tiers[-1]['rule'] += ', selain bonus angka kembar'
     return {
         'mode': 'three-pick-orbit', 'virtual_only': True, 'rules_version': RULES_VERSION,
-        'stake_options': spin.COSTS,
-        'base_payout_multiplier': 2, 'payout_multiplier': 2,
-        'celebrations': [rank_details(rank) for rank in sorted(CELEBRATIONS)],
+        'stake_options': config.stake_options if config else spin.COSTS,
+        'virtual_rp_per_coin': economy.VIRTUAL_RP_PER_COIN,
+        'numeric_bonus': {'sum_cap':config.sum_cap,'product_cap':config.product_cap} if config else None,
+        'base_payout_multiplier': config.multipliers[4] if config else 2, 'payout_multiplier': config.multipliers[4] if config else 2,
+        'celebrations': tiers,
         'coin_cap': spin.COIN_CAP,
         'spin_sequence': ['kiri','tengah','kanan'],
         'note': 'Setiap ronde 3 SPIN dan 1 biaya. Payout rank ditentukan dari 3 kartu yang benar-benar muncul. NO MATCH tidak mendapat payout. Saldo dapat dibatasi 1.000.000 koin. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
@@ -262,7 +278,7 @@ def state(request: Request, response: Response):
         row = current_round(db, account['id'])
         hist = spin.spin_history(db, account['id'], 8)
         for item in hist:
-            tier_row = db.execute('SELECT tier,rules_version,cards_json FROM orbit_rounds WHERE id=? AND account_id=?', (item['id'], account['id'])).fetchone()
+            tier_row = db.execute('SELECT tier,rules_version,cards_json,economy_json FROM orbit_rounds WHERE id=? AND account_id=?', (item['id'], account['id'])).fetchone()
             version = int(tier_row['rules_version']) if tier_row else 1
             item['tier'] = (rank_details(tier_row['tier'] or 5, legacy=version < RULES_VERSION)
                 if tier_row and item['combo'] == 'COLOR_MATCH' else None)
@@ -270,10 +286,12 @@ def state(request: Request, response: Response):
                 if tier_row and version >= RULES_VERSION and item['combo'] == 'COLOR_MATCH'
                 and tier_row['tier'] in CELEBRATIONS else
                 'LEGACY_COLOR_MATCH' if tier_row and item['combo'] == 'COLOR_MATCH' else None)
+            if tier_row and tier_row['economy_json'] and item['tier']:
+                item['tier']['multiplier'] = json.loads(tier_row['economy_json'])['multiplier']
             item['rules_version'] = version
         response.headers['Cache-Control'] = 'no-store'
         return {'account': spin.account_view(account), 'round': view_round(row),
-                'recent': hist, 'rules': public_rules()}
+                'recent': hist, 'rules': public_rules(economy.active(db)[1])}
     finally:
         db.close()
 
@@ -281,7 +299,7 @@ def state(request: Request, response: Response):
 def validate_input(payload: PickRequest) -> None:
     if not re.fullmatch('[A-Za-z0-9_-]{12,80}',payload.request_id):
         raise HTTPException(422,'request_id tidak valid')
-    if type(payload.stake) is not int or payload.stake not in spin.COSTS:
+    if type(payload.stake) is not int or payload.stake <= 0:
         raise HTTPException(422,'Biaya SPIN tidak valid')
 
 
@@ -305,14 +323,24 @@ def pick(request: Request, response: Response, payload: PickRequest):
         row=current_round(db,aid)
         stamp=time.time()
         if row is None:
+            revision, config = economy.active(db)
+            if payload.stake not in (config.stake_options if config else spin.COSTS):
+                raise HTTPException(422,'Tahapan BET berubah. Muat ulang pengaturan BET.')
             if acct['balance'] < payload.stake:
                 raise HTTPException(409,'Koin tidak cukup. Klaim hadiah atau refill gratis.')
-            cards=choose_cards()
-            tier=classify_rank(cards)  # derives payout exclusively from dealt cards
-            combo='COLOR_MATCH' if tier is not None else 'NO_MATCH'
+            cards=economy.draw(config) if config else choose_cards()
+            if config:
+                combo, multiplier, tier = economy.classify(cards, config)
+            else:
+                tier=classify_rank(cards)
+                combo='COLOR_MATCH' if tier is not None else 'NO_MATCH'
+                multiplier=CELEBRATIONS[tier]['multiplier'] if tier else 0
+            snapshot=json.dumps({'revision':revision,'multiplier':multiplier,
+                'config':config.model_dump(mode='json')}) if config else None
             rid=spin.new_id()
             db.execute('INSERT INTO orbit_rounds(id,account_id,start_key,stake,cards_json,picked,combo,tier,rules_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
                        (rid,aid,payload.request_id,payload.stake,json.dumps(cards,separators=(',',':')),1,combo,tier,RULES_VERSION,stamp))
+            db.execute('UPDATE orbit_rounds SET economy_json=? WHERE id=?',(snapshot,rid))
             new_balance=acct['balance']-payload.stake
             db.execute('UPDATE accounts SET balance=? WHERE id=?',(new_balance,aid))
             db.execute('INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)',
@@ -332,6 +360,12 @@ def pick(request: Request, response: Response, payload: PickRequest):
                     if classify_rank(json.loads(row['cards_json'])) != rank:
                         raise RuntimeError('Invalid stored card/payout combination; settlement blocked')
                 multiplier=CELEBRATIONS[rank]['multiplier'] if row['combo']=='COLOR_MATCH' else 0
+                if row['economy_json']:
+                    snap=json.loads(row['economy_json'])
+                    classified=economy.classify(json.loads(row['cards_json']),economy.Config.model_validate(snap['config']))
+                    if classified != (row['combo'],snap['multiplier'],row['tier']):
+                        raise RuntimeError('Invalid snapshotted payout; settlement blocked')
+                    multiplier=snap['multiplier']
                 payout=multiplier * row['stake']
                 new_balance=min(spin.COIN_CAP,acct['balance']+payout)
                 credited=new_balance-acct['balance']

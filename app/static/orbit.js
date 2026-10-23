@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const idMoney = n => new Intl.NumberFormat('id-ID').format(n);
 const COLORS = ['red','blue','yellow','green'];
 const FACES = ['0','1','2','3','4','5','6','7','8','9','SKIP','REVERSE','+2'];
-const STAKES = [10,25,50,100,250];
+let STAKES = [10,25,50,100,250];
 const RING_COUNT = 9;
 const MUTE_MUSIC = 'uno_orbit_music';
 const MUTE_EFFECTS = 'uno_orbit_sfx';
@@ -78,13 +78,16 @@ function renderProgress(picked){
   $('spin-step').textContent=`${next+1} / 3`;
   const btn=$('spin-btn');btn.setAttribute('aria-label',`SPIN ${next+1} dari 3`);
 }
+function virtualRp(n){return 'Rp'+idMoney(n*(ruleset?.virtual_rp_per_coin||40))+' virtual';}
 function syncAccount(a){
   if(!a)return;account=a;
+  $('wallet-balance').title=virtualRp(a.balance)+' · tidak dapat dicairkan';
   if(window.UNOLuckMotion)window.UNOLuckMotion.balance(a.balance,true);
   else $('wallet-balance').textContent=idMoney(a.balance);
   $('gift-btn').disabled=!a.daily_available&&!a.refill_available;
   $('gift-btn').title='Gift · hadiah harian dan refill';
   const total=$('coin-total');if(total)total.textContent=idMoney(a.balance);
+  const denomination=$('coin-rp');if(denomination)denomination.textContent=virtualRp(a.balance)+' · tanpa nilai uang';
   updateButtons();
 }
 function updateButtons(){
@@ -192,13 +195,16 @@ async function pickOne(){
       last=confirmed.round;
       // A winning round is scored by exactly one tier-specific jackpot cue.
       // Do not overlap RESULT SOUND with the user-selected JACKPOT 1–5 file.
-      if(sfxEnabled && last.combo!=='COLOR_MATCH')window.UNOLuckSound?.result(false);
+      if(sfxEnabled && last.combo==='NO_MATCH')window.UNOLuckSound?.result(false);
       window.UNOLuckMotion?.result(last);
       if(last.combo==='COLOR_MATCH'){
         const title=last.tier?.title||'LUCKY COLOR WIN';
         say(`${title}! Kembali ${idMoney(last.payout)} · selisih ${last.delta>=0?'+':''}${idMoney(last.delta)} koin`);
         winBurst(last.cards[0]);
         await window.UNOLuckCelebration?.present(last);
+      }else if(last.bonus){
+        say(`${last.bonus.kind==='PAIR_PRODUCT'?'Bonus perkalian':'Bonus penjumlahan'} · +${idMoney(last.payout)} Coin · ${virtualRp(last.payout)}`);
+        showNumericBonus(last);
       }else{say('Belum ada kecocokan warna. Mulai ronde baru!');}
     }else say(`Kartu ${['kiri','tengah','kanan'][phase-1]} terpilih. SPIN ${phase+1}/3 berikutnya.`);
     navigator.vibrate?.(18);
@@ -224,13 +230,22 @@ function applyNextBet(){
   if(nextBetIndex===null||!canChangeBet())return;
   stakeIndex=nextBetIndex;nextBetIndex=null;
 }
+let numericBonusTimer;
+function showNumericBonus(round){
+  document.getElementById('numeric-bonus')?.remove();clearTimeout(numericBonusTimer);
+  const toast=panelNode('aside','numeric-bonus');toast.id='numeric-bonus';toast.setAttribute('role','status');
+  toast.append(festiveArt('coins'),panelNode('strong','',`+${idMoney(round.payout)} Coin`),panelNode('span','',virtualRp(round.payout)));
+  document.body.append(toast);
+  if(sfxEnabled&&round.payout>0)window.UNOLuckSound?.numericBonus?.();
+  numericBonusTimer=setTimeout(()=>toast.remove(),2400);
+}
 function autoBudget(rounds){return (rounds-(currentRound?1:0))*(currentRound?.stake??STAKES[stakeIndex]);}
 async function autoLoop(roundLimit){
   if(isAuto||isSpinning||!account||pendingInfo()||document.hidden||
       !AUTO_ROUNDS.includes(roundLimit)||account.balance<autoBudget(roundLimit))return;
   // Keep the confirmed setup stake after a restored paid round completes.
   const autoStakeIndex=STAKES.indexOf(currentRound?.stake??STAKES[stakeIndex]);
-  if(autoStakeIndex<0)return;
+  if(autoStakeIndex<0){say('BET ronde lama tidak tersedia untuk AUTO. Selesaikan ronde dengan SPIN, lalu pilih BET baru.');return;}
   stakeIndex=autoStakeIndex;
   isAuto=true;cancelAuto=false;updateButtons();
   // The selected limit includes an existing paid partial round. Each card
@@ -280,6 +295,7 @@ async function showWallet(){
   paragraph(summary,'Total Coin');
   const total=document.createElement('strong');total.id='coin-total';total.textContent=idMoney(account?.balance||0);
   total.setAttribute('aria-live','polite');summary.append(total);
+  const denomination=paragraph(summary,virtualRp(account?.balance||0)+' · tanpa nilai uang');denomination.id='coin-rp';
   const title=document.createElement('h3');title.textContent='History Bet';
   const history=document.createElement('div');history.className='coin-history';history.tabIndex=0;
   history.setAttribute('role','region');history.setAttribute('aria-label','History Bet');
@@ -295,7 +311,7 @@ async function showWallet(){
       const stamp=new Date(item.created_at*1000);
       const time=document.createElement('time');time.dateTime=stamp.toISOString();
       time.textContent=stamp.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'});
-      const result=document.createElement('strong');result.textContent=item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':'NO MATCH');
+      const result=document.createElement('strong');result.textContent=item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':item.combo==='PAIR_SUM'?'BONUS PENJUMLAHAN':item.combo==='PAIR_PRODUCT'?'BONUS PERKALIAN':'NO MATCH');
       const values=document.createElement('p');values.textContent=`BET ${idMoney(item.stake)} · PAYOUT ${idMoney(item.payout)} · WIN ${item.delta>=0?'+':''}${idMoney(item.delta)}`;
       row.append(time,result,values);history.append(row);
     }
@@ -325,6 +341,7 @@ function showRules(){
   }else paragraph(area,'Daftar kombinasi sedang disinkronkan dari server. Periksa koneksi sebelum bermain.');
   const details=panelNode('details','rules-details'),summary=panelNode('summary','','Cara bermain & ketentuan');details.append(summary);
   paragraph(details,'Gambar kartu di atas adalah contoh kombinasi. Hasil setiap ronde ditentukan oleh server. Wild dan Wild +4 tidak mempunyai warna; hanya tiga Wild sejenis yang memenuhi Rank 1/2.');
+  if(ruleset?.numeric_bonus)paragraph(area,`BONUS ANGKA KEMBAR · Tiga kartu angka dengan minimal dua angka sama: warna berbeda menjumlahkan angka (maks. ${ruleset.numeric_bonus.sum_cap}× BET); semua sewarna mengalikan angka (maks. ${ruleset.numeric_bonus.product_cap}× BET). Hanya satu hadiah per ronde. Angka 0 dapat menghasilkan payout 0. Bonus ini tanpa celebration.`);
   paragraph(area,'NO MATCH · Tidak ada kombinasi yang cocok, tidak ada payout.');
   paragraph(details,'Tidak ada jaminan jackpot atau bonus setelah sejumlah spin.');
   paragraph(details,'AUTO maksimal 10 ronde, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
@@ -338,12 +355,13 @@ function showStakeChoices(){
   const amount=panelNode('strong','panel-amount',idMoney(STAKES[selected])+' Coin');
   amount.setAttribute('aria-live','polite');hero.append(amount,panelNode('p','','Satu BET. Tiga kartu.'));
   area.append(hero);
+  const denomination=panelNode('p','panel-fine',virtualRp(STAKES[selected])+' · 1 Coin = Rp40 virtual, tanpa nilai uang');area.append(denomination);
   const balance=panelNode('div','bet-balance');balance.append(panelNode('span','','Coin tersedia'),coinValue(account?.balance??0,'strong'));area.append(balance);
   area.append(panelNode('p','panel-eyebrow','PILIH CHIP BET'));
   const grid=panelNode('div','bet-grid');grid.setAttribute('role','group');grid.setAttribute('aria-label','Pilihan BET');area.append(grid);
   const preview=panelNode('p','bet-preview');preview.setAttribute('role','status');
   function refresh(){
-    const cost=STAKES[selected];amount.textContent=idMoney(cost)+' Coin';
+    const cost=STAKES[selected];amount.textContent=idMoney(cost)+' Coin';denomination.textContent=virtualRp(cost)+' · 1 Coin = Rp40 virtual, tanpa nilai uang';
     for(const item of grid.children)item.setAttribute('aria-pressed',String(Number(item.dataset.bet)===cost));
     preview.textContent=isAuto?`AUTO berjalan tetap ${idMoney(currentRound?.stake??STAKES[stakeIndex])} Coin. Pilihan ini berlaku setelah AUTO dan ronde berjalan selesai.`:
       currentRound?`Ronde berjalan tetap ${idMoney(currentRound.stake)} Coin (${currentRound.picked}/3 kartu). Pilihan ini berlaku mulai ronde berikutnya.`:
@@ -353,7 +371,7 @@ function showStakeChoices(){
   for(const [i,cost] of STAKES.entries()){
     const btn=modalButton(grid,'',()=>{selected=i;refresh();});
     btn.setAttribute('aria-label',idMoney(cost)+' Coin');btn.dataset.bet=String(cost);btn.disabled=!account;
-    btn.append(panelNode('span','bet-chip',idMoney(cost)),panelNode('span','bet-chip-label','COIN'),panelNode('span','bet-selected','✓'));
+    btn.append(panelNode('span','bet-chip',idMoney(cost)),panelNode('span','bet-chip-label','COIN · Rp'+idMoney(cost*40)),panelNode('span','bet-selected','✓'));
     btn.lastChild.setAttribute('aria-hidden','true');
   }
   area.append(preview,panelNode('p','panel-fine','Pilih chip lalu konfirmasi. Menutup panel membatalkan perubahan.'));
@@ -369,7 +387,7 @@ function showStakeChoices(){
 function coinValue(value,tag='span'){
   const el=panelNode(tag,'coin-value');
   const icon=panelNode('img','coin-value-icon');icon.src='/assets/art/coin-ui.svg';icon.alt='';icon.width=24;icon.height=24;
-  el.append(icon,panelNode('span','coin-value-text',idMoney(value)+' Coin'));return el;
+  el.append(icon,panelNode('span','coin-value-text',idMoney(value)+' Coin'));el.title=virtualRp(value);return el;
 }
 function showAutoSettings(){
   if(isAuto){cancelAuto=true;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
@@ -392,6 +410,7 @@ function showAutoSettings(){
   budget.append(panelNode('dt','','BET per ronde'),coinValue(currentRound?.stake??STAKES[stakeIndex],'dd'),
     panelNode('dt','','Total kebutuhan'),total,panelNode('dt','','Saldo tersedia'),balance);area.append(budget);
   const message=panelNode('p','panel-note','');message.setAttribute('role','status');area.append(message);
+  const virtualBudget=paragraph(area,'');virtualBudget.className='panel-fine';
   if(currentRound)paragraph(area,'Ronde yang sudah dimulai dihitung sebagai ronde pertama. BET ronde tersebut sudah dipotong.');
   else paragraph(area,'Kebutuhan coin dihitung tanpa mengandalkan hadiah dari ronde berikutnya.');
   const start=panelAction('MULAI AUTO',()=>{
@@ -400,7 +419,7 @@ function showAutoSettings(){
   });start.id='auto-start';
   function refresh(){
     for(const btn of grid.children)btn.setAttribute('aria-pressed',String(Number(btn.dataset.rounds)===selected));
-    const required=autoBudget(selected);total.querySelector('.coin-value-text').textContent=idMoney(required)+' Coin';balance.querySelector('.coin-value-text').textContent=idMoney(account?.balance??0)+' Coin';
+    const required=autoBudget(selected);virtualBudget.textContent='Kebutuhan '+virtualRp(required)+' · 1 Coin = Rp40 virtual';total.querySelector('.coin-value-text').textContent=idMoney(required)+' Coin';balance.querySelector('.coin-value-text').textContent=idMoney(account?.balance??0)+' Coin';
     const blocked=!!pendingInfo()||isSpinning||isAuto||!account;
     start.disabled=blocked||account.balance<required;
     message.textContent=blocked?'Selesaikan sinkronisasi SPIN sebelum memulai AUTO.':account.balance<required?'Coin belum cukup. Pilih jumlah ronde lebih kecil atau ubah BET.':`${selected} ronde · ${isTurbo?'TURBO aktif':'Kecepatan normal'}`;
@@ -507,6 +526,12 @@ async function loadState(quiet=false){
   if(stateLoading)return;
   stateLoading=true;
   try{const data=await api('/state');ruleset=data.rules||ruleset;syncAccount(data.account);currentRound=data.round;
+    if(Array.isArray(ruleset?.stake_options)&&!isAuto){
+      const selected=STAKES[stakeIndex],queued=nextBetIndex===null?null:STAKES[nextBetIndex];
+      STAKES=[...ruleset.stake_options];
+      stakeIndex=Math.max(0,STAKES.indexOf(selected));
+      nextBetIndex=queued!==null&&STAKES.includes(queued)?STAKES.indexOf(queued):null;
+    }
     if(data.round){paintRound(data.round);}else if(data.recent?.length){const lastSpin=data.recent[0];last={...lastSpin,complete:true,picked:3};paintRound(last);}else paintRound(null,true);
     const pending=pendingInfo();
     if(pending && ((data.round && data.round.picked>=pending.expected) ||
