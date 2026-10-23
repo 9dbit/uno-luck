@@ -71,6 +71,10 @@ def test_color_sequence_pair_zonk_and_rank_priority():
     assert economy.classify(make(["1","8","5"], ["red","green","blue"]),cfg) == ("NO_MATCH",0,None)
     assert economy.classify(make(["6","0","6"], ["blue"]*3),cfg) == ("COLOR_MATCH",25,5)
     assert economy.classify(make(["0","0","0"], ["red","green","blue"]),cfg) == ("NO_MATCH",0,None)
+    assert economy.classify(make(["0","0","0"], ["red","green","blue"]),cfg,
+                            zero_sum_fallback=False) == ("PAIR_SUM",0,None)
+    assert economy.classify(make(["6","0","6"], ["blue"]*3),cfg,
+                            zero_product_fallback=False) == ("PAIR_PRODUCT",0,None)
     assert economy.classify(make(["0","0","0"], ["red","red","blue"]),cfg) == ("COLOR_PAIR",2,None)
     out = economy.simulate(economy.Simulation(config=cfg, stake=10, turnover_rp=400000,
                                             auto_sessions=2, auto_paid_rounds=10))
