@@ -88,6 +88,7 @@ jobs:
           python tests/visual_qa_jackpot_sfx.py
           python tests/visual_qa_qa_audio_fallback.py
           python tests/visual_qa_ios_safari_audio.py
+          python tests/visual_qa_ios_native_audio.py
           python tests/visual_qa_gameplay_music.py
           python tests/visual_qa_shared_sound.py
       - name: Upload QA screenshots
