@@ -169,7 +169,22 @@ def classify(cards, config, *, draw_two_match=True):
         same = len({c['color'] for c in cards}) == 1
         return ('PAIR_PRODUCT', min(math.prod(values), config.product_cap), None) if same else ('PAIR_SUM', min(sum(values), config.sum_cap), None)
     rank = orbit.classify_rank(cards)
-    return ('COLOR_MATCH', config.multipliers[rank-1], rank) if rank else ('NO_MATCH', 0, None)
+    if rank:
+        return ('COLOR_MATCH', config.multipliers[rank-1], rank)
+    if len(cards) == 3:
+        colors = [card.get('color') for card in cards]
+        numeric = set(map(str, range(10)))
+        if config.percentages['COLOR_SEQUENCE'] > 0:
+            for position in (0, 1):
+                if (colors[position] == colors[position+1]
+                        and colors[position] in spin.COLORS
+                        and faces[position] in numeric
+                        and faces[position+1] in numeric
+                        and abs(int(faces[position])-int(faces[position+1])) == 1):
+                    return ('COLOR_SEQUENCE', config.color_sequence_multiplier, None)
+        if config.percentages['COLOR_PAIR'] > 0 and any(colors.count(color) >= 2 for color in spin.COLORS):
+            return ('COLOR_PAIR', config.color_pair_multiplier, None)
+    return ('NO_MATCH', 0, None)
 
 
 def draw(config):
@@ -189,6 +204,26 @@ def draw(config):
             # Select uniformly over all 60 ordered mixed-color triples.
             colors = secrets.choice(tuple(c for c in itertools.product(spin.COLORS, repeat=3) if len(set(c)) > 1))
         cards = [dict(color=c, face=face) for c,face in zip(colors, bonus_faces(hand))]
+    elif key in ('COLOR_PAIR', 'COLOR_SEQUENCE'):
+        for _ in range(1000):
+            positions = secrets.choice(((0,1),(1,2))) if key == 'COLOR_SEQUENCE' else secrets.choice(((0,1),(0,2),(1,2)))
+            i,j = positions
+            shared = secrets.choice(spin.COLORS)
+            different = secrets.choice(tuple(color for color in spin.COLORS if color != shared))
+            colors = [different,different,different]
+            colors[i] = colors[j] = shared
+            if key == 'COLOR_SEQUENCE':
+                a = secrets.randbelow(9)
+                values = [None,None,None]
+                values[i],values[j] = a,a+1
+                values[3-i-j] = secrets.choice(tuple(value for value in range(10) if value not in (a,a+1)))
+            else:
+                values = secrets.SystemRandom().sample(range(10), 3)
+            cards = [dict(color=color,face=str(value)) for color,value in zip(colors,values)]
+            if classify(cards,config)[0] == key:
+                break
+        else:
+            raise RuntimeError('Unable to generate color prize hand')
     else:
         for _ in range(1000):
             if key == 'NO_MATCH':
@@ -207,7 +242,11 @@ def distribution(config):
     result = collections.defaultdict(float)
     for key in KEYS:
         p = float(config.percentages[key]) / 100
-        if key.startswith('PAIR_'):
+        if key == 'COLOR_PAIR':
+            result[config.color_pair_multiplier] += p
+        elif key == 'COLOR_SEQUENCE':
+            result[config.color_sequence_multiplier] += p
+        elif key.startswith('PAIR_'):
             counts = collections.Counter(min(sum(h),config.sum_cap) if key=='PAIR_SUM' else min(math.prod(h),config.product_cap) for h in numeric_hands())
             for multiplier, n in counts.items():
                 result[multiplier] += p * n / len(numeric_hands())
