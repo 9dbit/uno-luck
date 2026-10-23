@@ -1,7 +1,7 @@
 """Short test-password login in both admin surfaces; never publishes data."""
 import os
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 URL = 'http://127.0.0.1:8080'
 PASSWORD = os.environ['UNO_QA_ADMIN_PASSWORD']
@@ -18,7 +18,7 @@ with sync_playwright() as p:
         page.goto(URL + '/assets/economy-admin.html')
         page.locator('#admin-key').fill(PASSWORD)
         page.locator('#unlock').click()
-        page.wait_for_function("!document.querySelector('#publish').disabled")
+        expect(page.locator('#publish')).to_be_enabled()
         assert page.locator('#admin-key').input_value() == ''
         assert page.locator('#editor').is_visible()
         page.goto(URL + '/admin')
@@ -29,11 +29,11 @@ with sync_playwright() as p:
         section.get_by_role('button', name='VERIFIKASI KUNCI').click()
         section.locator('.studio-cloud-status').get_by_text('Admin terverifikasi', exact=False).wait_for()
         assert section.locator('input[type=password]').input_value() == ''
-        assert page.evaluate("sessionStorage.getItem('uno-sound-admin-key')") is None
+        assert page.evaluate("() => sessionStorage.getItem('uno-sound-admin-key')") is None
         page.screenshot(path=str(OUT / f'{engine}-verified.png'))
         page.reload()
-        page.wait_for_function('Boolean(window.UNOLuckSoundStudio)')
-        assert page.evaluate('window.UNOLuckSoundStudio.cloudStatus().admin') is False
+        expect(page.locator('#admin-studio')).to_be_visible()
+        assert page.evaluate('() => window.UNOLuckSoundStudio.cloudStatus().admin') is False
         assert page.request.get(URL + '/api/sounds/manifest').json() == before
         assert not errors, errors
         browser.close()
