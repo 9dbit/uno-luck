@@ -249,6 +249,7 @@ function showNumericBonus(round){
     const started=performance.now(),duration=850;
     const tick=now=>{const p=Math.min(1,(now-started)/duration);amount.textContent=`+${idMoney(Math.round(target*(1-Math.pow(1-p,3))))} Coin`;if(p<1&&amount.isConnected)requestAnimationFrame(tick);};
     requestAnimationFrame(tick);
+    setTimeout(()=>{if(amount.isConnected)amount.textContent=`+${idMoney(target)} Coin`;},duration+80);
   }
   winBurst(round.cards?.find(card=>String(card.face)==='+2')||round.cards?.[0]||{color:'yellow'},18);
   if(sfxEnabled&&round.payout>0)window.UNOLuckSound?.numericBonus?.();

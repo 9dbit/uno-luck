@@ -46,7 +46,7 @@ const URL=process.env.UNO_QA_URL||'http://127.0.0.1:8080';
    const bonus=page.locator('#numeric-bonus');await bonus.waitFor({state:'visible'});
    assert(await bonus.evaluate(node=>node.classList.contains('is-draw-two')));
    assert.equal(await bonus.locator('.numeric-bonus-title').innerText(),'DRAW TWO MATCH');
-   await page.waitForTimeout(950);
+   await page.waitForFunction(()=>document.querySelector('.numeric-bonus-amount')?.textContent==='+400 Coin',null,{timeout:2500});
    assert.equal(await bonus.locator('.numeric-bonus-amount').innerText(),'+400 Coin');
    assert((await page.locator('#win-particles .win-shard').count())>0||
      await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches));
