@@ -46,7 +46,10 @@ def test_ios_media_fallback_preserves_sound_studio_settings():
     assert "if(t>=stop-.025&&!mirrorDuration)" in STUDIO
     assert "stopFallback(key)" in STUDIO
     assert "get mediaUnlocked()" in STUDIO
-    assert "if(window.UNOLuckSound?.webAudioState!=='running')" in STUDIO
+    assert "if(isIOS()||window.UNOLuckSound?.webAudioState!=='running')" in STUDIO
+    assert "if(!isIOS()&&bufferCache.has('live:soft-tech-splash-screen')" in STUDIO
+    assert "if(!isIOS()&&bufferCache.has('live:background-music')" in STUDIO
+    assert "window.UNOLuckAudio?.enableFromSplash?.()" in BOOT
     assert "window.UNOLuckSound?.channels?.()?.context" in STUDIO
     assert "context.decodeAudioData(bytes.slice(0))" in STUDIO
     assert "if(!isActive()){" in SOUND
