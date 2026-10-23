@@ -298,3 +298,30 @@ def test_operator_margin_budget_guardrail_and_global_slots(client):
               "stake":10,"paid_rounds":1})
     assert denied.status_code==409
     assert "Jatah sesi Gift operator" in denied.json()["detail"]
+
+
+def test_existing_qa_budget_is_clamped_after_audited_rtp_change(client):
+    # An already-configured campaign from v4 may exceed the revised affordable
+    # amount. Keep it editable but never honor the excess for NEW sessions.
+    response=client.post("/api/admin/economy/promo-policy",headers=ADMIN_HEADERS,
+        json={"enabled":False,"daily_budget_coin":3000,
+              "max_sessions_per_account_day":1,"max_sessions_per_day":2,
+              "planned_paid_turnover_coin":80000,"target_margin_percent":5})
+    assert response.status_code==200,response.text
+    db=orbit.open_db()
+    db.execute("UPDATE auto_promo_policy SET enabled=1 WHERE id=1")
+    db.close()
+    state=client.get("/api/admin/economy/promo-policy",headers=ADMIN_HEADERS).json()
+    assert state["budget_adjusted_for_rtp"] is True
+    assert state["effective_daily_budget_coin"] <= state["daily_budget_coin"]
+    assert state["max_affordable_budget_coin"] >= state["effective_daily_budget_coin"]
+    assert state["projected_margin_percent"] >= 5
+    assert 2600 <= state["effective_daily_budget_coin"] <= 2700
+    assert state["remaining_coin"] == state["effective_daily_budget_coin"]
+    started=client.post("/api/auto/start",headers=CLIENT_HEADERS,
+        json={"request_id":"clamped-budget-safe-gift-001",
+              "stake":10,"paid_rounds":1})
+    assert started.status_code==200,started.text
+    state_after=client.get("/api/admin/economy/promo-policy",headers=ADMIN_HEADERS).json()
+    assert state_after["booked_coin"] <= state["effective_daily_budget_coin"]
+    assert state_after["remaining_coin"] < state["remaining_coin"]
