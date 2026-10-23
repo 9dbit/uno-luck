@@ -229,6 +229,7 @@ function mediaPlayer(){
     fallbackPlayer.playsInline=true;
     fallbackPlayer.setAttribute('playsinline','');
     fallbackPlayer.hidden=true;
+    fallbackPlayer.setAttribute('data-uno-native-sfx','');
     document.body.append(fallbackPlayer);
   }
   return fallbackPlayer;
@@ -424,9 +425,12 @@ function playMusicGesture(){
 // Keep it silent until the game is visible, then unmute without invoking
 // autoplay from an asynchronous handler. This does not change cloud settings.
 function armMusicOnSplashGesture(){
-  // A decoded buffer and unlocked AudioContext need no muted media reservation.
-  // Start BGM on the music bus only when gameplay is visible.
-  if(bufferCache.has('live:background-music')&&window.UNOLuckSound.webAudioState!=='interrupted'){
+  // iPhone Safari/WKWebView may report AudioContext.state === "running"
+  // while producing no audible audio. On iOS, ALWAYS reserve the dedicated
+  // native HTMLMediaElement inside this trusted PLAY gesture.
+  // A successful decode is not evidence that the output route is audible.
+  webMusicArmed=false;
+  if(!isIOS()&&bufferCache.has('live:background-music')&&window.UNOLuckSound.webAudioState!=='interrupted'){
     webMusicArmed=true;
     return window.UNOLuckSound.unlock().then(ok=>Boolean(ok&&
       window.UNOLuckSound.webAudioState==='running'));
@@ -558,7 +562,10 @@ function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDurat
   return {player,bounds};
 }
 function playSplashGesture(){
-  if(bufferCache.has('live:soft-tech-splash-screen')&&window.UNOLuckSound.webAudioState!=='interrupted'){
+  // Always use the native media route on iOS including ChatGPT's in-app
+  // WebKit browser. WebAudio can claim "running" despite being silent.
+  // No await/fetch may intervene between the actual PLAY tap and .play().
+  if(!isIOS()&&bufferCache.has('live:soft-tech-splash-screen')&&window.UNOLuckSound.webAudioState!=='interrupted'){
     return window.UNOLuckSound.unlock().then(ok=>{
       if(!ok||window.UNOLuckSound.webAudioState!=='running')return false;
       return play('soft-tech-splash-screen');
@@ -569,6 +576,8 @@ function playSplashGesture(){
   if(!splashUrl)return Promise.resolve(false);
   stopFallback();
   const player=useFallbackSource('soft-tech-splash-screen',splashUrl);
+  player.muted=false;
+  player.defaultMuted=false;
   applyMediaBounds('soft-tech-splash-screen',player);
   let promise;
   try{promise=player.play();}catch(error){
@@ -630,6 +639,9 @@ async function playFallback(key,{looping=false,forPreview=false,token=null,susta
     if(sustain&&spinToken!==spinRequest)return false;
     stopFallback();
     const player=useFallbackSource(key,url);
+    player.muted=false;
+    player.defaultMuted=false;
+    player.dataset.unoCue=key;
     const end=applyMediaBounds(key,player,forPreview,looping,mirrorDuration,sustain);
     // Release temporary URLs once a subsequent cue replaces the source.
     // Keeping the current URL intact is required for seeking/repeating.
@@ -855,7 +867,7 @@ async function play(key,{looping=false,forPreview=false,sustain=false,spinToken=
   const jackpotToken=celebrationRequest;
   const serial=loopSerial;
   try{
-    if(window.UNOLuckSound?.webAudioState!=='running'){
+    if(isIOS()||window.UNOLuckSound?.webAudioState!=='running'){
       if(key==='background-music'&&looping&&!forPreview){
         const ready=await prepareMusicMedia();
         if(!ready||serial!==loopSerial)return false;
