@@ -24,7 +24,7 @@ VIRTUAL_RP_PER_COIN = 40
 MIN_PUBLISH_RTP = Decimal('85')
 MAX_PUBLISH_RTP = Decimal('98')
 ENGINE_MODEL = 'fixed-independent-csprng-v1'
-KEYS = ('NO_MATCH', 'PAIR_SUM', 'PAIR_PRODUCT', 'RANK_5', 'RANK_4', 'RANK_3', 'RANK_2', 'RANK_1')
+KEYS = ('NO_MATCH', 'COLOR_PAIR', 'COLOR_SEQUENCE', 'PAIR_SUM', 'PAIR_PRODUCT', 'RANK_5', 'RANK_4', 'RANK_3', 'RANK_2', 'RANK_1')
 
 class Config(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -32,14 +32,27 @@ class Config(BaseModel):
     percentages: dict[str, Decimal]
     sum_cap: StrictInt = Field(ge=5, le=1000)
     product_cap: StrictInt = Field(ge=18, le=1000)
+    color_pair_multiplier: StrictInt = Field(default=2, ge=1, le=24)
+    color_sequence_multiplier: StrictInt = Field(default=4, ge=2, le=24)
     multipliers: list[StrictInt] = Field(min_length=5, max_length=5)  # rank 1 to 5
+
+    @model_validator(mode='before')
+    @classmethod
+    def backwards_compatible(cls, value):
+        if isinstance(value, dict) and isinstance(value.get('percentages'), dict):
+            value = dict(value)
+            percentages = dict(value['percentages'])
+            percentages.setdefault('COLOR_PAIR', Decimal('0'))
+            percentages.setdefault('COLOR_SEQUENCE', Decimal('0'))
+            value['percentages'] = percentages
+        return value
 
     @model_validator(mode='after')
     def valid(self):
         if self.stake_options != sorted(set(self.stake_options)) or self.stake_options[0] != 10 or self.stake_options[-1] > 25000:
             raise ValueError('BET harus terurut, unik, mulai 10 Coin (Rp400 virtual), maksimal 25.000 Coin')
         if set(self.percentages) != set(KEYS):
-            raise ValueError('Delapan kategori peluang wajib diisi')
+            raise ValueError('Sepuluh kategori peluang wajib diisi')
         values = list(self.percentages.values())
         if any(not p.is_finite() or p < 0 or p > 100 or p * 10000 != (p * 10000).to_integral_value() for p in values):
             raise ValueError('Persentase 0–100, maksimal empat angka desimal')
@@ -47,12 +60,16 @@ class Config(BaseModel):
             raise ValueError('Total persentase harus tepat 100%')
         if any(self.percentages[k] <= self.percentages['RANK_5'] for k in ('PAIR_SUM', 'PAIR_PRODUCT')):
             raise ValueError('Peluang masing-masing bonus angka harus lebih besar daripada Lucky Color Win')
-        if not 10000 >= self.multipliers[0] > self.multipliers[1] > self.multipliers[2] > self.multipliers[3] > self.multipliers[4] > max(self.sum_cap, self.product_cap):
+        if self.color_pair_multiplier >= self.color_sequence_multiplier:
+            raise ValueError('Color Sequence harus lebih tinggi daripada Color Pair')
+        if not 10000 >= self.multipliers[0] > self.multipliers[1] > self.multipliers[2] > self.multipliers[3] > self.multipliers[4] > max(self.sum_cap, self.product_cap, self.color_pair_multiplier, self.color_sequence_multiplier):
             raise ValueError('Urutan payout wajib: Rank 1 > 2 > 3 > 4 > Lucky Color Win > kedua batas bonus')
         return self
 
 PRESET = Config(stake_options=[10,20,25,50,100,250],
-    percentages=dict(zip(KEYS, ['90.7347','8.5656','0.4','0.25','0.04','0.008','0.0015','0.0002'])),
+    percentages={'NO_MATCH':'90.7347','COLOR_PAIR':'0','COLOR_SEQUENCE':'0',
+                 'PAIR_SUM':'8.5656','PAIR_PRODUCT':'0.4','RANK_5':'0.25',
+                 'RANK_4':'0.04','RANK_3':'0.008','RANK_2':'0.0015','RANK_1':'0.0002'},
     sum_cap=10, product_cap=20, multipliers=[300,150,80,40,25])
 
 class Simulation(BaseModel):
