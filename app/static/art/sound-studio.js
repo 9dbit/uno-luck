@@ -465,6 +465,28 @@ function activateMusicAtGameplay(){
 function isMusicMediaPlaying(){
   return Boolean(bgmPlayer&&!bgmPlayer.muted&&(bgmStarting||(!bgmPlayer.paused&&!bgmPlayer.ended)));
 }
+function audioDiagnostics(){
+  // No credentials, sound upload data or player account information.
+  return {
+    browser: isIOS()?'ios-native-media':'web-audio',
+    soundCloudReady:cloudReady,readOnlyMirror,
+    publishedCues:cloudProfiles.size,
+    sampleAudioActive,
+    webAudioState:window.UNOLuckSound?.webAudioState||'unknown',
+    sfxPlayerReady:!!fallbackPlayer&&fallbackPlayer.readyState>=2,
+    sfxPlayerPlaying:!!fallbackPlayer&&!fallbackPlayer.paused&&!fallbackPlayer.muted,
+    lastCue:fallbackKey,
+    splashPlayerPlaying:fallbackKey==='soft-tech-splash-screen'&&
+      !!fallbackPlayer&&!fallbackPlayer.paused&&!fallbackPlayer.muted,
+    musicPrepared:bgmPrepared,
+    musicReady:bgmPlayer?.readyState??0,
+    musicPlaying:isMusicMediaPlaying(),
+    musicMuted:bgmPlayer?.muted??false,
+    musicPaused:bgmPlayer?.paused??true,
+    musicPosition:Math.round((bgmPlayer?.currentTime||0)*10)/10,
+    lastError:lastError||splashError||cloudError||''
+  };
+}
 function isMusicWebAudioPlaying(){return Boolean(loop?.source);}
 async function prepareSplashMedia(){
   await syncCloud();
@@ -1289,7 +1311,7 @@ window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(t
   prepareSplashMedia,playSplashGesture,stopSplashAudio,
   prepareMusicMedia,playMusicGesture,armMusicOnSplashGesture,
   activateMusicAtGameplay,isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
-  syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
+  syncCloud,cloudStatus,audioDiagnostics,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
