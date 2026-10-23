@@ -43,3 +43,22 @@ Use a feature flag, server-side authorization, persisted idempotency keys,
 cap checks, database/ledger audit trail, a reproducible period simulator,
 and a complete Chromium/WebKit test run. Do not publish an unbudgeted
 promotion or alter the active Sound Cloud catalog.
+
+## Runtime admission gate (PR #23)
+The daily promotion is **OFF by default**. Administrator must explicitly enable
+it in Economy Lab and set a positive WIB daily virtual-Coin budget and a daily
+per-account session limit (default one). The server takes a SQLite
+`BEGIN IMMEDIATE` lock before it evaluates and books each newly accepted
+AUTO session. This stops concurrent admissions from consuming the same budget,
+while leaving previously accepted sessions, idempotent retries and free rounds
+available after STOP/RESUME.
+
+One admission reserves the five **actual chosen** 30/50/100% promotional gifts
+(rounded per grant) **plus 10 × the nominal BET** as a free-spin exposure
+allowance. This is not a maximum payout cap: independent free-spin jackpots can
+exceed the allowance, so **daily budget compliance does not guarantee any
+operator profit or limit legitimate card winnings**. Do not reduce an already
+accepted gift or adapt a player's RNG to enforce a margin. Booked commitments
+remain in the daily ledger even after their session finishes. Daily counts use
+Asia/Jakarta calendar dates. No environment variables or live economy
+configurations are mutated by this PR.
