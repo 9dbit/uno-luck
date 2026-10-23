@@ -13,6 +13,8 @@ import os
 import re
 import secrets
 import threading
+import urllib.error
+import urllib.request
 from pathlib import Path
 from urllib.parse import quote, unquote
 
@@ -35,6 +37,77 @@ MAX_FILE = 16 * 1024 * 1024
 LOCK = threading.RLock()
 NO_CACHE = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
 log = logging.getLogger("uno.sound_cloud")
+
+
+# QA-only, read-only published Sound Cloud bridge. Never reads credentials,
+# uploads files, imports the source database or writes the original catalog.
+# Only the explicitly approved staging public host is accepted.
+QA_PUBLISHED_SOUND_ORIGIN = "https://uno-luck-render-staging.onrender.com"
+
+
+def _qa_source() -> str | None:
+    value = os.environ.get("UNO_SOUND_READONLY_SOURCE", "").strip().rstrip("/")
+    return (value if value == QA_PUBLISHED_SOUND_ORIGIN
+            and not os.environ.get("UNO_SOUND_STORAGE_DIR", "").strip()
+            else None)
+
+
+def _qa_sample_allowed() -> bool:
+    return os.environ.get("UNO_QA_SAMPLE_AUDIO_FALLBACK") == "1"
+
+
+def _source_fetch(path: str, size_limit: int) -> tuple[bytes, str]:
+    if not _qa_source() or not path.startswith("/api/sounds/"):
+        raise HTTPException(503, "Read-only sound bridge tidak dikonfigurasi")
+    request = urllib.request.Request(
+        QA_PUBLISHED_SOUND_ORIGIN + path,
+        headers={"User-Agent": "UnoLuck-QA-ReadOnly-Sound/1.0",
+                 "Accept": "application/json, audio/*"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=7) as source:
+            length = source.headers.get("content-length")
+            if length and int(length) > size_limit:
+                raise HTTPException(503, "Ukuran audio Sound Cloud melebihi batas")
+            data = source.read(size_limit + 1)
+            content_type = source.headers.get("content-type", "application/octet-stream")
+        if len(data) > size_limit:
+            raise HTTPException(503, "Sound Cloud file terlalu besar")
+        return data, content_type
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+        log.warning("QA source sound unavailable (%s)", type(error).__name__)
+        raise HTTPException(503, "Sumber Sound Cloud QA sedang tidak tersedia")
+
+
+def _qa_manifest() -> dict:
+    payload, _ = _source_fetch("/api/sounds/manifest", 256 * 1024)
+    try:
+        data = json.loads(payload)
+    except (UnicodeError, ValueError):
+        raise HTTPException(503, "Katalog audio sumber tidak valid")
+    if not isinstance(data, dict) or data.get("ready") is not True or not isinstance(data.get("cues"), dict):
+        raise HTTPException(503, "Katalog audio sumber belum siap")
+    public = {}
+    for cue, info in data["cues"].items():
+        if cue not in CUES or not isinstance(info, dict):
+            continue
+        if info.get("source") != "custom":
+            continue
+        if not isinstance(info.get("revision"), str):
+            continue
+        clean = {field: info[field] for field in (
+            "source", "start", "stop", "fadeIn", "fadeOut", "fileDuration",
+            "repeat", "mirror", "mirrorCrossfadeMs", "fileName", "revision",
+        ) if field in info}
+        clean["url"] = "/api/sounds/files/" + quote(cue) + "?v=" + quote(info["revision"], safe="")
+        public[cue] = clean
+    mixer = data.get("mixer")
+    if not isinstance(mixer, dict):
+        mixer = None
+    return {"ready": True, "revision": str(data.get("revision", "initial")),
+            "cues": public, "mixer": mixer, "readonly_mirror": True,
+            "sample_fallback_allowed": _qa_sample_allowed()}
 
 
 def storage() -> Path:
@@ -182,13 +255,22 @@ def sound_health():
 
 @router.get("/manifest")
 def manifest():
+    if _qa_source():
+        try:
+            data = _qa_manifest()
+        except HTTPException as error:
+            data = {"ready": False, "revision": "initial", "cues": {},
+                    "error": str(error.detail), "sample_fallback_allowed": _qa_sample_allowed(),
+                    "readonly_mirror": True}
+        return Response(content=json.dumps(data), media_type="application/json", headers=NO_CACHE)
     try:
         with LOCK:
             data = _read(storage())
     except HTTPException as error:
         if error.status_code == 503 and "belum dikonfigurasi" in str(error.detail):
             return Response(
-                content=json.dumps({"ready": False, "revision": "initial", "cues": {}}),
+                content=json.dumps({"ready": False, "revision": "initial", "cues": {},
+                                    "sample_fallback_allowed": _qa_sample_allowed()}),
                 media_type="application/json", headers=NO_CACHE,
             )
         raise
@@ -233,6 +315,20 @@ async def publish_mixer(request: Request):
 @router.get("/files/{cue}")
 def download(cue: str):
     check_cue(cue)
+    if _qa_source():
+        try:
+            info = _qa_manifest()["cues"].get(cue)
+            if not info or info.get("source") != "custom":
+                raise HTTPException(404, "Published QA sound cue not found")
+            data, mime = _source_fetch("/api/sounds/files/" + quote(cue), MAX_FILE)
+            mime = mime.split(";")[0].strip().lower()
+            if mime not in EXT_MIMES.values():
+                raise HTTPException(503, "Published QA sound type not supported")
+            return Response(data, media_type=mime,
+                            headers={"Cache-Control": "public, max-age=30",
+                                     "X-Content-Type-Options": "nosniff"})
+        except HTTPException:
+            raise
     with LOCK:
         root = storage()
         info = _read(root)["cues"].get(cue)
