@@ -33,6 +33,7 @@ const URL=process.env.UNO_QA_URL||'http://127.0.0.1:8080';
    });
    await page.locator('#celebration-overlay').waitFor({state:'visible'});
    assert((await page.locator('#celebration-amount').innerText()).includes('250'));
+   assert((await page.locator('#celebration-art').getAttribute('src')).endsWith('/festive/trophy.svg'));
    await page.evaluate(()=>{UNOLuckCelebration.close();return __present;});
    assert.equal(await page.evaluate(()=>UNOLuckCelebration.present({...__prize,payout:9999})),false);
    assert.equal(await page.evaluate(()=>UNOLuckCelebration.present({...__prize,combo:'PAIR_PRODUCT',tier:null})),false);

@@ -58,3 +58,7 @@ and a separate synthesized tadaa respecting master/SFX settings. Safari media
 fallback uses a silently gesture-primed original MP3 audio element; published cues are
 not reset or overwritten. Physical iPhone verification remains separate from
 simulated WebKit tests.
+
+Configured celebration payouts use existing clean 3D trophy artwork because the
+legacy tier illustrations contain baked-in 2×/10×/... labels. The five rank
+animations and audio cues remain. The HUD range is derived from public rules.

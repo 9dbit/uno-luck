@@ -77,7 +77,10 @@
     overlay.setAttribute('role',local?'region':'dialog');
     overlay.setAttribute('aria-modal',String(!local));
     overlay.setAttribute('aria-label',`${cfg.name} peringkat ${selected}${preview?' preview':''}`);
-    $('celebration-art').src=`/assets/art/v3/tier-${selected}.webp`;
+    // Original rank artwork contains baked-in legacy multipliers. Use clean 3D art
+    // for configured payouts so the image cannot contradict the server amount.
+    $('celebration-art').src=!preview&&result.tier.multiplier!==cfg.multiplier?
+      '/assets/art/festive/trophy.svg':`/assets/art/v3/tier-${selected}.webp`;
     $('celebration-title').textContent=cfg.name;
     const matchedPattern=$('celebration-pattern');
     if(matchedPattern){

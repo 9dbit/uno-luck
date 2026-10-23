@@ -320,7 +320,7 @@ async function showWallet(){
 }
 function showRules(){
   const area=playerPanel('Game Rules');
-  panelHero(area,'cards','PLAY YOUR COLORS','Kenali kombinasimu','Lima kombinasi. Lima perayaan.');
+  panelHero(area,'cards','PLAY YOUR COLORS','Kenali kombinasimu',ruleset?.numeric_bonus?'Lima perayaan dan bonus angka kembar.':'Lima kombinasi. Lima perayaan.');
   area.append(panelNode('p','panel-eyebrow','3 KARTU · 1 RONDE'));
   paragraph(area,'Tekan SPIN tiga kali untuk membuka kartu kiri, tengah, dan kanan. BET dipotong sekali pada SPIN pertama.');
   // Illustration only: these examples never enter the outcome generator.
@@ -443,7 +443,7 @@ function showMenu(){
   welcome.append(avatar,intro,festiveArt('cards','lounge-art'));area.append(welcome);
   const tournament=menuTile(area,'Turnamen','Dragon Daily · 10 ronde untuk bersinar','cup',showTournament);tournament.classList.add('tournament-entry');
   const grid=panelNode('div','menu-grid');area.append(grid);
-  menuTile(grid,'Game Rules','Kenali 5 kombinasi','cards',showRules);
+  menuTile(grid,'Game Rules',ruleset?.numeric_bonus?'Kombinasi & bonus angka':'Kenali 5 kombinasi','cards',showRules);
   menuTile(grid,'Bet Setting','Pilih chip favoritmu','coin',showStakeChoices);
   menuTile(grid,'Profile','Nama & identitas bermain','person',showProfile);
   const enabled=()=>musicEnabled||sfxEnabled;
@@ -511,7 +511,7 @@ async function showTournament(){
     }
     const details=panelNode('details','rules-details'),summary=panelNode('summary','','Cara ikut & perhitungan poin');details.append(summary);
     paragraph(details,'Gabung dahulu, lalu mainkan 10 ronde baru pertama sebelum 00.00 WIB. Ronde yang dimulai sebelum bergabung atau selesai setelah hari berganti tidak dihitung.');
-    paragraph(details,'Poin mengikuti multiplier kombinasi: 200, 80, 30, 10, atau 2. NO MATCH mendapat 0 poin. Nominal BET tidak meningkatkan poin; skor sama berbagi peringkat.');
+    paragraph(details,'Poin turnamen tetap menurut rank: 200, 80, 30, 10, atau 2. Bonus angka dan NO MATCH mendapat 0 poin. Poin terpisah dari multiplier hadiah Coin. Nominal BET tidak meningkatkan poin; skor sama berbagi peringkat.');
     paragraph(details,'Pendaftaran gratis. Ronde tetap memakai BET biasa. Tidak ada bonus Coin atau hadiah uang dari turnamen. Nama profil terlihat oleh peserta lain setelah bergabung.');area.append(details);
     if(!you){
       paragraph(area,'Dengan bergabung, nama profilmu tampil di leaderboard.');
@@ -525,7 +525,10 @@ let stateLoading=false;
 async function loadState(quiet=false){
   if(stateLoading)return;
   stateLoading=true;
-  try{const data=await api('/state');ruleset=data.rules||ruleset;syncAccount(data.account);currentRound=data.round;
+  try{const data=await api('/state');ruleset=data.rules||ruleset;
+    const payouts=ruleset?.celebrations?.map(t=>t.multiplier).filter(Number.isFinite);
+    if(payouts?.length){$('reward-range').textContent=ruleset.numeric_bonus?'≤'+Math.max(...payouts)+'×':Math.min(...payouts)+'×–'+Math.max(...payouts)+'×';$('combination-label').textContent=ruleset.numeric_bonus?'5 rank + bonus':'5 kombinasi';}
+    syncAccount(data.account);currentRound=data.round;
     if(Array.isArray(ruleset?.stake_options)&&!isAuto){
       const selected=STAKES[stakeIndex],queued=nextBetIndex===null?null:STAKES[nextBetIndex];
       STAKES=[...ruleset.stake_options];
