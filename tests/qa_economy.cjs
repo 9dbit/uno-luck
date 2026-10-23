@@ -39,8 +39,9 @@ const OUT=process.env.UNO_QA_OUT||'artifacts/uno-economy';fs.mkdirSync(OUT,{recu
  await page.locator('#m-5').fill('25');await page.waitForFunction(()=>!document.querySelector('#publish').disabled);
  for(const [width,height] of [[320,568],[393,852],[852,393],[1440,1000]]){
   await page.setViewportSize({width,height});
-  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.screenshot({path:path.join(OUT,`${engine}-economy-${width}x${height}.png`),fullPage:true});
+  const overflow=await page.evaluate(()=>[...document.querySelectorAll('main *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,id:e.id,cls:e.className,text:e.textContent.slice(0,80)})));
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),JSON.stringify({width,height,overflow}));
  }
  await page.locator('#publish').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('diterapkan'));
  assert(await page.locator('#publish').isDisabled());
