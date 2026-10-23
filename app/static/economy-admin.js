@@ -38,7 +38,16 @@ function renderPool(d){
 }
 function performanceCard(label,value,kind=''){const cell=document.createElement('article');if(kind)cell.classList.add(kind);cell.append(panelText('span',label),panelText('strong',value));return cell;}
 function panelText(tag,text){const node=document.createElement(tag);node.textContent=text;return node;}
-async function loadPerformance(){const out=$('performance-results');out.textContent='Memuat data aktual…';try{const d=await api('/performance?days='+$('performance-days').value);const actual=d.actual_rtp_percent===null?'Belum ada ronde':fmt(d.actual_rtp_percent)+'%';out.replaceChildren(performanceCard('Pemain unik',fmt(d.players)),performanceCard('Ronde selesai',fmt(d.rounds)),performanceCard('RTP aktual',actual),performanceCard('Total BET',fmt(d.turnover_coin)+' Coin · Rp'+fmt(d.turnover_rp)+' virtual'),performanceCard('Total payout',fmt(d.payout_coin)+' Coin · Rp'+fmt(d.payout_rp)+' virtual'),performanceCard('Hasil bruto',`${d.gross_coin>=0?'+':''}${fmt(d.gross_coin)} Coin · Rp${fmt(d.gross_rp)} virtual`,d.gross_coin>=0?'positive':'negative'),performanceCard('Pembanding teoretis',fmt(d.theoretical_rtp_percent)+'% · revisi '+d.active_revision,'wide'));$('performance-note').textContent=d.note;}catch(e){out.textContent=e.message;}}
+async function loadPerformance(){const out=$('performance-results');out.textContent='Memuat data aktual…';try{const d=await api('/performance?days='+$('performance-days').value);const actual=d.actual_rtp_percent===null?'Belum ada ronde':fmt(d.actual_rtp_percent)+'%';out.replaceChildren(performanceCard('Pemain unik',fmt(d.players)),performanceCard('Ronde selesai',fmt(d.rounds)),performanceCard('RTP aktual',actual),performanceCard('Total BET',fmt(d.turnover_coin)+' Coin · Rp'+fmt(d.turnover_rp)+' virtual'),performanceCard('Total payout',fmt(d.payout_coin)+' Coin · Rp'+fmt(d.payout_rp)+' virtual'),performanceCard('Hasil bruto',`${d.gross_coin>=0?'+':''}${fmt(d.gross_coin)} Coin · Rp${fmt(d.gross_rp)} virtual`,d.gross_coin>=0?'positive':'negative'),performanceCard('Pembanding teoretis',fmt(d.theoretical_rtp_percent)+'% · revisi '+d.active_revision,'wide'));out.append(
+    performanceCard('Free Spins selesai',fmt(d.free_rounds??0)),
+    performanceCard('Payout free spins','Rp'+fmt(d.free_spin_payout_rp??0)+' virtual'),
+    performanceCard('Bonus PROMO dikreditkan','Rp'+fmt(d.promotional_payout_rp??0)+' virtual'),
+    performanceCard('Sisa bonus PROMO terjadwal','Rp'+fmt(d.pending_bonus_liability_rp??0)+' virtual'),
+    performanceCard('Pool setelah bonus terjadwal','Rp'+fmt(d.result_after_reserved_rp??d.gross_rp??0)+' virtual',
+      (d.result_after_reserved_coin??d.gross_coin??0)>=0?'positive':'negative'),
+    performanceCard('RTP permainan & PROMO',actual)
+  );
+  $('performance-note').textContent=d.note;}catch(e){out.textContent=e.message;}}
 $('unlock').onclick=async()=>{key=$('admin-key').value;$('admin-key').value='';try{await load();}catch(e){status(e.message,true);}};
 $('reload').onclick=async()=>{try{await load();}catch(e){status(e.message,true);}};
 function syncTarget(fromAmount=false){
@@ -55,6 +64,21 @@ $('fit-target').onclick=async()=>{
  }catch(e){if(token===sequence){$('target-status').textContent=e.message;$('results').textContent='Penyesuaian gagal. Perbaiki input atau ubah target untuk menghitung ulang.';}}
  finally{$('fit-target').disabled=false;}
 };$('sim-stake').addEventListener('change',schedule);$('performance-days').addEventListener('change',loadPerformance);$('refresh-performance').addEventListener('click',loadPerformance);
+$('suggest-color-probabilities').onclick=()=>{
+  const pair=$('p-COLOR_PAIR'),sequence=$('p-COLOR_SEQUENCE');
+  const delta=(1-Number(pair.value))+(.25-Number(sequence.value));
+  const noMatch=$('p-NO_MATCH');
+  if(Number(noMatch.value)<delta){status('Sisa peluang ZONK terlalu kecil untuk contoh bonus warna.',true);return;}
+  noMatch.value=(Number(noMatch.value)-delta).toFixed(4);
+  pair.value='1.0000';sequence.value='.2500';
+  status('Draft contoh diisi, belum aktif. Tinjau RTP, simulasi, lalu terbitkan secara eksplisit.');
+  schedule();
+};
+$('pool-period').onchange=()=>{
+  $('performance-days').value=$('pool-period').value;
+  void loadPerformance();
+};
+$('promo-paid-rounds').onchange=schedule;
 $('balance-probabilities').onclick=()=>{const other=Object.keys(names).filter(k=>k!=='NO_MATCH').reduce((sum,k)=>sum+Number($('p-'+k).value),0);$('p-NO_MATCH').value=(100-other).toFixed(4);schedule();};
 $('publish').onclick=async()=>{if(!validDraft)return;const token=sequence,config=validDraft;$('publish').disabled=true;try{const d=await api('/publish',{config,expected_revision:revision});revision=d.revision;status(`Revisi ${revision} diterapkan untuk ronde baru · RTP ${fmt(d.rtp_percent)}%. Saldo dan ronde berjalan tetap utuh.`);if(token===sequence)validDraft=null;void loadPerformance();}catch(e){status(e.message,true);if(token===sequence)$('publish').disabled=false;}};
 })();
