@@ -1,4 +1,4 @@
-# Virtual economy editor (1156)
+# Virtual economy editor (1157, draft PR #23)
 
 `/admin` → Economy Lab. Uses the existing admin token through the authenticated
 `/api/admin/economy` endpoints. No audio manifest writes. Credentials stay in
@@ -103,3 +103,44 @@ the counter. This limiter is process-local and resets on restart. Forwarding
 headers are not trusted as identities. Proxied clients may share a limit.
 Browser credentials live only in memory and must be re-entered after reload.
 Adding or rotating the password does not publish audio or economy configuration.
+
+## PR #23: color rules and Period Prize Pool (review before release)
+
+The eight-category table above remains the **historical revision 1 baseline**.
+The new ten-category editor adds **COLOR_PAIR** and **COLOR_SEQUENCE** with
+initial 0% probability when loading old published configurations. A change to
+the published economy is NEVER automatic; use the new draft shortcut or enter
+nonzero probabilities, then simulate and explicitly publish with an authenticated
+admin. New multipliers default to 2x BET (Color Pair) and 4x BET (Color Sequence).
+ZONK is NO_MATCH: zero game payout. A two-card same-color numeric sequence
+requires adjacent displayed cards with consecutive numbers. The preexisting
+three-card single-color numeric straight remains Golden Match, and overlapping
+categories do not pay twice.
+
+An accepted paid AUTO batch now schedules 10 *additional* no-BET rounds and
+five **promotional**, guaranteed Coin gifts. Each promotional gift rate is
+randomly selected from 30%, 50%, or 100% of the paid AUTO batch turnover, and
+its placement is randomly selected among 10 free spins. Ordinary game rounds
+remain server-side RNG draws; promo gifts are disclosed, separately journaled,
+and do not turn a ZONK into a card win. The bonus count, amount, and use of
+free vouchers are persisted and replay-safe. On first confirmed AUTO spin the
+client shows the Free Spins gift and attempts native voice playback; physical
+Safari playback still requires device QA.
+
+The period simulator accepts **paid turnover**, costs, AUTO session count,
+and paid rounds per AUTO. It reports RTP *before* promotional extras and a
+separate virtual period projection, including all five gift obligations and
+expected payouts for the 10 free rounds. The manual target tool can solve for
+a desired **period net margin**, returning a validation error when impossible
+within the published base RTP guardrail of 85–98%. This is an expectation,
+not a commitment that the operator will earn a surplus; actual losses from
+ordinary independent outcomes and increased AUTO participation are possible.
+For actual periods, the admin report separates charged BET, game payouts,
+free-spin payouts, promotional payouts, remaining promotional liabilities,
+and the observed margin. It does not adjust any player's outcome or odds.
+
+No new feature spends money, accepts deposits, converts to legal currency,
+redeems Coin, or allows withdrawals. Sound Cloud published files/revisions
+are deliberately unchanged. All work remains draft until integration QA,
+physical iPhone acceptance and an explicitly approved staging deployment.
+See `deploy/PERIOD-PRIZE-POOL.md` for the promotion funding analysis.
