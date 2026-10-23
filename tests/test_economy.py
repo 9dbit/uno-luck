@@ -34,7 +34,7 @@ def test_activate_preset_once_without_overwriting(tmp_path):
     try:
         first=activate(db)
         assert first['activated'] is True and first['revision']==1
-        assert first['rtp_percent']==pytest.approx(89.99952285714286)
+        assert first['rtp_percent']==pytest.approx(economy.rtp_percent(economy.PRESET))
         second=activate(db)
         assert second['activated'] is False and second['revision']==1
         assert db.execute('SELECT COUNT(*) FROM economy_configs').fetchone()[0]==1
@@ -121,6 +121,45 @@ def test_settlement_snapshot_replay_and_ledger(client,monkeypatch,faces,colors,c
     assert db.execute('SELECT SUM(delta) FROM ledger').fetchone()[0]==result['account']['balance']
     assert db.execute("SELECT COUNT(*) FROM ledger WHERE reason='orbit_payout'").fetchone()[0]==1
     db.close()
+
+
+def test_zero_product_rank_five_new_version_and_legacy_snapshot(client,monkeypatch):
+    assert publish(client).status_code==200
+    cards=hand((6,0,6),('blue',)*3)
+    assert economy.classify(cards,economy.PRESET)==('COLOR_MATCH',25,5)
+    assert economy.classify(cards,economy.PRESET,zero_product_fallback=False)==(
+        'PAIR_PRODUCT',0,None)
+
+    monkeypatch.setattr(economy,'draw',lambda cfg:cards)
+    first=pick(client,1,25).json()
+    assert first['round']['payout'] is None
+    assert first['round']['picked']==1
+    assert first['account']['balance']==975
+    assert pick(client,2,25).status_code==200
+    corrected=pick(client,3,25).json()
+    assert corrected['round']['rules_version']==5 if 'rules_version' in corrected['round'] else corrected['round']['tier']['rank']==5
+    assert corrected['round']['combo']=='COLOR_MATCH'
+    assert corrected['round']['tier']['rank']==5
+    assert corrected['round']['payout']==625
+    assert corrected['round']['delta']==600
+    assert corrected['account']['balance']==1600
+    assert pick(client,3,25).json()['replayed']
+
+    # A previously issued rules-v4 card contract has an immutable payout
+    # snapshot. Preserve replay/history, never edit an already-booked win.
+    first=pick(client,4,25).json()
+    db=orbit.open_db()
+    row=db.execute('SELECT id,economy_json FROM orbit_rounds WHERE picked=1').fetchone()
+    old_snapshot=json.loads(row['economy_json'])
+    old_snapshot['multiplier']=0
+    db.execute("""UPDATE orbit_rounds SET rules_version=4,combo='PAIR_PRODUCT',
+        tier=NULL,economy_json=? WHERE id=?""",(json.dumps(old_snapshot),row['id']))
+    db.close()
+    assert pick(client,5,25).status_code==200
+    old_result=pick(client,6,25).json()
+    assert old_result['round']['combo']=='PAIR_PRODUCT'
+    assert old_result['round']['payout']==0
+    assert old_result['account']['balance']==1575
 
 
 def test_removed_stake_can_finish_and_replay(client,monkeypatch):
