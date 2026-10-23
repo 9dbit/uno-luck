@@ -13,7 +13,7 @@ import sqlite3
 import time
 from decimal import Decimal, ROUND_HALF_UP
 from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool, StrictInt
 
 from . import spin, economy
 
@@ -22,6 +22,13 @@ FREE_ROUNDS = 10
 PROMO_REWARDS = 5
 PROMO_PERCENTS = (30, 50, 100)
 PAID_ROUND_CHOICES = (1, 3, 5, 10)
+
+
+class PromoPolicyInput(BaseModel):
+    """Manual admin setting. Disabled until explicitly enabled."""
+    enabled: StrictBool = False
+    daily_budget_coin: StrictInt = Field(ge=0, le=1_000_000_000)
+    max_sessions_per_account_day: StrictInt = Field(ge=1, le=20)
 
 
 class StartRequest(BaseModel):
@@ -44,10 +51,66 @@ def schema(db: sqlite3.Connection) -> None:
         promo_credited INTEGER NOT NULL DEFAULT 0,
         created_at REAL NOT NULL,
         finished_at REAL,
+        budget_day TEXT,
+        reserved_coin INTEGER NOT NULL DEFAULT 0,
         UNIQUE(account_id, request_id)
     )""")
+    existing = {column['name'] for column in db.execute("PRAGMA table_info(auto_sessions)")}
+    if 'budget_day' not in existing:
+        db.execute("ALTER TABLE auto_sessions ADD COLUMN budget_day TEXT")
+    if 'reserved_coin' not in existing:
+        db.execute("ALTER TABLE auto_sessions ADD COLUMN reserved_coin INTEGER NOT NULL DEFAULT 0")
     db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS ix_auto_account_active
                ON auto_sessions(account_id) WHERE finished_at IS NULL""")
+    db.execute("""CREATE INDEX IF NOT EXISTS ix_auto_budget_day
+               ON auto_sessions(budget_day)""")
+    db.execute("""CREATE TABLE IF NOT EXISTS auto_promo_policy (
+        id INTEGER PRIMARY KEY CHECK(id=1),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+        daily_budget_coin INTEGER NOT NULL DEFAULT 0 CHECK(daily_budget_coin>=0),
+        max_sessions_per_account_day INTEGER NOT NULL DEFAULT 1
+            CHECK(max_sessions_per_account_day BETWEEN 1 AND 20),
+        updated_at REAL NOT NULL
+    )""")
+    db.execute("""INSERT OR IGNORE INTO auto_promo_policy
+               (id,enabled,daily_budget_coin,max_sessions_per_account_day,updated_at)
+               VALUES(1,0,0,1,0)""")
+
+
+def promo_policy(db: sqlite3.Connection) -> sqlite3.Row:
+    row = db.execute("SELECT * FROM auto_promo_policy WHERE id=1").fetchone()
+    if row is None:
+        raise RuntimeError('Auto promotion policy is missing')
+    return row
+
+
+def promo_budget_state(db: sqlite3.Connection) -> dict:
+    """Booked promotional liability per WIB calendar day, not guaranteed profit."""
+    today = spin.now_wib_day()
+    row = promo_policy(db)
+    summary = db.execute("""SELECT COUNT(*) AS total,
+        COALESCE(SUM(reserved_coin),0) AS booked
+        FROM auto_sessions WHERE budget_day=?""", (today,)).fetchone()
+    budget = int(row['daily_budget_coin'])
+    booked = int(summary['booked'])
+    return {
+        'enabled': bool(row['enabled']),
+        'daily_budget_coin': budget,
+        'booked_coin': booked,
+        'remaining_coin': max(0, budget-booked),
+        'sessions_today': int(summary['total']),
+        'max_sessions_per_account_day': row['max_sessions_per_account_day'],
+        'budget_day_wib': today,
+        'updated_at': row['updated_at'],
+        'note': 'Batas promosi harian mencadangkan 5 bonus Gift aktual serta nominal BET 10 free spins. Jackpot RNG di free spins tetap dapat melampaui estimasi. Tidak ada jaminan profit operator.',
+    }
+
+
+def planned_gift_coin(stake: int, paid_rounds: int, rates: list[int]) -> int:
+    """Same half-up per-award rounding as award_coin during settlement."""
+    basis = stake*paid_rounds
+    return sum(int((Decimal(basis)*Decimal(rate)/Decimal(100))
+                   .quantize(Decimal('1'), rounding=ROUND_HALF_UP)) for rate in rates)
 
 
 def active(db: sqlite3.Connection, account_id: str):
@@ -97,6 +160,7 @@ def view(row) -> dict | None:
         "promotional_rewards": PROMO_REWARDS,
         "promo_credited_coin": row["promo_credited"],
         "reserved_bonus_coin": remaining_liability(row),
+        "budget_reserved_coin": row["reserved_coin"],
         "finished": row["finished_at"] is not None,
     }
 
@@ -144,17 +208,32 @@ def start(request: Request, response: Response, payload: StartRequest):
             raise HTTPException(422, "Nilai BET tidak tersedia")
         if account["balance"] < payload.stake * payload.paid_rounds:
             raise HTTPException(409, "Saldo tidak cukup untuk ronde AUTO berbayar")
+        policy = promo_policy(db)
+        if not policy['enabled']:
+            raise HTTPException(409, "Bonus AUTO belum diaktifkan di Economy Lab.")
+        day = spin.now_wib_day()
+        prior_count = db.execute("""SELECT COUNT(*) FROM auto_sessions
+            WHERE account_id=? AND budget_day=?""", (account['id'],day)).fetchone()[0]
+        if prior_count >= policy['max_sessions_per_account_day']:
+            raise HTTPException(409, "Batas sesi promo harian akun ini tercapai.")
         positions = sorted(secrets.SystemRandom().sample(range(1, FREE_ROUNDS + 1), PROMO_REWARDS))
         rates = [secrets.choice(PROMO_PERCENTS) for _ in positions]
+        # Reservation includes all promised gifts, plus ten nominal free stakes
+        # as a forecast buffer. It does not cap or alter the round RNG payout.
+        reserved = planned_gift_coin(payload.stake,payload.paid_rounds,rates) + FREE_ROUNDS*payload.stake
+        booked = db.execute("""SELECT COALESCE(SUM(reserved_coin),0)
+            FROM auto_sessions WHERE budget_day=?""", (day,)).fetchone()[0]
+        if booked + reserved > policy['daily_budget_coin']:
+            raise HTTPException(409, "Anggaran Gift harian habis. Bonus AUTO belum tersedia.")
         session_id = spin.new_id()
         db.execute(
             """INSERT INTO auto_sessions
             (id,account_id,request_id,stake,paid_rounds,free_rounds,
-             gift_slots_json,gift_rates_json,created_at)
-            VALUES(?,?,?,?,?,?,?,?,?)""",
+             gift_slots_json,gift_rates_json,created_at,budget_day,reserved_coin)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
             (session_id,account["id"],payload.request_id,payload.stake,
              payload.paid_rounds,FREE_ROUNDS,json.dumps(positions),
-             json.dumps(rates),time.time())
+             json.dumps(rates),time.time(),day,reserved)
         )
         new_row = by_id(db, account["id"], session_id)
         db.commit()
