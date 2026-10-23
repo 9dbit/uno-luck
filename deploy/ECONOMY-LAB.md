@@ -163,3 +163,38 @@ idempotent; previously accepted sessions remain valid when the admin toggles
 the policy off. The actual paid-round RTP excludes free-round payouts, while
 effective period RTP includes free rounds and promo credits. Promotional budget
 is an admission gate, **not** a per-player win quota or guarantee of margin.
+
+## Rules v5: zero-value numeric match correction (24 Oct 2026)
+
+A three-card, same-color numeric pair involving a **0** was formerly
+classified as `PAIR_PRODUCT`, with multiplication such as
+`6 × 0 × 6 = 0`; it consequently displayed "PAYOUT/WIN 0" despite the
+three matching colors. New rounds classify this as `COLOR_MATCH`
+(**Rank 5**) instead: for BET 25 Coin and the current Rank 5 multiplier
+25×, PAYOUT is 625 Coin and NET is +600 Coin, subject to the existing
+balance cap. A mixed-color triple with numeric sum zero is **ZONK**,
+unless another explicitly enabled Color Pair rule applies.
+
+New CSPRNG product and sum lanes exclude zero-valued bonuses. This
+adjusts the theoretical fixed-RTP distribution. For the legacy PRESET
+percentages interpreted under rules v5, theoretical base RTP is
+**91.6621770609%** (gross expected house margin ≈ 8.3378229391%).
+This is not the older 89.9995% legacy model. Published probability
+percentages and all independent RNG outcomes remain fixed; changes are
+made openly via versioned rules, with no individual-player targeting.
+Already accepted v4 rounds retain their **original saved payout
+contract**, with version-aware settlement and idempotent replay.
+Completed historical records and Coin balances are not rewritten.
+
+Under the QA example of 80,000 Coin daily paid turnover and target
+5% projected house margin, the effective promotion allocation is
+limited to **2,670 Coin/day**, even if a historical admin configuration
+still displays 3,000. The server reports both configured and effective
+limits in Economy Lab. The projected overall result may still be
+negative if actual turnover is lower, free-spin payouts are high, or
+other costs arise. The limit is not a guarantee of profit.
+
+At the start of a NEW SPIN 1/3, the mobile interface clears the
+previous three-card result and shows WIN/NET as pending ("—") rather
+than misleadingly pairing old results with the new spin indicator.
+The latest JavaScript uses a bumped Safari cache version.
