@@ -62,14 +62,14 @@ def test_generated_pattern_matches_classified_rank(monkeypatch,rank):
 
 
 def test_constant_probabilities_and_no_undocumented_bonus():
-    assert orbit.RULES_VERSION==4
+    assert orbit.RULES_VERSION==5
     assert orbit.WIN_PERCENT==80
     assert [orbit.CELEBRATIONS[i]['weight'] for i in range(1,6)]==[
         100,900,4000,30000,965000]
     assert [orbit.CELEBRATIONS[i]['multiplier'] for i in range(1,6)]==[
         200,80,30,10,2]
     rules=orbit.public_rules()
-    assert rules['rules_version']==4
+    assert rules['rules_version']==5
     assert sum(t['weight'] for t in orbit.CELEBRATIONS.values()) / 10000==100
     assert all('conditional_win_probability_percent' not in t for t in rules['celebrations'])
 
