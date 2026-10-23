@@ -7,6 +7,8 @@ the promotional awards are separate from winning-card classifications.
 from __future__ import annotations
 
 import json
+import math
+import os
 import re
 import secrets
 import sqlite3
@@ -70,11 +72,31 @@ def schema(db: sqlite3.Connection) -> None:
         daily_budget_coin INTEGER NOT NULL DEFAULT 0 CHECK(daily_budget_coin>=0),
         max_sessions_per_account_day INTEGER NOT NULL DEFAULT 1
             CHECK(max_sessions_per_account_day BETWEEN 1 AND 20),
+        max_sessions_per_day INTEGER NOT NULL DEFAULT 2,
+        planned_paid_turnover_coin INTEGER NOT NULL DEFAULT 0,
+        target_margin_percent REAL NOT NULL DEFAULT 5,
         updated_at REAL NOT NULL
     )""")
-    db.execute("""INSERT OR IGNORE INTO auto_promo_policy
-               (id,enabled,daily_budget_coin,max_sessions_per_account_day,updated_at)
-               VALUES(1,0,0,1,0)""")
+    policy_columns = {column['name'] for column in db.execute("PRAGMA table_info(auto_promo_policy)")}
+    for column, ddl in (
+        ('max_sessions_per_day', 'INTEGER NOT NULL DEFAULT 2'),
+        ('planned_paid_turnover_coin', 'INTEGER NOT NULL DEFAULT 0'),
+        ('target_margin_percent', 'REAL NOT NULL DEFAULT 5'),
+    ):
+        if column not in policy_columns:
+            db.execute('ALTER TABLE auto_promo_policy ADD COLUMN ' + column + ' ' + ddl)
+    # Staging bootstrap is opt-in and restricted to a blank, separate QA DB.
+    qa_bootstrap = os.getenv('UNO_QA_BOOTSTRAP_PROMO') == '1'
+    if qa_bootstrap:
+        db.execute("""INSERT OR IGNORE INTO auto_promo_policy
+          (id,enabled,daily_budget_coin,max_sessions_per_account_day,
+           max_sessions_per_day,planned_paid_turnover_coin,target_margin_percent,updated_at)
+          VALUES(1,1,3000,1,2,80000,5,0)""")
+    else:
+        db.execute("""INSERT OR IGNORE INTO auto_promo_policy
+          (id,enabled,daily_budget_coin,max_sessions_per_account_day,
+           max_sessions_per_day,planned_paid_turnover_coin,target_margin_percent,updated_at)
+          VALUES(1,0,0,1,2,0,5,0)""")
 
 
 def promo_policy(db: sqlite3.Connection) -> sqlite3.Row:
@@ -82,6 +104,33 @@ def promo_policy(db: sqlite3.Connection) -> sqlite3.Row:
     if row is None:
         raise RuntimeError('Auto promotion policy is missing')
     return row
+
+
+def _margin_projection(db: sqlite3.Connection, policy: sqlite3.Row) -> dict:
+    """Bound planned promotional spend with a transparent base-RTP budget.
+
+    This is a *forecast only*. It cannot guarantee actual results from independent
+    game RNG or player turnover; it never selects a particular winning player.
+    """
+    revision, config = economy.active(db)
+    if not revision or config is None:
+        return {"economy_revision": revision, "base_rtp_percent": None,
+                "projected_gross_margin_percent": None,
+                "max_affordable_budget_coin": 0,
+                "projected_surplus_coin": None, "projected_margin_percent": None}
+    base_rtp = economy.rtp_percent(config)
+    planned = int(policy['planned_paid_turnover_coin'])
+    target = float(policy['target_margin_percent'])
+    room = max(0, math.floor(planned * max(0, 100 - base_rtp - target) / 100))
+    estimated_after = planned * (1-base_rtp/100) - int(policy['daily_budget_coin'])
+    return {
+        "economy_revision": revision,
+        "base_rtp_percent": base_rtp,
+        "projected_gross_margin_percent": 100-base_rtp,
+        "max_affordable_budget_coin": room,
+        "projected_surplus_coin": estimated_after,
+        "projected_margin_percent": estimated_after/planned*100 if planned else None,
+    }
 
 
 def promo_budget_state(db: sqlite3.Connection) -> dict:
@@ -93,6 +142,7 @@ def promo_budget_state(db: sqlite3.Connection) -> dict:
         FROM auto_sessions WHERE budget_day=?""", (today,)).fetchone()
     budget = int(row['daily_budget_coin'])
     booked = int(summary['booked'])
+    projection = _margin_projection(db, row)
     return {
         'enabled': bool(row['enabled']),
         'daily_budget_coin': budget,
@@ -100,9 +150,13 @@ def promo_budget_state(db: sqlite3.Connection) -> dict:
         'remaining_coin': max(0, budget-booked),
         'sessions_today': int(summary['total']),
         'max_sessions_per_account_day': row['max_sessions_per_account_day'],
+        'max_sessions_per_day': row['max_sessions_per_day'],
+        'planned_paid_turnover_coin': row['planned_paid_turnover_coin'],
+        'target_margin_percent': row['target_margin_percent'],
+        **projection,
         'budget_day_wib': today,
         'updated_at': row['updated_at'],
-        'note': 'Batas promosi harian mencadangkan 5 bonus Gift aktual serta nominal BET 10 free spins. Jackpot RNG di free spins tetap dapat melampaui estimasi. Tidak ada jaminan profit operator.',
+        'note': 'Budget promosi dibatasi oleh RTP dan target turnover yang diproyeksikan, bukan dijamin. Jackpot RNG dan turnover aktual dapat meleset. Tidak ada pemilihan pemain yang harus kalah.',
     }
 
 
@@ -211,11 +265,20 @@ def start(request: Request, response: Response, payload: StartRequest):
         policy = promo_policy(db)
         if not policy['enabled']:
             raise HTTPException(409, "Bonus AUTO belum diaktifkan di Economy Lab.")
+        projection = _margin_projection(db, policy)
+        if (projection['base_rtp_percent'] is None
+                or projection['projected_margin_percent'] is None
+                or projection['projected_margin_percent'] + 1e-7 < policy['target_margin_percent']
+                or policy['daily_budget_coin'] > projection['max_affordable_budget_coin']):
+            raise HTTPException(409, "Proyeksi margin periode tidak cukup untuk anggaran Gift. Koreksi target turnover dan budget di Economy Lab.")
         day = spin.now_wib_day()
         prior_count = db.execute("""SELECT COUNT(*) FROM auto_sessions
             WHERE account_id=? AND budget_day=?""", (account['id'],day)).fetchone()[0]
         if prior_count >= policy['max_sessions_per_account_day']:
             raise HTTPException(409, "Batas sesi promo harian akun ini tercapai.")
+        total_today = db.execute("SELECT COUNT(*) FROM auto_sessions WHERE budget_day=?", (day,)).fetchone()[0]
+        if total_today >= policy['max_sessions_per_day']:
+            raise HTTPException(409, "Jatah sesi Gift operator hari ini habis.")
         positions = sorted(secrets.SystemRandom().sample(range(1, FREE_ROUNDS + 1), PROMO_REWARDS))
         rates = [secrets.choice(PROMO_PERCENTS) for _ in positions]
         # Reservation includes all promised gifts, plus ten nominal free stakes
@@ -223,7 +286,7 @@ def start(request: Request, response: Response, payload: StartRequest):
         reserved = planned_gift_coin(payload.stake,payload.paid_rounds,rates) + FREE_ROUNDS*payload.stake
         booked = db.execute("""SELECT COALESCE(SUM(reserved_coin),0)
             FROM auto_sessions WHERE budget_day=?""", (day,)).fetchone()[0]
-        if booked + reserved > policy['daily_budget_coin']:
+        if booked + reserved > min(policy['daily_budget_coin'],projection['max_affordable_budget_coin']):
             raise HTTPException(409, "Anggaran Gift harian habis. Bonus AUTO belum tersedia.")
         session_id = spin.new_id()
         db.execute(
