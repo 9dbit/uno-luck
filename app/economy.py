@@ -489,6 +489,7 @@ def performance(request: Request, response: Response,
         row = db.execute('''SELECT COUNT(*) rounds,COUNT(DISTINCT account_id) players,
             COALESCE(SUM(charged_stake),0) turnover,
             COALESCE(SUM(payout),0) regular_payout,
+            COALESCE(SUM(CASE WHEN charged_stake>0 THEN payout ELSE 0 END),0) paid_round_payout,
             COALESCE(SUM(promo_coin),0) promo_payout,
             COALESCE(SUM(CASE WHEN charged_stake=0 THEN payout ELSE 0 END),0) free_payout,
             COALESCE(SUM(CASE WHEN charged_stake=0 THEN 1 ELSE 0 END),0) free_rounds
@@ -504,6 +505,7 @@ def performance(request: Request, response: Response,
         revision, config = active(db)
         turnover = int(row['turnover'])
         regular_payout = int(row['regular_payout'])
+        paid_round_payout = int(row['paid_round_payout'])
         promo_payout = int(row['promo_payout'])
         payout = regular_payout + promo_payout
         gross = turnover - payout
@@ -513,6 +515,8 @@ def performance(request: Request, response: Response,
             turnover_rp=turnover*VIRTUAL_RP_PER_COIN,payout_rp=payout*VIRTUAL_RP_PER_COIN,
             gross_rp=gross*VIRTUAL_RP_PER_COIN,
             regular_payout_coin=regular_payout, regular_payout_rp=regular_payout*VIRTUAL_RP_PER_COIN,
+            paid_round_payout_coin=paid_round_payout,
+            paid_round_payout_rp=paid_round_payout*VIRTUAL_RP_PER_COIN,
             promotional_payout_coin=promo_payout, promotional_payout_rp=promo_payout*VIRTUAL_RP_PER_COIN,
             free_spin_payout_coin=int(row['free_payout']),
             free_spin_payout_rp=int(row['free_payout'])*VIRTUAL_RP_PER_COIN,
@@ -521,7 +525,7 @@ def performance(request: Request, response: Response,
             pending_bonus_liability_rp=reserved_coin*VIRTUAL_RP_PER_COIN,
             result_after_reserved_coin=gross-reserved_coin,
             result_after_reserved_rp=(gross-reserved_coin)*VIRTUAL_RP_PER_COIN,
-            actual_regular_rtp_percent=(regular_payout/turnover*100 if turnover else None),
+            actual_regular_rtp_percent=(paid_round_payout/turnover*100 if turnover else None),
             actual_rtp_percent=(payout/turnover*100 if turnover else None),
             active_revision=revision,
             theoretical_rtp_percent=(rtp_percent(config) if config else 195.36),
