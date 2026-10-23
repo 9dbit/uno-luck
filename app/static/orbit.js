@@ -336,6 +336,8 @@ async function autoLoop(roundLimit){
     const idx=STAKES.indexOf(activeAutoSession.stake);
     if(idx<0)throw Error('BET dari sesi AUTO sebelumnya tidak tersedia lagi.');
     stakeIndex=idx;
+    // The server handshake is done. Restore the STOP button for a running AUTO.
+    autoStarting=false;
     isAuto=true;cancelAuto=false;updateButtons();
     if(opened.resumed)say('Melanjutkan Free Spins dari sesi sebelumnya.');
     const remaining=activeAutoSession.rounds_remaining;
