@@ -164,3 +164,44 @@ def test_corrupt_snapshot_cannot_credit(client,monkeypatch):
     state=client.get('/api/orbit/state').json()
     assert state['account']['balance']==990 and state['round']['picked']==2
     db=orbit.open_db();assert db.execute("SELECT COUNT(*) FROM ledger WHERE reason='orbit_payout'").fetchone()[0]==0;db.close()
+
+
+def test_operator_projection_and_target_are_read_only(client):
+    before=client.get('/api/orbit/state').json()['account']['balance']
+    result=client.post('/api/admin/economy/simulate',headers=HEAD,json={
+        'config':config(),'turnover_rp':1000000,'costs_rp':50000}).json()
+    assert result['operator_margin_percent']==pytest.approx(20.975)
+    assert result['projection']['expected_payout_rp']==pytest.approx(790250)
+    assert result['projection']['gross_result_rp']==pytest.approx(209750)
+    assert result['projection']['net_result_rp']==pytest.approx(159750)
+    response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':20})
+    assert response.status_code==200
+    result=response.json();proposed=result['config']
+    assert abs(result['actual_margin_percent']-20)<.05
+    from decimal import Decimal
+    assert sum(Decimal(v) for v in proposed['percentages'].values())==100
+    for field in ('multipliers','sum_cap','product_cap','stake_options'):assert proposed[field]==config()[field]
+    calc=client.post('/api/admin/economy/simulate',headers=HEAD,json={'config':proposed}).json()
+    assert result['actual_margin_percent']==pytest.approx(calc['operator_margin_percent'])
+    assert client.get('/api/admin/economy',headers=HEAD).json()['revision']==0
+    assert client.get('/api/orbit/state').json()['account']['balance']==before
+    assert client.post('/api/admin/economy/target',json={'config':config(),'margin_percent':20}).status_code==403
+    assert client.post('/api/admin/economy/target',headers=HEAD|{'origin':'https://evil.example'},json={'config':config(),'margin_percent':20}).status_code==403
+
+
+@pytest.mark.parametrize('margin',[-1,100,'NaN','Infinity'])
+def test_invalid_target_blocked(client,margin):
+    assert client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':margin}).status_code==422
+
+
+def test_target_never_silently_drops_rare_category(client):
+    assert client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':99}).status_code==422
+
+
+def test_target_handles_changed_caps_and_payouts(client):
+    c=config();c['multipliers']=[23,22,21,20,19];c['sum_cap']=5;c['product_cap']=18
+    c['percentages']={**c['percentages'],'NO_MATCH':'20','PAIR_SUM':'79.4','PAIR_PRODUCT':'0.6','RANK_1':'0','RANK_2':'0','RANK_3':'0','RANK_4':'0','RANK_5':'0'}
+    # This is feasible: lowering RTP scales down paying probabilities and increases NO MATCH.
+    response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':c,'margin_percent':20})
+    assert response.status_code==200
+    assert response.json()['actual_margin_percent']==pytest.approx(20,abs=.05)

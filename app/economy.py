@@ -11,7 +11,7 @@ import math
 import random
 import secrets
 import time
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from functools import lru_cache
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
@@ -59,6 +59,38 @@ class Simulation(BaseModel):
     balance: StrictInt = Field(default=1000, ge=0, le=spin.COIN_CAP)
     rounds: StrictInt = Field(default=100, ge=1, le=1000)
     seed: StrictInt = Field(default=42, ge=0, le=2**32-1)
+    turnover_rp: StrictInt = Field(default=1000000, ge=1, le=10**12)
+    costs_rp: StrictInt = Field(default=0, ge=0, le=10**12)
+
+class Target(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    config: Config
+    margin_percent: Decimal = Field(ge=0, le=99)
+
+
+def target_config(payload):
+    # Scale all paying categories together; preserve relative rarity and payouts.
+    c = payload.config
+    current = sum(Decimal(str(m)) * Decimal(str(p)) for m,p in distribution(c))
+    desired = (Decimal(100)-payload.margin_percent)/100
+    if current <= 0:
+        raise HTTPException(422, 'Draft tidak memiliki payout untuk disesuaikan')
+    factor = desired/current
+    probabilities = {k:(c.percentages[k]*factor).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP) for k in KEYS if k!='NO_MATCH'}
+    probabilities['NO_MATCH'] = Decimal(100)-sum(probabilities.values())
+    if probabilities['NO_MATCH'] < 0:
+        raise HTTPException(422, 'Target tidak dapat dicapai dengan rasio peluang dan multiplier ini')
+    if any(c.percentages[k]>0 and probabilities[k]==0 for k in probabilities):
+        raise HTTPException(422, 'Target membuat kategori hilang pada presisi 0,0001%. Pilih target lain')
+    try:
+        proposed = Config.model_validate(c.model_dump() | {'percentages': probabilities})
+    except ValueError:
+        raise HTTPException(422, 'Target melanggar urutan peluang bonus. Pilih target lain')
+    margin = 100-sum(m*p for m,p in distribution(proposed))*100
+    return dict(config=proposed.model_dump(mode='json'),requested_margin_percent=float(payload.margin_percent),
+        actual_margin_percent=margin,rounding_difference_percent=margin-float(payload.margin_percent),
+        note='Draft saja. Semua peluang hadiah disesuaikan proporsional; NO MATCH menjadi sisanya. BET dan multiplier tetap. Margin aktual dapat berbeda karena pembulatan.')
+
 
 class Publish(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -161,6 +193,11 @@ def simulate(payload):
         stopped += count < payload.rounds
     endings.sort()
     return dict(rtp_percent=expected*100, expected_gross=expected*payload.stake,
+        operator_margin_percent=(1-expected)*100,
+        operator_expected_per_round=-((expected-1)*payload.stake),
+        projection=dict(turnover_rp=payload.turnover_rp,expected_payout_rp=expected*payload.turnover_rp,
+            gross_result_rp=(1-expected)*payload.turnover_rp,costs_rp=payload.costs_rp,
+            net_result_rp=(1-expected)*payload.turnover_rp-payload.costs_rp),
         expected_net=(expected-1)*payload.stake,
         payout_probability_percent=sum(p for m,p in dist if m>0)*100,
         profit_probability_percent=sum(p for m,p in dist if m>1)*100,
@@ -212,3 +249,10 @@ def publish(request: Request, response: Response, payload: Publish):
     finally:
         if db.in_transaction: db.rollback()
         db.close()
+
+
+@router.post('/target')
+def target(request: Request, response: Response, payload: Target):
+    require_admin(request)
+    response.headers['Cache-Control']='no-store'
+    return target_config(payload)

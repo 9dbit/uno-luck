@@ -62,3 +62,12 @@ simulated WebKit tests.
 Configured celebration payouts use existing clean 3D trophy artwork because the
 legacy tier illustrations contain baked-in 2×/10×/... labels. The five rank
 animations and audio cues remain. The HUD range is derived from public rules.
+
+
+## Operator target and projection
+
+The default draft has theoretical RTP 79.025%, so the operator's expected gross virtual result is 20.975% of actual BET turnover. This is not real-money revenue. The legacy active configuration has RTP 195.36%; deploying the editor does not activate the new draft.
+
+The editor accepts a target margin or a target net virtual amount. Net target converts to margin using `(net target + entered costs) / turnover * 100`. Turnover is total stakes, not wallet balances or deposits. Costs include only values entered by the admin; omitted bonuses, infrastructure costs and other expenses are not automatically counted. Projections are expectations before the account cap, not guaranteed profit.
+
+`POST /api/admin/economy/target` is authenticated and read-only. It scales all seven reward category probabilities proportionally toward the desired RTP, rounds to four decimals, and assigns the remainder to NO_MATCH. Stake steps, multipliers and caps remain unchanged. The result reports the actual margin and rounding difference, rejects invalid/out-of-range targets and any target that would silently remove a previously nonzero category. It never publishes. Admin must review the updated simulation and explicitly apply the draft. Arbitrary later odds/multiplier edits recompute actual results but do not silently force the draft back to its target.

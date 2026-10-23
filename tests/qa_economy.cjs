@@ -15,6 +15,7 @@ const OUT=process.env.UNO_QA_OUT||'artifacts/uno-economy';fs.mkdirSync(OUT,{recu
   await page.route(/\/api\/admin\/economy(?:\/.*)?$/,async r=>{
    const req=r.request(),data=req.postDataJSON();
    if(!req.headers()['x-uno-sound-admin'])return r.fulfill({status:403,json:{detail:'Unauthorized'}});
+   if(req.url().endsWith('/target'))return r.fulfill({json:fixture.target});
    if(req.url().endsWith('/simulate')){
     const c=data.config,total=Object.values(c.percentages).reduce((a,b)=>a+Number(b),0);
     if(Math.abs(total-100)>.000001||c.multipliers[4]<=Math.max(c.sum_cap,c.product_cap))return r.fulfill({status:422,json:{detail:'Total atau urutan payout tidak valid'}});
@@ -37,6 +38,15 @@ const OUT=process.env.UNO_QA_OUT||'artifacts/uno-economy';fs.mkdirSync(OUT,{recu
  assert.notEqual(await page.locator('#results').innerText(),initial);
  await page.locator('#m-5').fill('20');await page.waitForTimeout(600);assert(await page.locator('#publish').isDisabled());
  await page.locator('#m-5').fill('25');await page.waitForFunction(()=>!document.querySelector('#publish').disabled);
+ const oldChance=await page.locator('#p-PAIR_SUM').inputValue();
+ await page.locator('#turnover').fill('1000000');await page.locator('#costs').fill('50000');
+ await page.locator('#target-profit').fill('150000');
+ assert.equal(Number(await page.locator('#target-margin').inputValue()),20);
+ await page.locator('#fit-target').click();
+ await page.waitForFunction(()=>document.querySelector('#target-status').textContent.includes('margin draft'));
+ await page.waitForFunction(()=>!document.querySelector('#publish').disabled);
+ assert.notEqual(await page.locator('#p-PAIR_SUM').inputValue(),oldChance);
+ assert((await page.locator('#results').innerText()).includes('Margin operator'));
  for(const [width,height] of [[320,568],[393,852],[852,393],[1440,1000]]){
   await page.setViewportSize({width,height});
   await page.screenshot({path:path.join(OUT,`${engine}-economy-${width}x${height}.png`),fullPage:true});
