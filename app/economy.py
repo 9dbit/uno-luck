@@ -216,7 +216,7 @@ def bonus_faces(hand):
     return ['+2' if value == 2 and hand.count(2) >= 2 else str(value) for value in hand]
 
 
-def classify(cards, config, *, draw_two_match=True, zero_product_fallback=True):
+def classify(cards, config, *, draw_two_match=True, zero_product_fallback=True, zero_sum_fallback=True):
     from . import orbit
     faces = [str(c.get('face')) for c in cards]
     allowed = tuple(map(str, range(10))) + (('+2',) if draw_two_match else ())
@@ -234,7 +234,8 @@ def classify(cards, config, *, draw_two_match=True, zero_product_fallback=True):
                     return ('COLOR_MATCH', config.multipliers[rank-1], rank)
             return ('PAIR_PRODUCT', min(product, config.product_cap), None)
         total = sum(values)
-        if total > 0:
+        if total > 0 or not zero_sum_fallback:
+            # Keep already-issued v4 snapshots with 0-coin numeric sum valid.
             return ('PAIR_SUM', min(total, config.sum_cap), None)
         # A zero-valued mixed-color triple is not a winning numeric pair.
         # Allow the subsequent color-pair lane to pay if actually eligible.
