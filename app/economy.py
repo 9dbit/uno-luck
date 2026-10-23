@@ -88,6 +88,11 @@ class Target(BaseModel):
     model_config = ConfigDict(extra='forbid')
     config: Config
     margin_percent: Decimal = Field(ge=2, le=15)
+    turnover_rp: StrictInt | None = Field(default=None, ge=1, le=10**12)
+    costs_rp: StrictInt = Field(default=0, ge=0, le=10**12)
+    auto_sessions: StrictInt = Field(default=0, ge=0, le=1000000)
+    auto_paid_rounds: StrictInt = Field(default=10, ge=1, le=10)
+    stake: StrictInt = Field(default=10, ge=10, le=25000)
 
 
 def rtp_percent(config: Config) -> float:
@@ -110,6 +115,22 @@ def target_config(payload):
     c = payload.config
     current = sum(Decimal(str(m)) * Decimal(str(p)) for m,p in distribution(c))
     desired = (Decimal(100)-payload.margin_percent)/100
+    period_turnover = Decimal(payload.turnover_rp or 0)
+    bonus_fixed = Decimal(0)
+    free_exposure = Decimal(0)
+    if payload.turnover_rp is not None:
+        if payload.auto_paid_rounds not in (1,3,5,10) or payload.stake not in c.stake_options:
+            raise HTTPException(422, 'Pilih BET dan jumlah ronde AUTO yang valid')
+        paid_auto_turnover = Decimal(payload.auto_sessions*payload.stake*payload.auto_paid_rounds*VIRTUAL_RP_PER_COIN)
+        if paid_auto_turnover > period_turnover:
+            raise HTTPException(422, 'Total BET AUTO melampaui turnover periode')
+        # Five independent disclosed gifts, mean rate 60% of paid AUTO turnover.
+        bonus_fixed = paid_auto_turnover*Decimal(3)
+        free_exposure = Decimal(payload.auto_sessions*10*payload.stake*VIRTUAL_RP_PER_COIN)
+        desired = (period_turnover*(1-payload.margin_percent/100)
+                   - Decimal(payload.costs_rp) - bonus_fixed) / (period_turnover+free_exposure)
+        if desired < Decimal('0.85') or desired > Decimal('0.98'):
+            raise HTTPException(422, 'Target period pool tidak layak pada RTP dasar 85–98%. Kurangi jumlah AUTO, tambah turnover nonpromo, atau ubah target. Hasil pemain tidak akan dimanipulasi.')
     if current <= 0:
         raise HTTPException(422, 'Draft tidak memiliki payout untuk disesuaikan')
     factor = desired/current
@@ -124,9 +145,20 @@ def target_config(payload):
     except ValueError:
         raise HTTPException(422, 'Target melanggar urutan peluang bonus. Pilih target lain')
     margin = 100-sum(m*p for m,p in distribution(proposed))*100
+    period_profit = None
+    period_margin = None
+    if period_turnover:
+        rtp = Decimal(str(rtp_percent(proposed))) / 100
+        period_profit = float(period_turnover*(1-rtp)-Decimal(payload.costs_rp)
+                              -bonus_fixed-free_exposure*rtp)
+        period_margin = period_profit/float(period_turnover)*100
+    actual_target_margin = period_margin if period_margin is not None else margin
     return dict(config=proposed.model_dump(mode='json'),requested_margin_percent=float(payload.margin_percent),
-        actual_margin_percent=margin,rounding_difference_percent=margin-float(payload.margin_percent),
-        note='Draft saja. Semua peluang hadiah disesuaikan proporsional; NO MATCH menjadi sisanya. BET dan multiplier tetap. Margin aktual dapat berbeda karena pembulatan.')
+        actual_margin_percent=margin,
+        actual_period_margin_percent=period_margin,
+        actual_period_surplus_rp=period_profit,
+        rounding_difference_percent=actual_target_margin-float(payload.margin_percent),
+        note='Draft saja. Target periode (jika turnover diberikan) memasukkan lima bonus promo dan payout 10 Free Spins pada nilai ekspektasi. Hasil aktual belum tentu sama; probabilitas pemain tidak disesuaikan berdasarkan saldo atau profit.')
 
 
 class Publish(BaseModel):
