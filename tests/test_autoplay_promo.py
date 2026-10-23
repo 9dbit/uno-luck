@@ -62,6 +62,16 @@ def test_color_sequence_pair_zonk_and_rank_priority():
     assert out["projection"]["auto_bonus_min_rp"] < out["projection"]["auto_bonus_max_rp"]
     assert out["projection"]["net_result_rp"] == pytest.approx(
         out["projection"]["period_expected_surplus_rp"])
+    assert out["projection"]["max_auto_sessions_expected"] >= 0
+    assert out["projection"]["max_auto_sessions_high_gift"] <= out["projection"]["max_auto_sessions_expected"]
+    assert out["projection"]["max_auto_by_paid_turnover"] == 100
+    assert out["projection"]["available_extra_auto_sessions_expected"] == max(
+        0, out["projection"]["max_auto_sessions_expected"] - 2)
+
+    impossible=economy.simulate(economy.Simulation(
+        config=cfg, stake=10, turnover_rp=4000,auto_sessions=5,auto_paid_rounds=10))
+    assert impossible["projection"]["planned_auto_exceeds_paid_turnover"] is True
+    assert impossible["projection"]["feasible_expected_pool"] is False
 
 
 def test_all_ten_free_spins_and_five_independent_promotional_credits(client, monkeypatch):
