@@ -317,6 +317,20 @@ def state(request: Request, response: Response):
             item['stake'] = item['charged_stake']
             item['created_at'] = completed_round['created_at']
             hist.append(item)
+        # Preserve older Classic/legacy SPIN entries that predate Orbit.
+        # Normal Orbit-paid rows already mirrored in spins must not appear twice.
+        seen = {item['id'] for item in hist}
+        for legacy in spin.spin_history(db, account['id'], 24):
+            if legacy['id'] in seen:
+                continue
+            legacy.update(tier=None, bonus=None, pattern=None, rules_version=1,
+                          nominal_stake=legacy['stake'],
+                          charged_stake=legacy['stake'], free_spin=False,
+                          promo_coin=0, regular_payout=legacy['payout'],
+                          complete=True, picked=3)
+            hist.append(legacy)
+        hist.sort(key=lambda item: (item['created_at'], item['id']), reverse=True)
+        hist = hist[:8]
         response.headers['Cache-Control'] = 'no-store'
         return {'account': spin.account_view(account), 'round': view_round(row),
                 'recent': hist, 'rules': public_rules(economy.active(db)[1])}
