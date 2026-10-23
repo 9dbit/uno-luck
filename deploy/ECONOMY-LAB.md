@@ -15,6 +15,12 @@ Rp400 / 800 / 1,000 / 2,000 / 4,000 / 10,000. Steps can be edited in the admin.
 Existing behavior remains active on deploy until an authenticated administrator
 presses Apply. The initial draft is intentionally distinct from the old prototype:
 
+For a reviewed first-time staging activation, an operator may run
+`python -m app.activate_economy_preset` from the service shell. The command
+publishes revision 1 only when no active revision exists; it never overwrites an
+existing configuration. All later changes continue through authenticated,
+versioned Economy Lab publishing.
+
 | Outcome | Unconditional probability | Gross payout × BET |
 |---|---:|---:|
 | No match | 90.7347% | 0 |

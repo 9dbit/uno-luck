@@ -1,10 +1,12 @@
 """Versioned admin economy, independent payout math and ledger safety."""
 import itertools
 import json
+import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from app import economy, orbit, spin
+from app.activate_economy_preset import activate
 from app.main import app
 
 TOKEN='test-only-economy-admin-secret-not-for-production'
@@ -24,6 +26,19 @@ def config(): return economy.PRESET.model_dump(mode='json')
 def publish(c,cfg=None,revision=0): return c.post('/api/admin/economy/publish',headers=HEAD,json={'config':cfg or config(),'expected_revision':revision})
 def pick(c,i,stake=10): return c.post('/api/orbit/pick',headers={'x-uno-client':'spin-ui'},json={'request_id':f'economy-round-request-{i}','stake':stake})
 def hand(faces,colors=('blue',)*3): return [dict(face=str(f),color=c) for f,c in zip(faces,colors)]
+
+
+def test_activate_preset_once_without_overwriting(tmp_path):
+    db=sqlite3.connect(tmp_path/'activation.sqlite3',isolation_level=None)
+    db.row_factory=sqlite3.Row
+    try:
+        first=activate(db)
+        assert first['activated'] is True and first['revision']==1
+        assert first['rtp_percent']==pytest.approx(89.99952285714286)
+        second=activate(db)
+        assert second['activated'] is False and second['revision']==1
+        assert db.execute('SELECT COUNT(*) FROM economy_configs').fetchone()[0]==1
+    finally: db.close()
 
 
 def test_auth_no_config_leak_and_origin(client):

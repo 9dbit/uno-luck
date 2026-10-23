@@ -37,8 +37,18 @@ const sizes=[[320,568],[320,700],[393,659],[393,852],[390,844],[430,932],[852,39
   const close=()=>p.locator('#modal-close').click();
   const menu=async(name)=>{await p.locator('#profile-btn').click();if(name)await p.getByRole('button',{name,exact:true}).click();};
   async function bounds(){
-   await p.locator('#modal img').evaluateAll(imgs=>Promise.all(imgs.map(img=>img.decode())));
-   assert(await p.locator('#modal img').evaluateAll(imgs=>imgs.every(img=>img.naturalWidth>0)),'panel artwork loaded');
+   const images=p.locator('#modal img');
+   await images.evaluateAll(imgs=>Promise.all(imgs.map(img=>img.complete&&img.naturalWidth>0?undefined:img.decode())));
+   // Wallet/tournament requests can replace panel content while images from the
+   // previous render are decoding. Retry against the current DOM so a valid
+   // replacement is not reported as a broken asset, but keep 404/invalid images
+   // as a hard failure with their exact source in the assertion output.
+   try{
+    await p.waitForFunction(()=>[...document.querySelectorAll('#modal img')].every(img=>img.complete&&img.naturalWidth>0),null,{timeout:5000});
+   }catch{
+    const broken=await images.evaluateAll(imgs=>imgs.filter(img=>!img.complete||img.naturalWidth<=0).map(img=>({src:img.currentSrc||img.src,complete:img.complete,width:img.naturalWidth})));
+    assert.fail('panel artwork loaded: '+JSON.stringify(broken));
+   }
    const dims=await p.evaluate(()=>({page:document.documentElement.scrollWidth<=innerWidth+1,content:document.querySelector('#modal-content').scrollWidth<=document.querySelector('#modal-content').clientWidth+1}));
    assert(dims.page&&dims.content,JSON.stringify(dims));
    for(const sel of ['#modal-close','.panel-primary'])if(await p.locator(sel).count()){
