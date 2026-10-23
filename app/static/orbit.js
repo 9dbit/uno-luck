@@ -457,7 +457,7 @@ function showRules(){
     paragraph(area,`COLOR PAIR · Minimal dua kartu memiliki warna sama, kecuali jika memenuhi Rank/angka kembar yang lebih tinggi. Hadiah ${ruleset.color_bonus.pair_multiplier}× BET.`);
     paragraph(area,`COLOR SEQUENCE · Dua kartu berdampingan sewarna dengan angka berurutan. Hadiah ${ruleset.color_bonus.sequence_multiplier}× BET. Tiga angka sewarna berurutan tetap Golden Match.`);
   }
-  paragraph(area,'ZONK · Tidak ada kemenangan dari kombinasi kartu, payout permainan 0.');
+  paragraph(area,'ZONK (NO MATCH) · Tidak ada kemenangan dari kombinasi kartu, payout permainan 0.');
   paragraph(details,'Hadiah permainan biasa dan jackpot Rank tetap ditentukan RNG independen, tanpa jaminan hasil tertentu. Untuk AUTO, 5 bonus promosi dijamin setelah memulai sesi berbayar, ditempatkan acak pada 10 free spins dan dicatat terpisah dari hasil kartu.');
   paragraph(details,'AUTO maksimal 10 ronde berbayar ditambah 10 ronde gratis, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
   area.append(details);
