@@ -141,7 +141,17 @@ async function unlockAudio(){
   if(ok){window.UNOLuckSound.setEnabled(sfxEnabled);startMusic();}
   return Boolean(ok);
 }
-window.UNOLuckAudio={unlock:unlockAudio,preview:()=>sfx('tap'),get state(){return window.UNOLuckSound?.state||'inactive';}};
+function activateSoundFromSplash(){
+  // PLAY WITH SOUND is an explicit opt-in even after a prior saved mute.
+  // Keep ALL Sound Cloud mixer values and trim selections unchanged.
+  musicEnabled=true;sfxEnabled=true;
+  localStorage.setItem(MUTE_MUSIC,'on');
+  localStorage.setItem(MUTE_EFFECTS,'on');
+  window.UNOLuckSound?.setEnabled(true);
+}
+window.UNOLuckAudio={unlock:unlockAudio,preview:()=>sfx('tap'),
+  enableFromSplash:activateSoundFromSplash,
+  get state(){return window.UNOLuckSound?.state||'inactive';}};
 function winBurst(card,count=36){
   const layer=$('win-particles');layer.replaceChildren();
   if(reducedMotion)return;
@@ -700,8 +710,9 @@ function listeners(){
     control.classList.remove('ui-pressed');
     control.classList.add('ui-pressed');
     setTimeout(()=>control.classList.remove('ui-pressed'),140);
-    if(control.id==='boot-play')void Promise.resolve(window.UNOLuckSound?.unlock()).then(()=>sfx('tap')); // splash owns music activation
-    else sfx('tap');
+    // The splash is the native iOS audio activation gesture. Do not schedule
+    // an extra async click SFX that may interrupt/steal its media route.
+    if(control.id!=='boot-play')sfx('tap');
   },true);
   $('spin-btn').addEventListener('click',pickOne);
   $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();void unlockAudio();say(isTurbo?'Turbo aktif, animasi lebih cepat.':'Turbo nonaktif.');});
@@ -736,12 +747,14 @@ function listeners(){
     if($('game-shell').classList.contains('is-booting'))return;
     // HTMLMediaElement.play() MUST run in the trusted iOS event before any
     // awaited AudioContext.resume(), otherwise WebKit may reject the request.
-    if(musicEnabled&&window.UNOLuckSound?.webAudioState!=='running')
+    const nativeIOS=Boolean(window.UNOLuckSoundStudio?.isIOS?.());
+    if(musicEnabled&&(nativeIOS||window.UNOLuckSound?.webAudioState!=='running'))
       void window.UNOLuckSoundStudio?.playMusicGesture?.();
     void unlockAudio().then(yes=>{
       const musicReady=!musicEnabled ||
-        window.UNOLuckSound?.webAudioState==='running' ||
-        window.UNOLuckSoundStudio?.isMusicMediaPlaying?.();
+        (nativeIOS?window.UNOLuckSoundStudio?.isMusicMediaPlaying?.():
+          window.UNOLuckSound?.webAudioState==='running' ||
+          window.UNOLuckSoundStudio?.isMusicMediaPlaying?.());
       if(yes&&musicReady){
         document.removeEventListener('pointerdown',activate,true);
         document.removeEventListener('touchend',activate,true);
