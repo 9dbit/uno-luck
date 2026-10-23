@@ -81,6 +81,8 @@ class Simulation(BaseModel):
     seed: StrictInt = Field(default=42, ge=0, le=2**32-1)
     turnover_rp: StrictInt = Field(default=1000000, ge=1, le=10**12)
     costs_rp: StrictInt = Field(default=0, ge=0, le=10**12)
+    auto_sessions: StrictInt = Field(default=0, ge=0, le=1000000)
+    auto_paid_rounds: StrictInt = Field(default=10, ge=1, le=10)
 
 class Target(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -261,6 +263,22 @@ def simulate(payload):
         raise HTTPException(422, 'BET simulasi harus tersedia dalam tahapan BET')
     dist = distribution(config)
     expected = sum(m*p for m,p in dist)
+    if payload.auto_paid_rounds not in (1,3,5,10):
+        raise HTTPException(422,'AUTO hanya menerima 1, 3, 5, atau 10 ronde berbayar')
+    paid_per_auto_rp = payload.stake * payload.auto_paid_rounds * VIRTUAL_RP_PER_COIN
+    free_per_auto_rp = 10 * payload.stake * VIRTUAL_RP_PER_COIN
+    # Five fixed gifts with a randomly selected 30/50/100% value. These gifts
+    # are not part of the card-game RNG or regular theoretical RTP.
+    gift_min_rp = paid_per_auto_rp * 5 * .30
+    gift_expected_rp = paid_per_auto_rp * 5 * (.30+.50+1.0)/3
+    gift_max_rp = paid_per_auto_rp * 5
+    promo_cost_min_rp = payload.auto_sessions * (gift_min_rp + free_per_auto_rp*expected)
+    promo_cost_expected_rp = payload.auto_sessions * (gift_expected_rp + free_per_auto_rp*expected)
+    promo_cost_max_rp = payload.auto_sessions * (gift_max_rp + free_per_auto_rp*expected)
+    period_expected_surplus_rp = (1-expected) * payload.turnover_rp - promo_cost_expected_rp - payload.costs_rp
+    period_worst_surplus_rp = (1-expected) * payload.turnover_rp - promo_cost_max_rp - payload.costs_rp
+    break_even_turnover_rp = ((promo_cost_expected_rp + payload.costs_rp)/(1-expected)
+                              if expected < 1 else None)
     # Same exact multiplier distribution as generator; local seeded RNG never drives gameplay.
     rng = random.Random(payload.seed)
     multipliers, weights = zip(*dist)
@@ -283,9 +301,24 @@ def simulate(payload):
         engine_model=ENGINE_MODEL,
         operator_margin_percent=(1-expected)*100,
         operator_expected_per_round=-((expected-1)*payload.stake),
-        projection=dict(turnover_rp=payload.turnover_rp,expected_payout_rp=expected*payload.turnover_rp,
-            gross_result_rp=(1-expected)*payload.turnover_rp,costs_rp=payload.costs_rp,
-            net_result_rp=(1-expected)*payload.turnover_rp-payload.costs_rp),
+        projection=dict(
+            turnover_rp=payload.turnover_rp, expected_payout_rp=expected*payload.turnover_rp,
+            gross_result_rp=(1-expected)*payload.turnover_rp, costs_rp=payload.costs_rp,
+            net_result_rp=period_expected_surplus_rp,
+            auto_sessions=payload.auto_sessions,
+            paid_auto_turnover_rp=payload.auto_sessions*paid_per_auto_rp,
+            auto_bonus_min_rp=payload.auto_sessions*gift_min_rp,
+            auto_bonus_expected_rp=payload.auto_sessions*gift_expected_rp,
+            auto_bonus_max_rp=payload.auto_sessions*gift_max_rp,
+            free_spin_expected_payout_rp=payload.auto_sessions*free_per_auto_rp*expected,
+            promotional_cost_min_rp=promo_cost_min_rp,
+            promotional_cost_expected_rp=promo_cost_expected_rp,
+            promotional_cost_max_rp=promo_cost_max_rp,
+            period_expected_surplus_rp=period_expected_surplus_rp,
+            period_worst_case_surplus_rp=period_worst_surplus_rp,
+            break_even_turnover_rp=break_even_turnover_rp,
+            feasible_expected_pool=period_expected_surplus_rp>=0,
+            feasible_worst_case_pool=period_worst_surplus_rp>=0),
         expected_net=(expected-1)*payload.stake,
         payout_probability_percent=positive_probability*100,
         average_rounds_per_positive_payout=(1/positive_probability if positive_probability else None),
@@ -295,7 +328,7 @@ def simulate(payload):
         sessions=300, stopped_percent=stopped/3, average_rounds=sum(played)/300,
         average_end_balance=sum(endings)/300, p10_balance=endings[29], median_balance=endings[149], p90_balance=endings[269],
         trace=trace, distribution=[dict(multiplier=m,percent=p*100) for m,p in dist],
-        warning='Ekspektasi teoretis sebelum batas saldo. Simulasi 300 sesi berhenti saat saldo tidak cukup dan menerapkan batas saldo; bukan jaminan hasil.',
+        warning='RTP dasar tidak mencakup 10 ronde gratis dan 5 bonus promosi. Proyeksi pool menghitung keduanya terpisah; surplus tidak dijamin. Simulasi 300 sesi hanya untuk ronde dasar.',
         inflation_warning=expected>1)
 
 
