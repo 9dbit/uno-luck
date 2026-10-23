@@ -35,7 +35,7 @@ def test_softtech_zoom_loading_height_and_logo_pulse():
     assert '5.6dvh' in LAYOUT
     assert 'height:clamp(34px,5.6dvh,52px)!important' in LAYOUT
     assert 'is-zooming' in BOOT
-    assert 'boot.js?v=1144' in HTML
+    assert 'boot.js?v=1161' in HTML
     assert "studio()?.armMusicOnSplashGesture?.()" in BOOT
     assert "const musicPromise=Promise.resolve(studio()?.prepareMusicMedia?.())" in BOOT
 
