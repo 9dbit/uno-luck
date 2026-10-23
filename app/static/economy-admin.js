@@ -32,8 +32,17 @@ function renderPool(d){
       (num>=0?'positive':'negative'):'';
     out.append(performanceCard(name,label,kind));
   }
+  out.append(
+    performanceCard('Batas sesi AUTO · margin ekspektasi',fmt(p.max_auto_sessions_expected??0)+' sesi'),
+    performanceCard('Batas sesi AUTO · hadiah maksimum',fmt(p.max_auto_sessions_high_gift??0)+' sesi'),
+    performanceCard('Kapasitas sesi tambahan',fmt(p.available_extra_auto_sessions_expected??0)+' sesi'),
+    performanceCard('Status simulasi periode',
+      p.planned_auto_exceeds_paid_turnover?'Jumlah AUTO melebihi total BET periode':
+      p.feasible_expected_pool?'SURPLUS DIPROYEKSIKAN':'DEFISIT DIPROYEKSIKAN',
+      p.feasible_expected_pool?'positive':'negative')
+  );
   const note=document.createElement('p');note.className='wide';
-  note.textContent='Proyeksi hadiah adalah ekspektasi matematika, bukan jaminan untung operator. Tidak ada penyesuaian RNG berdasarkan pemain, saldo, atau target pool.';
+  note.textContent='Batas sesi adalah rekomendasi berdasarkan RTP dan turnover yang diinput, BUKAN pembatas runtime atau jaminan untung. Sesuaikan jumlah promosi/turnover; tidak ada perubahan RNG menurut pemain, saldo, atau target pool.';
   out.append(note);
 }
 function performanceCard(label,value,kind=''){const cell=document.createElement('article');if(kind)cell.classList.add(kind);cell.append(panelText('span',label),panelText('strong',value));return cell;}
