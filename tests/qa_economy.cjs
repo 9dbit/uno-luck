@@ -42,9 +42,9 @@ const OUT=process.env.UNO_QA_OUT||'artifacts/uno-economy';fs.mkdirSync(OUT,{recu
  const oldChance=await page.locator('#p-PAIR_SUM').inputValue();
  await page.locator('#turnover').fill('1000000');await page.locator('#costs').fill('50000');
  await page.locator('#target-profit').fill('50000');
- assert.equal(Number(await page.locator('#target-margin').inputValue()),10);
+ assert.equal(Number(await page.locator('#target-margin').inputValue()),5);
  await page.locator('#fit-target').click();
- await page.waitForFunction(()=>document.querySelector('#target-status').textContent.includes('margin draft'));
+ await page.waitForFunction(()=>document.querySelector('#target-status').textContent.includes('proyeksi margin periode'));
  await page.waitForFunction(()=>!document.querySelector('#publish').disabled);
  assert.notEqual(await page.locator('#p-PAIR_SUM').inputValue(),oldChance);
  assert((await page.locator('#results').innerText()).includes('Margin operator'));
