@@ -73,14 +73,16 @@ def test_exact_math_independent_enumeration():
     cfg=economy.PRESET
     numbers=[h for h in itertools.product(range(10),repeat=3) if h[0]==h[1] or h[1]==h[2] or h[0]==h[2]]
     assert len(numbers)==280
-    expected=.085656*sum(min(sum(h),10) for h in numbers)/280+.004*sum(min(h[0]*h[1]*h[2],20) for h in numbers)/280
+    nonzero=[h for h in numbers if h[0]*h[1]*h[2]>0]
+    assert len(nonzero)==225
+    expected=.085656*sum(min(sum(h),10) for h in numbers)/280+.004*sum(min(h[0]*h[1]*h[2],20) for h in nonzero)/len(nonzero)
     expected += .0025*25+.0004*40+.00008*80+.000015*150+.000002*300
     result=economy.simulate(economy.Simulation(config=cfg))
     assert result['rtp_percent']==pytest.approx(expected*100)
-    assert result['rtp_percent']==pytest.approx(89.99952285714286)
+    assert result['rtp_percent']==pytest.approx(91.39145936507937)
     assert sum(x['percent'] for x in result['distribution'])==pytest.approx(100)
-    assert result['payout_probability_percent']==pytest.approx(9.156129642857143)
-    assert result['average_rounds_per_positive_payout']==pytest.approx(10.921645)
+    assert result['payout_probability_percent']==pytest.approx(9.234701071428573)
+    assert result['average_rounds_per_positive_payout']==pytest.approx(10.828720846134589)
     assert result['expected_net']==pytest.approx((expected-1)*10)
     assert result==economy.simulate(economy.Simulation(config=cfg))
     empty=economy.simulate(economy.Simulation(config=cfg,balance=9))
@@ -91,7 +93,8 @@ def test_exact_math_independent_enumeration():
     ((2,2,1),('red','blue','green'),'PAIR_SUM',5),
     ((3,3,2),('blue',)*3,'PAIR_PRODUCT',18),
     ((9,9,9),('blue',)*3,'PAIR_PRODUCT',20),
-    ((0,0,0),('blue',)*3,'PAIR_PRODUCT',0),
+    ((0,0,0),('blue',)*3,'COLOR_MATCH',25),
+    ((6,0,6),('blue',)*3,'COLOR_MATCH',25),
     (('+2','+2',4),('red','blue','yellow'),'PAIR_SUM',8),
     (('+2','+2',4),('blue',)*3,'PAIR_PRODUCT',16),
     ((2,3,4),('blue',)*3,'COLOR_MATCH',40),
@@ -166,7 +169,7 @@ def test_draw_two_pair_is_value_two_without_changing_distribution():
     assert economy.classify(cards,cfg,draw_two_match=False)==('NO_MATCH',0,None)
     mixed=hand(('+2',2,4),('red','blue','yellow'))
     assert economy.classify(mixed,cfg)==('NO_MATCH',0,None)
-    assert economy.rtp_percent(cfg)==pytest.approx(89.99952285714286)
+    assert economy.rtp_percent(cfg)==pytest.approx(91.39145936507937)
 
 
 def test_balance_cap_and_corrupted_snapshot(client,monkeypatch):
@@ -202,10 +205,11 @@ def test_operator_projection_and_target_are_read_only(client):
     before=client.get('/api/orbit/state').json()['account']['balance']
     result=client.post('/api/admin/economy/simulate',headers=HEAD,json={
         'config':config(),'turnover_rp':1000000,'costs_rp':50000}).json()
-    assert result['operator_margin_percent']==pytest.approx(10.000477142857136)
-    assert result['projection']['expected_payout_rp']==pytest.approx(899995.2285714286)
-    assert result['projection']['gross_result_rp']==pytest.approx(100004.77142857136)
-    assert result['projection']['net_result_rp']==pytest.approx(50004.77142857136)
+    expected_rtp=economy.rtp_percent(economy.PRESET)/100
+    assert result['operator_margin_percent']==pytest.approx((1-expected_rtp)*100)
+    assert result['projection']['expected_payout_rp']==pytest.approx(1000000*expected_rtp)
+    assert result['projection']['gross_result_rp']==pytest.approx(1000000*(1-expected_rtp))
+    assert result['projection']['net_result_rp']==pytest.approx(1000000*(1-expected_rtp)-50000)
     response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':10})
     assert response.status_code==200
     result=response.json();proposed=result['config']
@@ -253,7 +257,7 @@ def test_publish_guardrail_and_actual_performance(client,monkeypatch):
     assert result['rounds']==1 and result['players']==1
     assert result['turnover_coin']==10 and result['payout_coin']==50 and result['gross_coin']==-40
     assert result['actual_rtp_percent']==500
-    assert result['theoretical_rtp_percent']==pytest.approx(89.99952285714286)
+    assert result['theoretical_rtp_percent']==pytest.approx(91.39145936507937)
     assert result['active_revision']==1 and result['engine_model']==economy.ENGINE_MODEL
     assert result['by_combo']==[{'combo':'PAIR_SUM','rounds':1,'turnover_coin':10,'payout_coin':50}]
     assert client.get('/api/admin/economy/performance?days=0',headers=HEAD).status_code==422
