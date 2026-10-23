@@ -32,7 +32,7 @@ def save_policy(c, enabled=True, budget=10000, per_account=1):
     return c.post("/api/admin/economy/promo-policy", headers=ADMIN_HEADERS,
         json={"enabled":enabled, "daily_budget_coin":budget,
               "max_sessions_per_account_day":per_account,
-              "max_sessions_per_day":2, "planned_paid_turnover_coin":1000000,
+              "max_sessions_per_day":20, "planned_paid_turnover_coin":1000000,
               "target_margin_percent":5})
 
 
@@ -251,3 +251,38 @@ def test_promo_budget_and_account_cap_no_hidden_outcomes(client, monkeypatch):
         headers=ADMIN_HEADERS).json()
     assert next_day["booked_coin"]==0 and next_day["sessions_today"]==0
     assert client.post("/api/auto/start",headers=CLIENT_HEADERS,json=third_req).status_code==200
+
+
+def test_operator_margin_budget_guardrail_and_global_slots(client):
+    # New campaigns must not be enabled against a forecast that cannot
+    # fund their reserved gifts while leaving the operator's target margin.
+    weak = client.post("/api/admin/economy/promo-policy", headers=ADMIN_HEADERS,
+        json={"enabled":True,"daily_budget_coin":3000,
+              "max_sessions_per_account_day":1,"max_sessions_per_day":2,
+              "planned_paid_turnover_coin":1000,"target_margin_percent":5})
+    assert weak.status_code == 422, weak.text
+    assert not client.get("/api/admin/economy/promo-policy",
+        headers=ADMIN_HEADERS).json()["enabled"]
+    funded = client.post("/api/admin/economy/promo-policy", headers=ADMIN_HEADERS,
+        json={"enabled":True,"daily_budget_coin":3000,
+              "max_sessions_per_account_day":1,"max_sessions_per_day":2,
+              "planned_paid_turnover_coin":80000,"target_margin_percent":5})
+    assert funded.status_code == 200, funded.text
+    cfg = funded.json()
+    assert cfg["max_affordable_budget_coin"] >= 3000
+    assert cfg["projected_margin_percent"] >= cfg["target_margin_percent"]
+    assert cfg["max_sessions_per_day"] == 2
+
+    for n in range(2):
+        client.cookies.clear()
+        client.get("/api/orbit/state")
+        opened = client.post("/api/auto/start", headers=CLIENT_HEADERS,
+            json={"request_id":f"two-slots-{n}-unique-100","stake":10,"paid_rounds":1})
+        assert opened.status_code == 200, opened.text
+    client.cookies.clear()
+    client.get("/api/orbit/state")
+    denied=client.post("/api/auto/start",headers=CLIENT_HEADERS,
+        json={"request_id":"third-global-slot-unique-100",
+              "stake":10,"paid_rounds":1})
+    assert denied.status_code==409
+    assert "Jatah sesi Gift operator" in denied.json()["detail"]
