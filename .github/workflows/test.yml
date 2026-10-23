@@ -49,6 +49,8 @@ jobs:
         run: |
           export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-${GITHUB_RUN_ID}"
           export UNO_SOUND_ADMIN_TOKEN="uno-ci-only-shared-sound-secret-for-playwright-2026"
+          export UNO_QA_ADMIN_PASSWORD="ci-password-test-only"
+          export UNO_ADMIN_PASSWORD_HASH="$(python -c 'import os; from app.admin_auth import hash_password; print(hash_password(os.environ["UNO_QA_ADMIN_PASSWORD"]))')"
           python tests/seed_ci_published_sounds.py
           python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-server.log 2>&1 &
           for i in $(seq 1 30); do
@@ -57,6 +59,7 @@ jobs:
           done
           python -m py_compile tests/visual_qa_shared_sound.py tests/visual_qa_smooth_hud_splash.py tests/visual_qa_iphone15pro_fullbleed.py
           npm install --no-save --package-lock=false playwright
+          python tests/visual_qa_admin_password.py
           node tests/qa_numeric_bonus.cjs
           UNO_SPIN_DB_PATH=/tmp/uno-economy-qa.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8081 > /tmp/uno-economy-server.log 2>&1 &
           for i in $(seq 1 30); do
@@ -91,6 +94,7 @@ jobs:
         with:
           name: uno-v11-sound-studio-responsive
           path: |
+            artifacts/uno-admin-password/*
             artifacts/uno-economy/*
             artifacts/uno-v13-solid-led/*
             artifacts/uno-v1143-player-admin/*

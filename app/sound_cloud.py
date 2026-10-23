@@ -14,10 +14,11 @@ import re
 import secrets
 import threading
 from pathlib import Path
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import quote, unquote
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse
+from .admin_auth import require_admin
 
 router = APIRouter(prefix="/api/sounds", tags=["UNO LUCK Shared Sounds"])
 CUES = (
@@ -75,20 +76,6 @@ def _write(root: Path, data: dict) -> None:
         os.replace(tmp, root / "manifest.json")
     finally:
         tmp.unlink(missing_ok=True)
-
-
-def require_admin(request: Request) -> None:
-    expected = os.environ.get("UNO_SOUND_ADMIN_TOKEN", "")
-    supplied = request.headers.get("x-uno-sound-admin", "")
-    if len(expected) < 32:
-        raise HTTPException(503, "Sound publishing belum dikonfigurasi")
-    if not secrets.compare_digest(supplied, expected):
-        raise HTTPException(403, "Admin Sound Studio authorization diperlukan")
-    origin = request.headers.get("origin")
-    if origin:
-        parts = urlsplit(origin)
-        if parts.scheme not in ("https", "http") or parts.netloc != request.headers.get("host", ""):
-            raise HTTPException(403, "Origin tidak diizinkan")
 
 
 def check_cue(key: str) -> None:

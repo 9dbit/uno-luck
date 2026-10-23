@@ -35,7 +35,7 @@ def test_safari_play_button_activates_published_splash_in_trusted_event():
     assert "promise=player.play()" in STUDIO
     assert "media-src 'self' blob:" in HTML
     assert "boot.js?v=1144" in HTML
-    assert "sound-studio.js?v=1144" in HTML
+    assert "sound-studio.js?v=1155" in HTML
     assert "const activate=()=>{" in (ROOT/'orbit.js').read_text()
 
 

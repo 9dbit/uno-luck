@@ -71,3 +71,16 @@ The default draft has theoretical RTP 79.025%, so the operator's expected gross 
 The editor accepts a target margin or a target net virtual amount. Net target converts to margin using `(net target + entered costs) / turnover * 100`. Turnover is total stakes, not wallet balances or deposits. Costs include only values entered by the admin; omitted bonuses, infrastructure costs and other expenses are not automatically counted. Projections are expectations before the account cap, not guaranteed profit.
 
 `POST /api/admin/economy/target` is authenticated and read-only. It scales all seven reward category probabilities proportionally toward the desired RTP, rounds to four decimals, and assigns the remainder to NO_MATCH. Stake steps, multipliers and caps remain unchanged. The result reports the actual margin and rounding difference, rejects invalid/out-of-range targets and any target that would silently remove a previously nonzero category. It never publishes. Admin must review the updated simulation and explicitly apply the draft. Arbitrary later odds/multiplier edits recompute actual results but do not silently force the draft back to its target.
+
+## Admin password
+
+Economy Lab and Sound Studio accept an optional password configured exclusively as
+`UNO_ADMIN_PASSWORD_HASH` on the service. The hash uses PBKDF2-SHA256, 600,000
+iterations and a random 16-byte salt. No password or deployed hash belongs in Git.
+The existing `UNO_SOUND_ADMIN_TOKEN` remains valid and still requires 32 characters.
+Same-origin checks apply to both methods. Password checks allow eight attempts per
+server-observed client address per 60 seconds, per worker; successful checks reset
+the counter. This limiter is process-local and resets on restart. Forwarding
+headers are not trusted as identities. Proxied clients may share a limit.
+Browser credentials live only in memory and must be re-entered after reload.
+Adding or rotating the password does not publish audio or economy configuration.
