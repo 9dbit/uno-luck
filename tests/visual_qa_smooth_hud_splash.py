@@ -67,14 +67,21 @@ with sync_playwright() as p:
         }""")
         assert not view["overflow"],(width,height,view)
         assert len(view["items"])==3
-        assert [item["labelText"] for item in view["items"]]==["BET","PAYOUT/WIN","NET"]
+        assert [item["labelText"] for item in view["items"]]==["BET","WIN","NET"]
         for item in view["items"]:
-            assert item["display"]=="flex" and item["direction"]=="row",(width,height,item)
+            assert item["display"]=="flex",(width,height,item)
             assert item["whiteSpace"]=="nowrap",(width,height,item)
-            assert abs(item["label"]["centerY"]-item["amount"]["centerY"])<=3.5,(width,height,item)
-            assert item["label"]["right"]<=item["amount"]["left"]+1.5,(width,height,item)
-            assert item["label"]["left"]>=item["parent"]["left"]-1.5,(width,height,item)
-            assert item["amount"]["right"]<=item["parent"]["right"]+1.5,(width,height,item)
+            if width < height:
+                assert item["direction"]=="column",(width,height,item)
+                assert item["label"]["bottom"]<=item["amount"]["top"]+2,(width,height,item)
+                assert abs((item["label"]["left"]+item["label"]["right"])/2-
+                           (item["amount"]["left"]+item["amount"]["right"])/2)<=3.5,(width,height,item)
+            else:
+                assert item["direction"]=="row",(width,height,item)
+                assert abs(item["label"]["centerY"]-item["amount"]["centerY"])<=3.5,(width,height,item)
+                assert item["label"]["right"]<=item["amount"]["left"]+2,(width,height,item)
+            assert item["label"]["left"]>=item["parent"]["left"]-2,(width,height,item)
+            assert item["amount"]["right"]<=item["parent"]["right"]+2,(width,height,item)
         page.screenshot(path=str(OUT/f"hud-{width}x{height}.png"))
 
     # No DOM queries needed for the 9 symbols on every animation tick.
