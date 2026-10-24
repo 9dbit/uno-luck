@@ -20,6 +20,12 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8080';
     typeof stateLoading==='boolean'&&!stateLoading &&
     typeof window.UNOLuckMotion?.numbers==='function');
   await page.evaluate(()=>{
+   // DOM-only assertion fixture: the regular PLAY WITH SOUND splash keeps
+   // gameplay visibility:hidden. Expose it without touching player APIs.
+   const shell=document.getElementById('game-shell');
+   shell.classList.remove('is-booting');
+   shell.removeAttribute('aria-hidden');
+   document.getElementById('boot-overlay').hidden=true;
    window.__blueRound={stake:25,charged_stake:25,picked:3,complete:true,
      combo:'COLOR_MATCH',payout:625,promo_coin:0,delta:600,
      cards:[6,0,6].map(n=>({color:'blue',face:String(n)})),
