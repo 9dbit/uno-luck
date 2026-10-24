@@ -106,9 +106,11 @@ function updateButtons(){
 }
 async function api(path,method='GET',body){
   const req={method,credentials:'same-origin',headers:{}};
-  const controller=method==='GET'?new AbortController():null;
-  const timeout=controller?setTimeout(()=>controller.abort(),6000):null;
-  if(controller){req.signal=controller.signal;req.cache='no-store';}
+  const controller=new AbortController();
+  // POST /pick uses a replay-safe request ID; timeouts must never freeze
+  // Safari while its wheel keeps spinning. State recovery checks the server.
+  const timeout=setTimeout(()=>controller.abort(),method==='GET'?6000:14500);
+  req.signal=controller.signal;req.cache='no-store';
   if(method!=='GET'){req.headers['Content-Type']='application/json';req.headers['X-UNO-Client']='spin-ui';req.body=JSON.stringify(body??{});}
   try{
   let response;
@@ -116,7 +118,7 @@ async function api(path,method='GET',body){
   let data;try{data=await response.json();}catch(_){throw Error('Server mengirim respons tak valid.');}
   if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:`HTTP ${response.status}`);
   return data;
-  }finally{if(timeout!==null)clearTimeout(timeout);}
+  }finally{clearTimeout(timeout);}
 }
 async function legacyBonus(endpoint){
   const response=await fetch('/api/spin/'+endpoint,{method:'POST',headers:{'X-UNO-Client':'spin-ui','Content-Type':'application/json'},credentials:'same-origin',body:'{}'});
@@ -125,12 +127,20 @@ async function legacyBonus(endpoint){
   return data;
 }
 async function autoApi(path,method='GET',body){
-  const response=await fetch('/api/auto'+path,{method,credentials:'same-origin',
-    cache:'no-store',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},
-    ...(body?{body:JSON.stringify(body)}:{})});
-  const data=await response.json().catch(()=>null);
-  if(!response.ok||!data)throw Error(data?.detail||'AUTO server tidak tersedia.');
-  return data;
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),12000);
+  try{
+    const response=await fetch('/api/auto'+path,{method,credentials:'same-origin',
+      signal:controller.signal,cache:'no-store',
+      headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},
+      ...(body?{body:JSON.stringify(body)}:{})});
+    const data=await response.json().catch(()=>null);
+    if(!response.ok||!data)throw Error(data?.detail||'AUTO server tidak tersedia.');
+    return data;
+  }catch(error){
+    if(error.name==='AbortError')throw Error('Koneksi AUTO timeout, coba lagi. Sesi tetap tersimpan.');
+    throw error;
+  }finally{clearTimeout(timer);}
 }
 function sfx(name){if(sfxEnabled)window.UNOLuckSound?.play(name);}
 function startMusic(){
@@ -356,7 +366,7 @@ async function showAutoGift(){
   overlay.append(confetti,panel);
   document.body.append(overlay);
   winBurst({color:'yellow'},48);
-  let done=false,voiceStarted=false,waitingForSound=false;
+  let done=false,voiceStarted=false,waitingForSound=false,voiceAttempts=0;
   const release=()=>{if(overlay.isConnected)overlay.remove();giftModalOpen=false;updateButtons();};
   try {
     const approved=await new Promise(resolve=>{
@@ -367,6 +377,7 @@ async function showAutoGift(){
       document.addEventListener('visibilitychange',hide,{once:true});
       const voice=async()=>{
         if(waitingForSound)return;
+        voiceAttempts++;
         waitingForSound=true;
         action.disabled=true;action.textContent='🔊 FREE SPIINNN…';
         status.textContent='🔊 Free Spiinnn! · Boom! · Tadaa!';
@@ -383,6 +394,12 @@ async function showAutoGift(){
         if(voiceStarted){
           status.textContent='✨ 10 FREE SPINS SUDAH SIAP · tekan CONTINUE';
           action.textContent='CONTINUE ▶';
+        }else if(voiceAttempts>=2){
+          // A user must never become locked in a promo overlay just because
+          // Safari denies native media. Disclose audio failure explicitly.
+          voiceStarted=true;
+          status.textContent='Suara diblokir perangkat. Periksa volume atau aktifkan audio, lalu lanjutkan.';
+          action.textContent='CONTINUE ▶ (TANPA AUDIO)';
         }else{
           // iOS may deny audio outside a trusted tap. Do not silently skip
           // the requested voice: the next tap retries .play() synchronously.
@@ -397,10 +414,8 @@ async function showAutoGift(){
         }
         action.disabled=true;action.textContent='MELANJUTKAN…';
         try{
-          const confirmed=await Promise.race([
-            autoApi('/gift/continue','POST',{session_id:activeAutoSession.id}),
-            wait(12000).then(()=>{throw Error('Koneksi timeout saat CONTINUE')})
-          ]);
+          const confirmed=await autoApi('/gift/continue','POST',
+            {session_id:activeAutoSession.id});
           activeAutoSession=confirmed.session;
           announceAutoGift=false;
           close(true);
