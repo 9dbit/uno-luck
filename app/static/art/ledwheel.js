@@ -75,6 +75,7 @@
       this.lastSelected=null;
       this.cardConfirmed=false;
       this.idleTimer=0;
+      this.settleWatchdog=0;
       this.idleEnabled=!REDUCED;
       this.idleInterval=480;
       this.chaseIndex=-1;
@@ -247,6 +248,7 @@
       if(REDUCED)return;
       const tick=now=>{
         if(!this.active)return;
+        try {
         // Do not plan an endpoint until the server has acknowledged the card.
         // Once acknowledged, choose a whole number of remaining steps that
         // ends EXACTLY at the fixed fifth LED under the golden pointer.
@@ -284,8 +286,22 @@
           window.UNOLuckSound?.ledTick(Boolean(this.deceleration));
         }
         this.raf=requestAnimationFrame(tick);
+        } catch(error) {
+          console.warn('[UNO LED] RAF recovered',error);
+          // A thrown animation-frame callback must never strand a paid ACK.
+          if(this.ready?.card)this.forceComplete();
+          else this.cancel();
+        }
       };
       this.raf=requestAnimationFrame(tick);
+    }
+    forceComplete(){
+      if(!this.active||!this.ready?.card)return false;
+      // iOS can suppress RAF in low-power mode, standalone PWA, or while
+      // transitioning to an overlay. The server card is already confirmed.
+      this.setLight(PICKS);
+      this.complete();
+      return true;
     }
     settle(card,picked) {
       if(!this.active)throw Error('Cannot settle LED wheel before SPIN');
@@ -295,14 +311,19 @@
       // Capture before complete() clears this.pending. Reduced-motion users must
       // receive the same acknowledged server pick rather than a false failure.
       const acknowledged=this.pending;
+      // Stop-gap must run even when requestAnimationFrame is suspended.
+      // It only displays the server-confirmed card, never generates one.
+      clearTimeout(this.settleWatchdog);
+      this.settleWatchdog=setTimeout(()=>this.forceComplete(),4300);
       if(REDUCED){
-        this.illuminate(PICKS);
+        this.setLight(PICKS);
         this.complete();
       }
       return acknowledged;
     }
     complete() {
       if(!this.active)return;
+      clearTimeout(this.settleWatchdog);this.settleWatchdog=0;
       this.stopSpinAudio();
       cancelAnimationFrame(this.raf);
       this.raf=0;
@@ -341,14 +362,19 @@
       const dy=to.top+to.height/2-(from.top+from.height/2);
       const sx=to.width/from.width;
       const sy=to.height/from.height;
+      let effect=null,guard=0;
       try{
-        await item.animate([
+        effect=item.animate([
           {transform:'translate3d(0,0,0) scale(.88)',opacity:1,filter:'brightness(2)'},
           {transform:`translate3d(${dx*.47}px,${dy*.47-25}px,0) scale(${(sx+1)/2})`,opacity:1,filter:'brightness(2.2)',offset:.48},
           {transform:`translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})`,opacity:1,filter:'brightness(1)'}
-        ],{duration:this.turbo?290:520,easing:'cubic-bezier(.2,.72,.2,1)',fill:'forwards'}).finished;
-      }catch(_){/* DOM can be removed by navigation/reduced-motion */}
-      finally{item.remove();}
+        ],{duration:this.turbo?290:520,easing:'cubic-bezier(.2,.72,.2,1)',fill:'forwards'});
+        await Promise.race([
+          effect.finished.catch(()=>{}),
+          new Promise(resolve=>{guard=setTimeout(resolve,900);})
+        ]);
+      }catch(_){/* Safari can suspend or reject animation.finished */}
+      finally{clearTimeout(guard);try{effect?.cancel();}catch(_){}item.remove();}
     }
     recover(card){
       this.cancel();
@@ -361,6 +387,7 @@
       this.startIdle();
     }
     cancel(){
+      clearTimeout(this.settleWatchdog);this.settleWatchdog=0;
       this.stopSpinAudio();
       this.stopIdle();
       this.clearIllumination();
