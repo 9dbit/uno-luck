@@ -65,7 +65,7 @@ def test_bgm_independent_from_sfx_mute_and_no_unnecessary_restart():
 def test_only_asset_versions_changed_not_cloud_settings():
     assert "sound.js?v=1161" in HTML
     assert "sound-studio.js?v=1161" in HTML
-    assert "orbit.js?v=1161" in HTML
+    assert "orbit.js?v=1163" in HTML
     assert "boot.js?v=1161" in HTML
     assert "const KEY='uno_sound_studio_profiles_v1'" in STUDIO
     assert "await publishCue(key)" in STUDIO
