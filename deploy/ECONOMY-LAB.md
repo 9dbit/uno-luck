@@ -198,3 +198,51 @@ At the start of a NEW SPIN 1/3, the mobile interface clears the
 previous three-card result and shows WIN/NET as pending ("—") rather
 than misleadingly pairing old results with the new spin indicator.
 The latest JavaScript uses a bumped Safari cache version.
+
+## Auto Spin promotion UX, rules v6 QA (24 October 2026)
+
+The AUTO campaign is accepted atomically by the existing daily virtual-Coin
+budget gate, and its ten Free Spins and five transparent promotional awards
+remain independent from the usual game CSPRNG. The player first completes
+**all three cards of the first PAID round**. Once the third actual server card
+has settled and any real rank/bonus has finished, the client presents
+**THREE GOLD JACKPOT GIFT CARDS AS A PROMOTIONAL REVEAL**. These illustrated
+cards do not replace or falsify the three server-drawn game result cards,
+do not imply a separate paid win and do not debit or award additional Coin.
+
+The new full-screen promotion includes confetti, offline WAV speech saying
+"Free Spiinnn!" with an explosion and long fanfare, then **CONTINUE**. On
+iOS, if audio is blocked outside a native touch, the same button first
+offers **PUTAR FREE SPINS**, then CONTINUE after playback. If media is
+unavailable even after a retry, the error is disclosed and a no-audio
+CONTINUE path prevents trapping the user. STOP defers the reveal.
+
+The server stores an idempotent `gift_ack_at` flag. New paid/free rounds
+are refused until CONTINUE follows one complete 3-card first round.
+Relaunching the PWA resumes the same pending gift once, and the endpoint
+never creates payout or changes RNG. Previously accepted older AUTO sessions
+which had already passed their first round are marked previously acknowledged
+on migration so legacy credits and payout contracts remain unchanged.
+
+The LED animation has a watchdog that settles an already-confirmed server
+card even if iOS suspends requestAnimationFrame; card transfer animation
+has a separate timeout. API POST waits are bounded with retained idempotent
+request identifiers. Turbo changes the LED movement only: its numeric
+fanfare runs on a separate native 2.85-second audio element and the next
+AUTO round waits for it to end. The UI no longer uses unreliable late
+speechSynthesis as the only Free Spins voice source.
+
+### Privacy-safe PAYOUT ticker
+
+`GET /api/activity/public` returns public *settled* PAYOUT and total BET
+Coin from the database, not invented activity. Display names are masked,
+stable **pseudonyms**. Live totals increase only when actual settlements
+are committed; no "fake progress" is shown to players.
+
+The opt-in QA flag `UNO_QA_ACTIVITY_DEMO=1` instead serves visibly marked
+**SIMULASI QA / PAYOUT DEMO**, with sample masked Indonesian aliases and
+synthetic virtual-Coin awards. The illustrative BET ticker starts at
+**889,980,250 Coin** and increases every second in that QA-only demo,
+but it is NOT a transaction count or operator revenue. The simulation
+designation must remain prominent and must never be passed off as live
+player social proof. This flag must not be enabled in production.
