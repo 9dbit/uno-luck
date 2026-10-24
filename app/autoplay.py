@@ -39,6 +39,10 @@ class StartRequest(BaseModel):
     paid_rounds: int = Field(ge=1, le=10)
 
 
+class GiftContinueRequest(BaseModel):
+    session_id: str = Field(min_length=8, max_length=100)
+
+
 def schema(db: sqlite3.Connection) -> None:
     db.execute("""CREATE TABLE IF NOT EXISTS auto_sessions (
         id TEXT PRIMARY KEY,
@@ -55,6 +59,7 @@ def schema(db: sqlite3.Connection) -> None:
         finished_at REAL,
         budget_day TEXT,
         reserved_coin INTEGER NOT NULL DEFAULT 0,
+        gift_ack_at REAL,
         UNIQUE(account_id, request_id)
     )""")
     existing = {column['name'] for column in db.execute("PRAGMA table_info(auto_sessions)")}
@@ -62,6 +67,12 @@ def schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE auto_sessions ADD COLUMN budget_day TEXT")
     if 'reserved_coin' not in existing:
         db.execute("ALTER TABLE auto_sessions ADD COLUMN reserved_coin INTEGER NOT NULL DEFAULT 0")
+    if 'gift_ack_at' not in existing:
+        db.execute("ALTER TABLE auto_sessions ADD COLUMN gift_ack_at REAL")
+        # Sessions begun under the old "gift on first card" UI already
+        # received their announcement; never replay it or revoke free spins.
+        db.execute("""UPDATE auto_sessions SET gift_ack_at=created_at
+            WHERE completed_rounds>=1""")
     db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS ix_auto_account_active
                ON auto_sessions(account_id) WHERE finished_at IS NULL""")
     db.execute("""CREATE INDEX IF NOT EXISTS ix_auto_budget_day
@@ -217,6 +228,9 @@ def view(row) -> dict | None:
         "free_rounds": row["free_rounds"],
         "completed_rounds": row["completed_rounds"],
         "rounds_remaining": max(0, total - row["completed_rounds"]),
+        "gift_ready": row["completed_rounds"]>=1 and row["gift_ack_at"] is None,
+        "gift_acknowledged": row["gift_ack_at"] is not None,
+        "gift_reveal": "3 PROMO JACKPOT cards after first complete 3-card round (visual only)",
         "free_remaining": max(0, total - max(row["completed_rounds"], row["paid_rounds"])),
         "promotional_rewards": PROMO_REWARDS,
         "promo_credited_coin": row["promo_credited"],
@@ -234,6 +248,39 @@ def status(request: Request, response: Response):
         account = spin.get_account(request, response, db)
         response.headers["Cache-Control"] = "no-store"
         return {"session": view(active(db, account["id"]))}
+    finally:
+        db.close()
+
+
+@router.post("/gift/continue")
+def continue_gift(request: Request, response: Response, payload: GiftContinueRequest):
+    """Persist CONTINUE after the first complete paid round.
+
+    The three gold JACKPOT GIFT cards are a promotional visual, not a new
+    wager outcome. This endpoint never debits/credits coins or changes RNG.
+    The idempotent acknowledgement protects against Safari reloads.
+    """
+    spin.guard_write(request)
+    from . import orbit
+    db = orbit.open_db()
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        account = spin.account_from_session(request, db)
+        row = by_id(db, account['id'], payload.session_id)
+        if row is None:
+            raise HTTPException(404, "Sesi AUTO tidak ditemukan.")
+        if row["completed_rounds"] < 1:
+            raise HTTPException(409, "Tiga kartu pertama belum lengkap.")
+        if row["gift_ack_at"] is None:
+            db.execute("UPDATE auto_sessions SET gift_ack_at=? WHERE id=? AND gift_ack_at IS NULL",
+                       (time.time(), row["id"]))
+        current = by_id(db, account['id'], payload.session_id)
+        db.commit()
+        response.headers["Cache-Control"] = "no-store"
+        return {"session": view(current), "acknowledged": True}
+    except Exception:
+        if db.in_transaction:db.rollback()
+        raise
     finally:
         db.close()
 
@@ -324,6 +371,8 @@ def round_terms(row) -> tuple[int, bool]:
     index = row["completed_rounds"]
     if index >= total or row["finished_at"] is not None:
         raise HTTPException(409, "Sesi AUTO sudah selesai")
+    if index >= 1 and row["gift_ack_at"] is None:
+        raise HTTPException(409, "Tekan CONTINUE setelah JACKPOT GIFT untuk melanjutkan AUTO.")
     free = index >= row["paid_rounds"]
     return (0 if free else row["stake"]), free
 
