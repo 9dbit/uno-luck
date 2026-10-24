@@ -85,6 +85,7 @@ jobs:
             sleep 1
           done
           UNO_QA_URL=http://127.0.0.1:8083 node tests/qa_auto_gift.cjs
+          UNO_QA_URL=http://127.0.0.1:8083 node tests/qa_activity_ticker.cjs
           python tests/visual_qa_led_chase.py
           python tests/visual_qa_player_admin.py
           python tests/visual_qa_player_panels.py
