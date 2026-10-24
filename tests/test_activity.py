@@ -55,7 +55,7 @@ def test_qa_simulation_is_always_explicitly_labeled(client,monkeypatch):
     assert data['demo_start_coin']==889980250
     assert data['recent']==[
         {'name':'maxw**','payout_coin':88000},
-        {'name':'sutr**','payout_coin':242250},
+        {'name':'sutris**','payout_coin':242250},
         {'name':'zom**','payout_coin':74000}]
     assert all(item['name'].endswith('**') for item in data['recent'])
     assert 'total_bet_coin' not in data
