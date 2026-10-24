@@ -37,7 +37,9 @@ const layouts=[
    await page.goto(BASE+'/',{waitUntil:'domcontentloaded'});
    await page.waitForFunction(()=>window.UNOLuckActivity &&
      ['live','simulation'].includes(window.UNOLuckActivity.mode) &&
-     typeof window.UNOLuckMotion?.numbers==='function',null,{timeout:18000});
+     typeof window.UNOLuckMotion?.numbers==='function' &&
+     typeof account!=='undefined' && Boolean(account) && !stateLoading,
+     null,{timeout:18000});
    await page.evaluate(safe=>{
      const g=document.getElementById('game-shell');
      if(safe){
