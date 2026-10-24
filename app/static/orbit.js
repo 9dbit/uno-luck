@@ -24,7 +24,7 @@ function symbol(face){return ({SKIP:'⊘',REVERSE:'⇄','+2':'+2','+4':'+4',WILD
 
 function htmlCard(data,small=false,placeholder=false){
   const color = COLORS.includes(data.color) ? data.color : (data.color==='wild'?'wild':'blue');
-  const face = String(data.face || '?').slice(0,8);
+  const face = String(data.face ?? '?').slice(0,8);
   const asset = placeholder ? 'card-placeholder' : `card-${color}`;
   const el=document.createElement('div');
   el.className='card3d'+(placeholder?' placeholder':'');
