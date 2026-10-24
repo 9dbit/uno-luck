@@ -13,7 +13,7 @@ const aliases=['adit**','rizk**','sutr**','maxw**','zom**','bayu**',
     'faja**','putr**','dima**','wahy**','bima**','nugg**','arif**',
     'fitr**','rani**','agus**','bagu**','hend**'];
 const sample=[{name:'maxw**',payout_coin:88000},
- {name:'sutr**',payout_coin:242250},{name:'zom**',payout_coin:74000}];
+ {name:'sutris**',payout_coin:242250},{name:'zom**',payout_coin:74000}];
 let state=null,cycle=0,fetching=false,liveTimer=null,simTimer=null;
 const deterministic=n=>{
   let x=(n+0x6d2b79f5)|0;
@@ -27,7 +27,13 @@ function makeItems(data){
     const span=document.createElement('span');span.className='activity-win';
     const name=document.createElement('b');name.textContent=String(item.name||'Pemain**').slice(0,24);
     const value=document.createElement('strong');
-    value.textContent=money(Math.max(0,Number(item.payout_coin)||0));
+    // QA examples are illustrative Rp amounts; live Coin winnings use the
+    // fixed, NON-REDEEMABLE virtual conversion (1 Coin = 40 nominal Rp).
+    const amount=Math.max(0,Number(item.payout_coin)||0);
+    value.textContent='Rp'+money(data.mode==='simulation'?amount:amount*40);
+    value.title=data.mode==='simulation'?
+      'SIMULASI QA: nominal Rp fiktif, bukan pembayaran pemain':
+      'Ekuivalen Rp virtual dari Coin, tidak dapat dicairkan';
     span.append(name,value);
     return span;
   });
@@ -38,13 +44,12 @@ function render(data){
   board.dataset.mode=simulated?'simulation':'live';
   modeEl.textContent=simulated?'SIMULASI QA':'TERCATAT';
   const head=board.querySelector('.activity-head');
-  if(head)head.textContent=simulated?'✦ PAYOUT DEMO':'✦ PAYOUT LIVE';
+  if(head)head.textContent='✦ PAYOUT';
   modeEl.title=simulated?'Contoh visual dengan nama dan jumlah acak, bukan aktivitas nyata':
     'Kemenangan dari ronde berbayar yang sudah dicatat pada server';
   const items=makeItems(data);
   feedEl.replaceChildren();
-  const label=document.createElement('b');label.textContent=simulated?
-    'PAYOUT SIMULASI':'PAYOUT COIN';
+  const label=document.createElement('b');label.textContent='PAYOUT:';
   label.className='activity-feed-label';feedEl.append(label);
   if(items.length){
     for(let pass=0;pass<2;pass++)
@@ -65,11 +70,11 @@ function updateCount(){
     const value=Math.max(0,Number(state.demo_start_coin)||0)+
       elapsed*111 + Math.floor(elapsed/4)*125 +
       Math.floor(deterministic(elapsed)*48);
-    betEl.textContent=money(value);
-    betEl.title='SIMULASI QA · bertambah otomatis setiap detik · bukan total BET riil';
+    betEl.textContent='Rp'+money(value);
+    betEl.title='SIMULASI QA · Rupiah fiktif untuk tampilan · bukan BET atau pembayaran nyata';
   }else{
-    betEl.textContent=money(Math.max(0,Number(state.total_bet_coin)||0));
-    betEl.title='Total BET Coin virtual dari ronde berbayar yang selesai dan tercatat';
+    betEl.textContent='Rp'+money(Math.max(0,Number(state.total_bet_coin)||0)*40);
+    betEl.title='Ekuivalen Rp virtual dari BET Coin tercatat (1 Coin = Rp40 virtual), tidak dapat dicairkan';
   }
 }
 async function refresh(){
@@ -104,7 +109,7 @@ async function refresh(){
   }catch(error){
     if(!state){
       modeEl.textContent='BELUM TERHUBUNG';
-      feedEl.textContent='Menunggu data PAYOUT virtual…';
+      feedEl.textContent='Menunggu data PAYOUT…';
       betEl.textContent='—';
     }
   }finally{fetching=false;}
