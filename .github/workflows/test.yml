@@ -79,7 +79,7 @@ jobs:
             sleep 1
           done
           UNO_QA_URL=http://127.0.0.1:8082 UNO_QA_ENGINE=webkit node tests/qa_economy.cjs
-          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_SPIN_DB_PATH=/tmp/uno-auto-gift-qa.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8083 > /tmp/uno-auto-gift-server.log 2>&1 &
+          UNO_QA_ACTIVITY_DEMO=1 UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_SPIN_DB_PATH=/tmp/uno-auto-gift-qa.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8083 > /tmp/uno-auto-gift-server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8083/health >/dev/null; then break; fi
             sleep 1
