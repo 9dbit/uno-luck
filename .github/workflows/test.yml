@@ -28,6 +28,7 @@ jobs:
       - run: node --check app/static/pwa-update.js
       - run: node --check app/static/art/motion.js
       - run: node --check app/static/art/ledwheel.js
+      - run: node --check app/static/art/promo-audio.js
       - run: node --check app/static/art/sound.js
       - run: node --check app/static/art/sound-studio.js
       - run: node --check app/static/art/mirror-loop.js
