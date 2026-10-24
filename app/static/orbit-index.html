@@ -42,7 +42,7 @@
   <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1161">
   <link rel="stylesheet" href="/assets/art/viewport-v11.css?v=1143">
   <link rel="stylesheet" href="/assets/player-panels.css?v=1157">
-  <link rel="stylesheet" href="/assets/art/responsive-gameplay.css?v=1164">
+  <link rel="stylesheet" href="/assets/art/responsive-gameplay.css?v=1165">
   <title>UNO LUCK | Dragon Spin v1.1</title>
 </head>
 <body>
@@ -101,6 +101,11 @@
         <div><small>WIN</small><strong id="last-payout">—</strong><button type="button" class="metric-open" id="payout-open" aria-label="Wallet WIN bruto" aria-haspopup="dialog"></button></div>
         <div><small>NET</small><strong id="last-delta">—</strong><button type="button" class="metric-open" id="win-open" aria-label="Wallet NET atau selisih setelah BET" aria-haspopup="dialog"></button></div>
       </div>
+    <section id="total-bet-row" class="total-bet-row" role="group" aria-label="Total BET dalam Rupiah virtual">
+      <span class="activity-total-label">TOTAL BET</span>
+      <strong id="activity-total" class="activity-total" aria-label="Total BET dalam ekuivalen Rupiah virtual">—</strong>
+      <span id="activity-mode" class="activity-mode">MEMUAT</span>
+    </section>
     <section class="wheel-area" aria-label="Setengah lingkaran sembilan placeholder kartu LED">
       <div class="wheel-stage">
       <img class="dragon-wheel-art wheel-static-v09" src="/assets/art/v2/wheel-dragon.webp" alt="" aria-hidden="true" decoding="async">
@@ -119,12 +124,9 @@
       <button id="audio-retry" class="audio-retry" type="button" hidden aria-label="Aktifkan suara iPhone">🔊 AKTIFKAN SUARA</button>
       <div id="win-particles" class="win-particles" aria-hidden="true"></div>
     </section>
-    <section id="activity-board" class="activity-board" aria-label="Running text payout dan total BET nominal virtual">
+    <section id="activity-board" class="activity-board" aria-label="Running text payout virtual">
       <div class="activity-topline">
         <strong class="activity-head">PAYOUT</strong>
-        <span class="activity-total-label">TOTAL BET</span>
-        <strong id="activity-total" class="activity-total" aria-label="Total BET dalam ekuivalen Rupiah virtual">—</strong>
-        <span id="activity-mode" class="activity-mode">MEMUAT</span>
       </div>
       <div class="activity-viewport" aria-label="Daftar payout terakhir">
         <div id="activity-feed" class="activity-feed"><span>Menunggu aktivitas payout…</span></div>

@@ -68,6 +68,7 @@ const layouts=[
        return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,
          width:r.width,height:r.height};
      };
+     const totalStyle=getComputedStyle(get('#total-bet-row'));
      const hud=[...get('.result-bar').querySelectorAll(':scope>div')].map(
        c=>({label:c.querySelector('small').textContent,
          direction:getComputedStyle(c).flexDirection,
@@ -78,7 +79,10 @@ const layouts=[
        header:rect('.game-header'),title:rect('.title-area'),
        cards:rect('.result-area'),bet:rect('.game-shell>.result-bar'),
        wheel:rect('.wheel-area'),stage:rect('.wheel-stage'),
-       ticker:rect('#activity-board'),shell:rect('#game-shell'),
+       ticker:rect('#activity-board'),totalBet:rect('#total-bet-row'),
+       totalVisual:{background:totalStyle.backgroundColor,image:totalStyle.backgroundImage,
+         border:parseFloat(totalStyle.borderTopWidth),shadow:totalStyle.boxShadow},
+       shell:rect('#game-shell'),
        hud,headline:get('.activity-head').textContent,
        tickerText:get('#activity-board').textContent,
        total:get('#activity-total').textContent,
@@ -105,6 +109,16 @@ const layouts=[
      !measured.tickerText.includes('PAYOUT SIMULASI') &&
      !measured.tickerText.includes('COIN VIRTUAL'),
      [engine,layout.name,measured.tickerText]);
+   assert(measured.totalBet.top>=measured.bet.bottom-3 &&
+     measured.totalBet.bottom<=measured.wheel.top+3,
+     [engine,layout.name,'unboxed TOTAL BET must sit between BET and wheel',measured]);
+   assert(measured.totalVisual.background==='rgba(0, 0, 0, 0)' &&
+     measured.totalVisual.image==='none' &&
+     measured.totalVisual.border===0 &&
+     measured.totalVisual.shadow==='none',
+     [engine,layout.name,'TOTAL BET has a background/frame/shadow',measured.totalVisual]);
+   assert(measured.stage.width>=Math.min(measured.wheel.width,measured.wheel.height)-17,
+     [engine,layout.name,'Dragon SPIN panel did not grow to fill its row',measured]);
    assert(measured.total.startsWith('Rp'),
      [engine,layout.name,'No Rupiah prefix',measured.total]);
    assert(measured.digits==='625',[engine,layout.name,measured.digits]);
@@ -116,7 +130,7 @@ const layouts=[
      [engine,layout.name,'horizontal overflow',measured]);
    assert(measured.scrollH<=measured.screenH+2,
      [engine,layout.name,'vertical overflow',measured]);
-   for(const key of ['header','title','cards','bet','wheel','ticker']){
+   for(const key of ['header','title','cards','bet','totalBet','wheel','ticker']){
      assert(measured[key].left>=-3&&measured[key].right<=measured.screenW+3,
        [engine,layout.name,key,'horizontal clip',measured]);
    }
@@ -161,7 +175,7 @@ const layouts=[
    }
    await page.screenshot({path:path.join(OUT,engine+'-'+layout.name+'.png')});
    assert.deepEqual(errors,[],[engine,layout.name,errors]);
-   console.log(engine+' '+layout.name+': PASS six rows, bottom ticker, large typography, no overlap');
+   console.log(engine+' '+layout.name+': PASS seven rows, unboxed TOTAL BET, larger SPIN, bottom ticker, no overlap');
    await context.close();
   }
   await browser.close();

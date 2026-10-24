@@ -40,9 +40,17 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   const layout=await page.evaluate(()=>{
     const box=selector=>document.querySelector(selector).getBoundingClientRect();
     const a=box('#activity-board'),h=box('.title-area'),
-      cards=box('.result-area'),bar=box('.result-bar'),wheel=box('.wheel-area'),
+      cards=box('.result-area'),bar=box('.result-bar'),total=box('#total-bet-row'),
+      wheel=box('.wheel-area'),
       shell=box('.game-shell');
+    const style=getComputedStyle(document.querySelector('#total-bet-row'));
     return {
+      totalBelowBet:total.top>=bar.bottom-3,
+      totalAboveWheel:total.bottom<=wheel.top+3,
+      transparentTotal:style.backgroundColor==='rgba(0, 0, 0, 0)' &&
+        style.backgroundImage==='none' &&
+        parseFloat(style.borderTopWidth)===0 &&
+        style.boxShadow==='none',
       afterWheel:a.top>=wheel.bottom-3,
       afterBet:a.top>=bar.bottom+3,
       awayFromTitle:a.top>=h.bottom+3,
@@ -52,10 +60,12 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
       width:a.width,screen:window.innerWidth
     };
   });
+  assert(layout.totalBelowBet&&layout.totalAboveWheel&&layout.transparentTotal,
+    ['unboxed TOTAL BET placement/background',layout]);
   assert(layout.afterWheel&&layout.afterBet&&layout.awayFromTitle&&
     layout.awayFromCards&&layout.inViewport,layout);
   assert(layout.font>=12,layout);
   assert(layout.width<=layout.screen,layout);
-  console.log('PASS: transparent QA payout demo, censored aliases, monotonic illustrative counter, mobile bounds');
+  console.log('PASS: transparent TOTAL BET beneath HUD, labeled QA counter, bottom payout ticker, mobile bounds');
   await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});

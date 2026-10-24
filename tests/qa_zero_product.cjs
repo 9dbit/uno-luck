@@ -14,7 +14,11 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8080';
   const page=await context.newPage();
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.goto(BASE+'/',{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>typeof paintRound==='function'&&account!==null);
+  // account is assigned before loadState awaits AUTO state; wait for its final
+  // paint to finish so a late network response cannot overwrite this fixture.
+  await page.waitForFunction(()=>typeof paintRound==='function'&&account!==null &&
+    typeof stateLoading==='boolean'&&!stateLoading &&
+    typeof window.UNOLuckMotion?.numbers==='function');
   await page.evaluate(()=>{
    window.__blueRound={stake:25,charged_stake:25,picked:3,complete:true,
      combo:'COLOR_MATCH',payout:625,promo_coin:0,delta:600,
