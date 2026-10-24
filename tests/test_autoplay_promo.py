@@ -135,6 +135,19 @@ def test_all_ten_free_spins_and_five_independent_promotional_credits(client, mon
         assert body["round"]["combo"] == "NO_MATCH"
         assert body["round"]["payout"] == 0
         assert body["round"]["free_spin"] is (index > 1)
+        if index==1:
+            state=client.get("/api/auto/state").json()["session"]
+            assert state["gift_ready"] is True
+            assert state["gift_acknowledged"] is False
+            blocked=request_pick(client,2,1,10,session_id)
+            assert blocked.status_code==409 and "CONTINUE" in blocked.json()["detail"]
+            ack=client.post("/api/auto/gift/continue",headers=CLIENT_HEADERS,
+                            json={"session_id":session_id})
+            assert ack.status_code==200,ack.text
+            assert ack.json()["session"]["gift_acknowledged"] is True
+            again=client.post("/api/auto/gift/continue",headers=CLIENT_HEADERS,
+                              json={"session_id":session_id})
+            assert again.status_code==200 # idempotent, no new gift or debit
         outputs.append(body)
     assert client.get("/api/auto/state").json()["session"] is None
     assert outputs[0]["account"]["balance"] == 990
@@ -240,6 +253,10 @@ def test_promo_budget_and_account_cap_no_hidden_outcomes(client, monkeypatch):
         for phase in range(3):
             answer=request_pick(client,100+index,phase+1,10,aid)
             assert answer.status_code==200,answer.text
+        if index==0:
+            agreed=client.post("/api/auto/gift/continue",headers=CLIENT_HEADERS,
+                json={"session_id":aid})
+            assert agreed.status_code==200,agreed.text
     again=client.post("/api/auto/start",headers=CLIENT_HEADERS,
         json={**req,"request_id":"same-day-second-auto-2"})
     assert again.status_code==409 and "Batas sesi" in again.json()["detail"]
@@ -325,3 +342,71 @@ def test_existing_qa_budget_is_clamped_after_audited_rtp_change(client):
     state_after=client.get("/api/admin/economy/promo-policy",headers=ADMIN_HEADERS).json()
     assert state_after["booked_coin"] <= state["effective_daily_budget_coin"]
     assert state_after["remaining_coin"] < state["remaining_coin"]
+
+
+def test_promotional_gift_requires_completed_three_cards_and_no_duplicate_credit(client):
+    assert save_policy(client).status_code==200
+    start=client.post("/api/auto/start",headers=CLIENT_HEADERS,json={
+        "request_id":"first-three-cards-promo-gift-999","stake":10,"paid_rounds":1})
+    assert start.status_code==200,start.text
+    sid=start.json()["session"]["id"]
+    assert start.json()["session"]["gift_ready"] is False
+    before=client.post("/api/auto/gift/continue",headers=CLIENT_HEADERS,
+         json={"session_id":sid})
+    assert before.status_code==409
+    for phase in (1,2):
+        card=request_pick(client,800,phase,10,sid)
+        assert card.status_code==200,card.text
+        assert client.get("/api/auto/state").json()["session"]["gift_ready"] is False
+    still=client.post("/api/auto/gift/continue",headers=CLIENT_HEADERS,
+         json={"session_id":sid})
+    assert still.status_code==409
+    final=request_pick(client,800,3,10,sid)
+    assert final.status_code==200,final.text
+    assert final.json()["round"]["complete"] is True
+    ready=client.get("/api/auto/state").json()["session"]
+    assert ready["gift_ready"] is True
+    assert ready["gift_acknowledged"] is False
+    blocked=request_pick(client,801,1,10,sid)
+    assert blocked.status_code==409
+    db=orbit.open_db()
+    funded_before=db.execute("SELECT COALESCE(SUM(delta),0) FROM ledger WHERE account_id=?",
+        (db.execute("SELECT account_id FROM auto_sessions WHERE id=?",(sid,)).fetchone()[0],)).fetchone()[0]
+    db.close()
+    ack=client.post("/api/auto/gift/continue",headers=CLIENT_HEADERS,
+        json={"session_id":sid})
+    replay=client.post("/api/auto/gift/continue",headers=CLIENT_HEADERS,
+        json={"session_id":sid})
+    assert ack.status_code==200 and replay.status_code==200
+    assert ack.json()["session"]["gift_acknowledged"] is True
+    assert ack.json()["session"]["gift_ready"] is False
+    db=orbit.open_db()
+    funded_after=db.execute("SELECT COALESCE(SUM(delta),0) FROM ledger WHERE account_id=?",
+        (db.execute("SELECT account_id FROM auto_sessions WHERE id=?",(sid,)).fetchone()[0],)).fetchone()[0]
+    db.close()
+    assert funded_before==funded_after
+    next_card=request_pick(client,801,1,10,sid)
+    assert next_card.status_code==200,next_card.text
+
+
+def test_migrates_prior_auto_sessions_without_double_promotional_reveal(tmp_path,monkeypatch):
+    monkeypatch.setenv("UNO_SPIN_DB_PATH",str(tmp_path/"old-auto-gift.db"))
+    spin.INITIALIZED.clear();orbit._initialized.clear()
+    db=orbit.open_db()
+    account=db.execute("SELECT id FROM accounts LIMIT 1").fetchone()
+    if account is None:
+        db.execute("INSERT INTO accounts(id,token_hash,balance,created_at) VALUES(?,?,?,?)",
+                   ("gift-old-player","abc",1000,1))
+    db.execute("""INSERT INTO auto_sessions(id,account_id,request_id,stake,
+       paid_rounds,free_rounds,completed_rounds,gift_slots_json,gift_rates_json,
+       created_at,budget_day,reserved_coin)
+       VALUES('old-auto','gift-old-player','old-request',10,1,10,3,
+              '[1,2,3,4,5]','[30,50,100,30,50]',1,'2026-10-24',200)""")
+    db.execute("ALTER TABLE auto_sessions DROP COLUMN gift_ack_at")
+    orbit._initialized.clear()
+    db.close()
+    db=orbit.open_db()
+    row=db.execute("SELECT * FROM auto_sessions WHERE id='old-auto'").fetchone()
+    assert row["gift_ack_at"]==row["created_at"]
+    assert row["completed_rounds"]==3
+    db.close()
