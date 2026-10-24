@@ -1,0 +1,56 @@
+name: UNO Luck Responsive Gameplay QA
+
+on:
+  pull_request:
+    paths:
+      - 'app/static/orbit-index.html'
+      - 'app/static/art/responsive-gameplay.css'
+      - 'app/static/art/activity-ticker.js'
+      - 'app/static/art/motion.js'
+      - 'tests/qa_responsive_mobile.cjs'
+      - 'tests/qa_activity_ticker.cjs'
+      - 'tests/visual_qa_iphone15pro_fullbleed.py'
+      - '.github/workflows/qa-responsive.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  layout-and-accessibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install app and browser QA dependencies
+        run: |
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium webkit
+          npm install --no-save --package-lock=false playwright
+      - name: Run isolated virtual-Coin QA fixture
+        run: |
+          UNO_QA_ACTIVITY_DEMO=1 UNO_SPIN_DB_PATH=/tmp/uno-responsive-test.sqlite3 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-layout-server.log 2>&1 &
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:8080/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health > /dev/null
+          UNO_QA_URL=http://127.0.0.1:8080 node tests/qa_activity_ticker.cjs
+          UNO_QA_URL=http://127.0.0.1:8080 node tests/qa_responsive_mobile.cjs
+          UNO_QA_URL=http://127.0.0.1:8080 UNO_QA_ENGINE=webkit \
+            python tests/visual_qa_iphone15pro_fullbleed.py
+          UNO_QA_URL=http://127.0.0.1:8080 UNO_QA_ENGINE=chromium \
+            python tests/visual_qa_iphone15pro_fullbleed.py
+      - name: Upload portrait, landscape, and desktop snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uno-responsive-portrait-landscape
+          path: |
+            artifacts/uno-v1164-responsive/*.png
+            artifacts/uno-v12-iphone15pro-fullbleed/*.png
+          if-no-files-found: ignore
