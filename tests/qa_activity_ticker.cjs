@@ -13,7 +13,14 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   assert.equal(source.mode,'simulation');
   assert.equal(source.demo_start_coin,889980250);
   await page.goto(BASE+'/',{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.UNOLuckActivity?.mode==='simulation',{timeout:15000});
+  await page.waitForFunction(()=>window.UNOLuckActivity?.mode==='simulation',null,{timeout:15000});
+  // The visual game is intentionally hidden behind PLAY WITH SOUND.
+  // Read-only ticker geometry QA may reveal it without bypassing game APIs.
+  await page.evaluate(()=>{
+    document.querySelector('#game-shell').classList.remove('is-booting');
+    document.querySelector('#game-shell').removeAttribute('aria-hidden');
+    document.querySelector('#boot-overlay').hidden=true;
+  });
   assert.equal(await page.locator('#activity-mode').innerText(),'SIMULASI QA');
   assert.equal(await page.locator('.activity-head').innerText(),'✦ PAYOUT');
   assert(!(await page.locator('#activity-board').innerText()).includes('COIN VIRTUAL'));
