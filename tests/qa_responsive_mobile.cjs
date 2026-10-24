@@ -35,8 +35,9 @@ const layouts=[
    const errors=[];
    page.on('pageerror',error=>errors.push(String(error)));
    await page.goto(BASE+'/',{waitUntil:'domcontentloaded'});
-   await page.waitForFunction(()=>Boolean(window.UNOLuckActivity?.mode!=='loading')
-     && typeof window.UNOLuckMotion?.numbers==='function',null,{timeout:18000});
+   await page.waitForFunction(()=>window.UNOLuckActivity &&
+     ['live','simulation'].includes(window.UNOLuckActivity.mode) &&
+     typeof window.UNOLuckMotion?.numbers==='function',null,{timeout:18000});
    await page.evaluate(safe=>{
      const g=document.getElementById('game-shell');
      if(safe){
