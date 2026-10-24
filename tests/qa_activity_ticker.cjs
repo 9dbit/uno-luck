@@ -34,7 +34,13 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   const read=async()=>Number((await page.locator('#activity-total').innerText()).replace(/[^0-9]/g,''));
   const start=await read();
   assert(start>=889980250);
-  await page.waitForTimeout(1300);
+  // GitHub runners can throttle browser timers while the heavy WebKit suite
+  // runs in parallel. Verify eventual monotonic progress, not an exact 1.3s tick.
+  await page.waitForFunction(initial=>{
+    const current=Number((document.querySelector('#activity-total')?.textContent||'')
+      .replace(/[^0-9]/g,''));
+    return Number.isFinite(current)&&current>initial;
+  },start,{timeout:6500});
   const later=await read();
   assert(later>start,{start,later});
   const layout=await page.evaluate(()=>{
