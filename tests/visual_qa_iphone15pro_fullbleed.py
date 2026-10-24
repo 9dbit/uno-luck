@@ -34,6 +34,10 @@ def inspect(page):
       const area=game.querySelector('.wheel-area');
       const stage=game.querySelector('.wheel-stage');
       const caption=game.querySelector('.spin-caption');
+      const ticker=game.querySelector('#activity-board');
+      const betBar=game.querySelector('.result-bar');
+      const title=game.querySelector('.title-area');
+      const cards=game.querySelector('.result-area');
       const controls=['spin-btn','turbo-btn','auto-btn'].map(
         id=>({id,...bounds(document.getElementById(id))}));
       const html=getComputedStyle(document.documentElement);
@@ -59,7 +63,8 @@ def inspect(page):
         scrollHeight:document.documentElement.scrollHeight,
         scrollWidth:document.documentElement.scrollWidth,
         game:bounds(game),area:bounds(area),stage:bounds(stage),
-        caption:bounds(caption),controls
+        caption:bounds(caption),ticker:bounds(ticker),betBar:bounds(betBar),
+        title:bounds(title),cards:bounds(cards),controls
       };
     }""")
 
@@ -123,7 +128,14 @@ with sync_playwright() as p:
             assert data['dragon']['bottom']<=data['caption']['top']-2,(name,'caption hides dragon tail',data)
             assert 5<=float(data['wheelDrop'].replace('px',''))<=19,(name,data)
             assert data['stage']['top']>=data['area']['top']+4,(name,data)
-            assert data['area']['bottom']>=data['innerHeight']-data['safeBottom']-2,(name,data)
+            # Ticker is a SEPARATE 6th row, after the wheel. Do not demand
+            # the wheel itself touches the iPhone home-indicator area.
+            assert data['ticker']['top']>=data['area']['bottom']-3,(name,'payout ticker overlaps wheel',data)
+            assert data['ticker']['top']>=data['betBar']['bottom']+3,(name,'ticker overlaps BET',data)
+            assert data['ticker']['top']>=data['cards']['bottom']+3,(name,'ticker overlaps cards',data)
+            assert data['ticker']['top']>=data['title']['bottom']+3,(name,'ticker overlaps title',data)
+            assert data['ticker']['bottom']>=data['innerHeight']-data['safeBottom']-12,(name,'ticker too high',data)
+            assert data['ticker']['bottom']<=data['game']['bottom']+2,(name,'ticker clipped',data)
         for item in data['controls']:
             assert item['left']>=-2 and item['right']<=width+2,(name,item)
             assert item['top']>=-2 and item['bottom']<=data['innerHeight']+2,(name,item)
