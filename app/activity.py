@@ -43,7 +43,7 @@ def recent_activity(response: Response):
             "as_of":int(time.time()),
             "recent":[
                 {"name":"maxw**","payout_coin":88000},
-                {"name":"sutr**","payout_coin":242250},
+                {"name":"sutris**","payout_coin":242250},
                 {"name":"zom**","payout_coin":74000}
             ]
         }
