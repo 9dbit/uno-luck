@@ -51,4 +51,4 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   assert(layout.width<=layout.screen,layout);
   console.log('PASS: transparent QA payout demo, censored aliases, monotonic illustrative counter, mobile bounds');
   await browser.close();
-})().catch(e=>{console.error(e);process.exitCode=1;});
+})().catch(e=>{console.error(e);process.exit(1);});
