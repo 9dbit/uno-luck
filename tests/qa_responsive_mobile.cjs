@@ -84,6 +84,11 @@ const layouts=[
        total:get('#activity-total').textContent,
        mode:get('#activity-mode').textContent,
        label:get('.activity-total-label').textContent,
+       cardFaces:[...get('.result-area').querySelectorAll('.result-cell .card3d .number')]
+         .map(x=>x.textContent),
+       cardNumberFont:parseFloat(getComputedStyle(
+         get('.result-cell .card3d .number')).fontSize),
+       payoutLabel:get('.result-bar').children[1].querySelector('small').textContent,
        fontTicker:parseFloat(getComputedStyle(get('.activity-feed')).fontSize),
        digits:get('#last-payout').textContent,
        scrollW:document.documentElement.scrollWidth,
@@ -103,6 +108,10 @@ const layouts=[
    assert(measured.total.startsWith('Rp'),
      [engine,layout.name,'No Rupiah prefix',measured.total]);
    assert(measured.digits==='625',[engine,layout.name,measured.digits]);
+   assert.deepEqual(measured.cardFaces,['6','3','8'],
+     [engine,layout.name,'approved mockup card faces',measured.cardFaces]);
+   assert(measured.payoutLabel==='WIN',
+     [engine,layout.name,'PAYOUT text must be WIN',measured.payoutLabel]);
    assert(measured.scrollW<=measured.screenW+2,
      [engine,layout.name,'horizontal overflow',measured]);
    assert(measured.scrollH<=measured.screenH+2,
@@ -132,6 +141,14 @@ const layouts=[
          [engine,layout.name,'HUD still too small',measured.hud]);
        assert(measured.fontTicker>=12,
          [engine,layout.name,'ticker still too small',measured.fontTicker]);
+     }
+     if(layout.width>=390&&layout.height>=660){
+       assert(measured.hud.every(x=>x.labelFont>=14&&x.valueFont>=24),
+         [engine,layout.name,'approved mobile HUD should be 2x legible',measured.hud]);
+       assert(measured.cardNumberFont>=50,
+         [engine,layout.name,'card numbers should dominate result',measured.cardNumberFont]);
+       assert(measured.fontTicker>=13,
+         [engine,layout.name,'ticker font below approved mobile minimum',measured.fontTicker]);
      }
      assert(measured.header.bottom<=measured.title.top+3,
        [engine,layout.name,'header/title overlap',measured]);
