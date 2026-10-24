@@ -21,12 +21,6 @@ const deterministic=n=>{
   x^=x+Math.imul(x^(x>>>7),61|x);
   return ((x^(x>>>14))>>>0)/4294967296;
 };
-function counter(data){
-  const second=Math.max(0,Math.floor(Date.now()/1000-Number(data.epoch_unix||0)));
-  // Clearly demo-only, unlinked to any player transaction. Increases
-  // monotonically each second and survives reload based on the same epoch.
-  return Number(data.demo_start_coin)||0 + second*107;
-}
 function makeItems(data){
   const recent=Array.isArray(data.recent)?data.recent.slice(0,12):[];
   return recent.map(item=>{
@@ -43,6 +37,8 @@ function render(data){
   const simulated=data.mode==='simulation';
   board.dataset.mode=simulated?'simulation':'live';
   modeEl.textContent=simulated?'SIMULASI QA':'TERCATAT';
+  const head=board.querySelector('.activity-head');
+  if(head)head.textContent=simulated?'✦ PAYOUT DEMO':'✦ PAYOUT LIVE';
   modeEl.title=simulated?'Contoh visual dengan nama dan jumlah acak, bukan aktivitas nyata':
     'Kemenangan dari ronde berbayar yang sudah dicatat pada server';
   const items=makeItems(data);
