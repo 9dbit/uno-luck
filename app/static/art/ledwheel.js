@@ -305,7 +305,7 @@
     }
     settle(card,picked) {
       if(!this.active)throw Error('Cannot settle LED wheel before SPIN');
-      if(!card||!card.color||!card.face)throw Error('Server choice missing');
+      if(!card||!card.color||card.face===null||card.face===undefined)throw Error('Server choice missing');
       if(!Number.isInteger(picked)||picked<1||picked>3)throw Error('Invalid pick phase');
       this.ready={card:{...card},picked};
       // Capture before complete() clears this.pending. Reduced-motion users must
