@@ -72,7 +72,7 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     assert.equal(await p.evaluate(()=>window.uiTapCalls.length),before+1,'exactly one push sound per tap');
    };
    assert.equal(await p.locator('#wallet-rupiah').innerText(),'Rp38.000 virtual');
-   assert.deepEqual(await p.locator('.result-bar>div>small').allInnerTexts(),['BET','PAYOUT/WIN','NET']);
+   assert.deepEqual(await p.locator('.result-bar>div>small').allInnerTexts(),['BET','WIN','NET']);
    assert((await p.locator('#win-open').getAttribute('aria-label')).includes('NET'));
    state.recent=[{created_at:1700000000,stake:25,payout:125,delta:100,combo:'PAIR_SUM'},
      {created_at:1700000001,stake:25,payout:0,delta:-25,combo:'NO_MATCH'}];
@@ -80,7 +80,7 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     await tapOnce(p.locator('#'+id));assert.equal(await p.locator('#modal').getAttribute('data-view'),view);
     if(view==='coin'){
      await p.locator('.wallet-dashboard').waitFor();
-     assert.equal(await p.locator('[data-metric="payout"]>span').first().innerText(),'Total PAYOUT/WIN');
+     assert.equal(await p.locator('[data-metric="payout"]>span').first().innerText(),'Total WIN');
      assert.equal(await p.locator('[data-metric="delta"]>span').first().innerText(),'Total NET');
      assert.equal(await p.locator('[data-metric="payout"] .coin-value-text').innerText(),'125 Coin');
      assert.equal(await p.locator('[data-metric="delta"] .wallet-rp').innerText(),'Rp3.000 virtual');
