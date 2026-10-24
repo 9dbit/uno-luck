@@ -553,13 +553,13 @@ async function showWallet(view='all'){
     const recent=data.recent||[];
     const dashboard=panelNode('section','wallet-dashboard');dashboard.setAttribute('aria-label','Ringkasan riwayat wallet');
     dashboard.append(panelNode('p','panel-eyebrow',`RINGKASAN ${recent.length} RONDE TERAKHIR`));
-    for(const [label,key] of [['Total BET','stake'],['Total PAYOUT/WIN','payout'],['Total NET','delta']]){
+    for(const [label,key] of [['Total BET','stake'],['Total WIN','payout'],['Total NET','delta']]){
       const value=recent.reduce((sum,item)=>sum+(Number(item[key])||0),0);
       const metric=panelNode('div','wallet-metric');metric.dataset.metric=key;
       metric.classList.toggle('is-highlighted',(view==='payout'&&key==='payout')||(view==='net'&&key==='delta'));
       metric.append(panelNode('span','',label),coinValue(value),panelNode('small','wallet-rp',virtualRp(value)));dashboard.append(metric);
     }
-    dashboard.append(panelNode('p','panel-fine','PAYOUT/WIN adalah hadiah bruto. NET adalah PAYOUT dikurangi BET, sehingga bisa negatif saat tidak mendapat hadiah. Ringkasan hanya mencakup riwayat yang ditampilkan, bukan seluruh masa bermain.'));
+    dashboard.append(panelNode('p','panel-fine','WIN adalah hadiah bruto. NET adalah PAYOUT dikurangi BET, sehingga bisa negatif saat tidak mendapat hadiah. Ringkasan hanya mencakup riwayat yang ditampilkan, bukan seluruh masa bermain.'));
     history.append(dashboard);
     if(!data.recent?.length)paragraph(history,'Belum ada bet selesai.');
     for(const item of data.recent||[]){
