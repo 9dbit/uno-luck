@@ -392,3 +392,98 @@
   .activity-board .activity-feed{font-size:11px!important}
   .activity-board .activity-total{font-size:13px!important}
 }
+
+
+/* Mobile master composition, approved portrait mockup (24 Oct 2026).
+   Visual-only refinements: no RNG, currency conversion, payout or sound changes.
+   Six distinct rows avoid the previous ticker/title overlap. */
+@media (orientation:portrait) and (min-width:351px) and (max-width:520px)
+       and (min-height:660px){
+  .game-shell{
+    grid-template-rows:9% 9.5% 25.5% 9% minmax(0,40%) minmax(0,7%)!important;
+  }
+  .game-shell>.title-area{
+    padding-top:0!important;
+    justify-content:space-evenly!important;
+  }
+  .title-area .motion-title{
+    height:69%!important;
+    top:0!important;
+    font-size:clamp(37px,10.4vw,54px)!important;
+  }
+  .title-area>p{
+    bottom:1%!important;
+    font-size:clamp(11px,3.1vw,15px)!important;
+  }
+  .game-shell>.result-area{
+    padding:0 2.4% 0!important;
+  }
+  .result-area .result-cards{
+    gap:2.5%!important;
+    align-items:center!important;
+  }
+  .result-area .result-cell .card3d{
+    width:min(100%,19.8dvh,171px)!important;
+    max-height:99%!important;
+    filter:drop-shadow(0 0 7px #ffc04973)
+      drop-shadow(0 4px 5px #27000cab)!important;
+  }
+  .result-area .result-cell .card3d .number{
+    font-size:clamp(50px,15vw,81px)!important;
+  }
+  .game-shell>.result-bar{
+    width:96%!important;
+    max-width:96%!important;
+    height:94%!important;
+    padding:2px 3%!important;
+    border-width:2.5px!important;
+    box-shadow:inset 0 3px 5px #ffcd7773,
+      inset 0 -5px 8px #150000cc,0 0 13px #ff9b3859!important;
+  }
+  .game-shell>.result-bar small{
+    font-size:clamp(14px,3.85vw,19px)!important;
+  }
+  .game-shell>.result-bar strong{
+    font-size:clamp(24px,6.9vw,35px)!important;
+  }
+  .game-shell>.result-bar strong.metric-long{
+    font-size:clamp(17px,4.65vw,24px)!important;
+  }
+  .game-shell>.result-bar strong.metric-very-long{
+    font-size:clamp(13px,3.55vw,18px)!important;
+  }
+  .wheel-area .wheel-stage{
+    top:4px!important;
+  }
+  .game-shell>#activity-board.activity-board{
+    height:calc(100% - 4px)!important;
+    margin-bottom:0!important;
+    grid-template-rows:44% minmax(0,56%)!important;
+  }
+  .activity-board .activity-topline{
+    padding-inline:clamp(9px,2.3vw,14px)!important;
+  }
+  .activity-board .activity-feed{
+    font-size:clamp(13px,3.45vw,17px)!important;
+    gap:clamp(12px,3.7vw,19px)!important;
+  }
+  .activity-board .activity-head{
+    font-size:clamp(11px,3vw,15px)!important;
+  }
+  .activity-board .activity-total{
+    font-size:clamp(13px,3.55vw,20px)!important;
+  }
+}
+/* Short devices require legibility without sacrificing the SPIN tap target. */
+@media (orientation:portrait) and (max-height:659px){
+  .game-shell>.result-bar small{font-size:clamp(10px,3.1vw,14px)!important}
+  .game-shell>.result-bar strong{font-size:clamp(17px,5.3vw,26px)!important}
+  .game-shell>.result-bar strong.metric-long{font-size:clamp(13px,3.8vw,20px)!important}
+  .game-shell>.result-bar strong.metric-very-long{font-size:clamp(11px,3vw,16px)!important}
+  .activity-board .activity-feed{font-size:clamp(11px,3vw,14px)!important}
+}
+/* Desktop: make the ticker legible but never enlarge it over the card board. */
+@media (orientation:landscape) and (min-height:471px){
+  .game-shell>.result-bar{min-width:0}
+  .game-shell>#activity-board.activity-board{max-width:calc(100% - 20px)!important}
+}
