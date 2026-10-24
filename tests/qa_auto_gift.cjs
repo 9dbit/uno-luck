@@ -20,21 +20,21 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   assert.equal(tada.status(),200);
   assert((await tada.body()).length>90000,'Full-length Turbo tadaa is missing');
   await page.goto(BASE+'/',{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>!document.querySelector('#boot-play').disabled,{timeout:30000});
+  await page.waitForFunction(()=>!document.querySelector('#boot-play').disabled,null,{timeout:30000});
   await page.locator('#boot-play').tap();
   await page.waitForFunction(
     ()=>!document.querySelector('#game-shell').classList.contains('is-booting'),
-    {timeout:30000}
+    null,{timeout:30000}
   );
   await page.locator('#auto-btn').tap();
   await page.locator('.auto-grid button[data-rounds="1"]').tap();
   await page.locator('#auto-start').tap();
-  await page.waitForFunction(()=>isAuto&&activeAutoSession!==null,{timeout:14000});
+  await page.waitForFunction(()=>isAuto&&activeAutoSession!==null,null,{timeout:14000});
   // No promo overlay while the first/second card alone is displayed.
-  await page.waitForFunction(()=>currentRound&&currentRound.picked===1,{timeout:12000});
+  await page.waitForFunction(()=>currentRound&&currentRound.picked===1,null,{timeout:12000});
   assert.equal(await page.locator('#auto-gift-banner').count(),0,
     'Free Spins may not be shown after first card');
-  await page.waitForFunction(()=>currentRound&&currentRound.picked===2,{timeout:17000});
+  await page.waitForFunction(()=>currentRound&&currentRound.picked===2,null,{timeout:17000});
   assert.equal(await page.locator('#auto-gift-banner').count(),0,
     'Free Spins may not be shown after second card');
   await page.locator('#auto-gift-banner').waitFor({state:'visible',timeout:35000});
@@ -57,7 +57,7 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   // the player is offered a trusted tap to hear it instead.
   for(let i=0;i<3;i++){
     await page.waitForFunction(()=>!document.querySelector('.auto-gift-continue').disabled,
-      {timeout:12000});
+      null,{timeout:12000});
     const label=await btn.innerText();
     if(label.startsWith('CONTINUE'))break;
     assert(label.includes('PUTAR FREE SPINS'),label);
@@ -73,7 +73,7 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   assert(accepted===null||accepted.gift_acknowledged);
   if(await page.locator('#auto-btn').getAttribute('aria-pressed')==='true')
     await page.locator('#auto-btn').tap();
-  await page.waitForFunction(()=>!isAuto&&!isSpinning,{timeout:18000});
+  await page.waitForFunction(()=>!isAuto&&!isSpinning,null,{timeout:18000});
   assert.equal(await page.locator('.led-running').count(),0);
   assert.deepEqual(errors,[]);
   console.log('PASS: 3 server cards -> disclosed promo triple -> offline voice -> CONTINUE persisted -> AUTO unlock');
