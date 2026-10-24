@@ -8,6 +8,7 @@ import collections
 import itertools
 import json
 import math
+import os
 import random
 import secrets
 import time
@@ -23,8 +24,8 @@ SCALE = 1_000_000
 VIRTUAL_RP_PER_COIN = 40
 MIN_PUBLISH_RTP = Decimal('85')
 MAX_PUBLISH_RTP = Decimal('98')
-ENGINE_MODEL = 'fixed-independent-csprng-v1'
-KEYS = ('NO_MATCH', 'PAIR_SUM', 'PAIR_PRODUCT', 'RANK_5', 'RANK_4', 'RANK_3', 'RANK_2', 'RANK_1')
+ENGINE_MODEL = 'fixed-independent-csprng-v2-positive-pair'
+KEYS = ('NO_MATCH', 'COLOR_PAIR', 'COLOR_SEQUENCE', 'PAIR_SUM', 'PAIR_PRODUCT', 'RANK_5', 'RANK_4', 'RANK_3', 'RANK_2', 'RANK_1')
 
 class Config(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -32,14 +33,27 @@ class Config(BaseModel):
     percentages: dict[str, Decimal]
     sum_cap: StrictInt = Field(ge=5, le=1000)
     product_cap: StrictInt = Field(ge=18, le=1000)
+    color_pair_multiplier: StrictInt = Field(default=2, ge=1, le=24)
+    color_sequence_multiplier: StrictInt = Field(default=4, ge=2, le=24)
     multipliers: list[StrictInt] = Field(min_length=5, max_length=5)  # rank 1 to 5
+
+    @model_validator(mode='before')
+    @classmethod
+    def backwards_compatible(cls, value):
+        if isinstance(value, dict) and isinstance(value.get('percentages'), dict):
+            value = dict(value)
+            percentages = dict(value['percentages'])
+            percentages.setdefault('COLOR_PAIR', Decimal('0'))
+            percentages.setdefault('COLOR_SEQUENCE', Decimal('0'))
+            value['percentages'] = percentages
+        return value
 
     @model_validator(mode='after')
     def valid(self):
         if self.stake_options != sorted(set(self.stake_options)) or self.stake_options[0] != 10 or self.stake_options[-1] > 25000:
             raise ValueError('BET harus terurut, unik, mulai 10 Coin (Rp400 virtual), maksimal 25.000 Coin')
         if set(self.percentages) != set(KEYS):
-            raise ValueError('Delapan kategori peluang wajib diisi')
+            raise ValueError('Sepuluh kategori peluang wajib diisi')
         values = list(self.percentages.values())
         if any(not p.is_finite() or p < 0 or p > 100 or p * 10000 != (p * 10000).to_integral_value() for p in values):
             raise ValueError('Persentase 0–100, maksimal empat angka desimal')
@@ -47,12 +61,16 @@ class Config(BaseModel):
             raise ValueError('Total persentase harus tepat 100%')
         if any(self.percentages[k] <= self.percentages['RANK_5'] for k in ('PAIR_SUM', 'PAIR_PRODUCT')):
             raise ValueError('Peluang masing-masing bonus angka harus lebih besar daripada Lucky Color Win')
-        if not 10000 >= self.multipliers[0] > self.multipliers[1] > self.multipliers[2] > self.multipliers[3] > self.multipliers[4] > max(self.sum_cap, self.product_cap):
+        if self.color_pair_multiplier >= self.color_sequence_multiplier:
+            raise ValueError('Color Sequence harus lebih tinggi daripada Color Pair')
+        if not 10000 >= self.multipliers[0] > self.multipliers[1] > self.multipliers[2] > self.multipliers[3] > self.multipliers[4] > max(self.sum_cap, self.product_cap, self.color_pair_multiplier, self.color_sequence_multiplier):
             raise ValueError('Urutan payout wajib: Rank 1 > 2 > 3 > 4 > Lucky Color Win > kedua batas bonus')
         return self
 
 PRESET = Config(stake_options=[10,20,25,50,100,250],
-    percentages=dict(zip(KEYS, ['90.7347','8.5656','0.4','0.25','0.04','0.008','0.0015','0.0002'])),
+    percentages={'NO_MATCH':'90.7347','COLOR_PAIR':'0','COLOR_SEQUENCE':'0',
+                 'PAIR_SUM':'8.5656','PAIR_PRODUCT':'0.4','RANK_5':'0.25',
+                 'RANK_4':'0.04','RANK_3':'0.008','RANK_2':'0.0015','RANK_1':'0.0002'},
     sum_cap=10, product_cap=20, multipliers=[300,150,80,40,25])
 
 class Simulation(BaseModel):
@@ -64,11 +82,18 @@ class Simulation(BaseModel):
     seed: StrictInt = Field(default=42, ge=0, le=2**32-1)
     turnover_rp: StrictInt = Field(default=1000000, ge=1, le=10**12)
     costs_rp: StrictInt = Field(default=0, ge=0, le=10**12)
+    auto_sessions: StrictInt = Field(default=0, ge=0, le=1000000)
+    auto_paid_rounds: StrictInt = Field(default=10, ge=1, le=10)
 
 class Target(BaseModel):
     model_config = ConfigDict(extra='forbid')
     config: Config
     margin_percent: Decimal = Field(ge=2, le=15)
+    turnover_rp: StrictInt | None = Field(default=None, ge=1, le=10**12)
+    costs_rp: StrictInt = Field(default=0, ge=0, le=10**12)
+    auto_sessions: StrictInt = Field(default=0, ge=0, le=1000000)
+    auto_paid_rounds: StrictInt = Field(default=10, ge=1, le=10)
+    stake: StrictInt = Field(default=10, ge=10, le=25000)
 
 
 def rtp_percent(config: Config) -> float:
@@ -91,6 +116,22 @@ def target_config(payload):
     c = payload.config
     current = sum(Decimal(str(m)) * Decimal(str(p)) for m,p in distribution(c))
     desired = (Decimal(100)-payload.margin_percent)/100
+    period_turnover = Decimal(payload.turnover_rp or 0)
+    bonus_fixed = Decimal(0)
+    free_exposure = Decimal(0)
+    if payload.turnover_rp is not None:
+        if payload.auto_paid_rounds not in (1,3,5,10) or payload.stake not in c.stake_options:
+            raise HTTPException(422, 'Pilih BET dan jumlah ronde AUTO yang valid')
+        paid_auto_turnover = Decimal(payload.auto_sessions*payload.stake*payload.auto_paid_rounds*VIRTUAL_RP_PER_COIN)
+        if paid_auto_turnover > period_turnover:
+            raise HTTPException(422, 'Total BET AUTO melampaui turnover periode')
+        # Five independent disclosed gifts, mean rate 60% of paid AUTO turnover.
+        bonus_fixed = paid_auto_turnover*Decimal(3)
+        free_exposure = Decimal(payload.auto_sessions*10*payload.stake*VIRTUAL_RP_PER_COIN)
+        desired = (period_turnover*(1-payload.margin_percent/100)
+                   - Decimal(payload.costs_rp) - bonus_fixed) / (period_turnover+free_exposure)
+        if desired < Decimal('0.85') or desired > Decimal('0.98'):
+            raise HTTPException(422, 'Target period pool tidak layak pada RTP dasar 85–98%. Kurangi jumlah AUTO, tambah turnover nonpromo, atau ubah target. Hasil pemain tidak akan dimanipulasi.')
     if current <= 0:
         raise HTTPException(422, 'Draft tidak memiliki payout untuk disesuaikan')
     factor = desired/current
@@ -105,9 +146,20 @@ def target_config(payload):
     except ValueError:
         raise HTTPException(422, 'Target melanggar urutan peluang bonus. Pilih target lain')
     margin = 100-sum(m*p for m,p in distribution(proposed))*100
+    period_profit = None
+    period_margin = None
+    if period_turnover:
+        rtp = Decimal(str(rtp_percent(proposed))) / 100
+        period_profit = float(period_turnover*(1-rtp)-Decimal(payload.costs_rp)
+                              -bonus_fixed-free_exposure*rtp)
+        period_margin = period_profit/float(period_turnover)*100
+    actual_target_margin = period_margin if period_margin is not None else margin
     return dict(config=proposed.model_dump(mode='json'),requested_margin_percent=float(payload.margin_percent),
-        actual_margin_percent=margin,rounding_difference_percent=margin-float(payload.margin_percent),
-        note='Draft saja. Semua peluang hadiah disesuaikan proporsional; NO MATCH menjadi sisanya. BET dan multiplier tetap. Margin aktual dapat berbeda karena pembulatan.')
+        actual_margin_percent=margin,
+        actual_period_margin_percent=period_margin,
+        actual_period_surplus_rp=period_profit,
+        rounding_difference_percent=actual_target_margin-float(payload.margin_percent),
+        note='Draft saja. Target periode (jika turnover diberikan) memasukkan lima bonus promo dan payout 10 Free Spins pada nilai ekspektasi. Hasil aktual belum tentu sama; probabilitas pemain tidak disesuaikan berdasarkan saldo atau profit.')
 
 
 class Publish(BaseModel):
@@ -119,6 +171,12 @@ class Publish(BaseModel):
 def schema(db):
     db.execute('''CREATE TABLE IF NOT EXISTS economy_configs (
         revision INTEGER PRIMARY KEY, config_json TEXT NOT NULL, created_at REAL NOT NULL)''')
+    # Only a separately configured, blank QA database can opt into a starting
+    # versioned fixed-RNG economy. Existing production revisions are untouched.
+    if os.getenv('UNO_QA_BOOTSTRAP_ECONOMY') == '1':
+        db.execute('''INSERT OR IGNORE INTO economy_configs
+            (revision,config_json,created_at) VALUES(1,?,?)''',
+            (PRESET.model_dump_json(),time.time()))
 
 
 def active(db):
@@ -133,6 +191,22 @@ def numeric_hands():
     return tuple(h for h in itertools.product(range(10), repeat=3) if len(set(h)) < 3)
 
 
+@lru_cache(maxsize=1)
+def positive_sum_hands():
+    """Avoid announcing a mixed-color numeric bonus with zero actual prize."""
+    return tuple(hand for hand in numeric_hands() if sum(hand)>0)
+
+
+@lru_cache(maxsize=1)
+def positive_product_hands():
+    """Numeric duplicate hands whose product pays a positive bonus.
+
+    A zero-valued triple in one color is instead a Color Match (Rank 5).
+    Restrict the product lane rather than secretly booking a 0-coin win.
+    """
+    return tuple(hand for hand in numeric_hands() if math.prod(hand)>0)
+
+
 def bonus_faces(hand):
     """Render duplicated numeric twos as Draw Two without changing payout math.
 
@@ -142,7 +216,7 @@ def bonus_faces(hand):
     return ['+2' if value == 2 and hand.count(2) >= 2 else str(value) for value in hand]
 
 
-def classify(cards, config, *, draw_two_match=True):
+def classify(cards, config, *, draw_two_match=True, zero_product_fallback=True, zero_sum_fallback=True):
     from . import orbit
     faces = [str(c.get('face')) for c in cards]
     allowed = tuple(map(str, range(10))) + (('+2',) if draw_two_match else ())
@@ -150,9 +224,38 @@ def classify(cards, config, *, draw_two_match=True):
             and len(set(faces)) < 3 and all(c.get('color') in spin.COLORS for c in cards)):
         values = [2 if face == '+2' else int(face) for face in faces]
         same = len({c['color'] for c in cards}) == 1
-        return ('PAIR_PRODUCT', min(math.prod(values), config.product_cap), None) if same else ('PAIR_SUM', min(sum(values), config.sum_cap), None)
+        if same:
+            product = math.prod(values)
+            if product == 0 and zero_product_fallback:
+                # A shared-color triple is visibly a Rank 5 win. Never
+                # advertise a winning three-blue hand that returns 0 Coin.
+                rank = orbit.classify_rank(cards)
+                if rank:
+                    return ('COLOR_MATCH', config.multipliers[rank-1], rank)
+            return ('PAIR_PRODUCT', min(product, config.product_cap), None)
+        total = sum(values)
+        if total > 0 or not zero_sum_fallback:
+            # Keep already-issued v4 snapshots with 0-coin numeric sum valid.
+            return ('PAIR_SUM', min(total, config.sum_cap), None)
+        # A zero-valued mixed-color triple is not a winning numeric pair.
+        # Allow the subsequent color-pair lane to pay if actually eligible.
     rank = orbit.classify_rank(cards)
-    return ('COLOR_MATCH', config.multipliers[rank-1], rank) if rank else ('NO_MATCH', 0, None)
+    if rank:
+        return ('COLOR_MATCH', config.multipliers[rank-1], rank)
+    if len(cards) == 3:
+        colors = [card.get('color') for card in cards]
+        numeric = set(map(str, range(10)))
+        if config.percentages['COLOR_SEQUENCE'] > 0:
+            for position in (0, 1):
+                if (colors[position] == colors[position+1]
+                        and colors[position] in spin.COLORS
+                        and faces[position] in numeric
+                        and faces[position+1] in numeric
+                        and abs(int(faces[position])-int(faces[position+1])) == 1):
+                    return ('COLOR_SEQUENCE', config.color_sequence_multiplier, None)
+        if config.percentages['COLOR_PAIR'] > 0 and any(colors.count(color) >= 2 for color in spin.COLORS):
+            return ('COLOR_PAIR', config.color_pair_multiplier, None)
+    return ('NO_MATCH', 0, None)
 
 
 def draw(config):
@@ -165,13 +268,35 @@ def draw(config):
             key = candidate
             break
     if key in ('PAIR_SUM', 'PAIR_PRODUCT'):
-        hand = secrets.choice(numeric_hands())
+        hand = secrets.choice(
+            positive_product_hands() if key == 'PAIR_PRODUCT'
+            else positive_sum_hands())
         color = secrets.choice(spin.COLORS)
         colors = [color] * 3
         if key == 'PAIR_SUM':
             # Select uniformly over all 60 ordered mixed-color triples.
             colors = secrets.choice(tuple(c for c in itertools.product(spin.COLORS, repeat=3) if len(set(c)) > 1))
         cards = [dict(color=c, face=face) for c,face in zip(colors, bonus_faces(hand))]
+    elif key in ('COLOR_PAIR', 'COLOR_SEQUENCE'):
+        for _ in range(1000):
+            positions = secrets.choice(((0,1),(1,2))) if key == 'COLOR_SEQUENCE' else secrets.choice(((0,1),(0,2),(1,2)))
+            i,j = positions
+            shared = secrets.choice(spin.COLORS)
+            different = secrets.choice(tuple(color for color in spin.COLORS if color != shared))
+            colors = [different,different,different]
+            colors[i] = colors[j] = shared
+            if key == 'COLOR_SEQUENCE':
+                a = secrets.randbelow(9)
+                values = [None,None,None]
+                values[i],values[j] = a,a+1
+                values[3-i-j] = secrets.choice(tuple(value for value in range(10) if value not in (a,a+1)))
+            else:
+                values = secrets.SystemRandom().sample(range(10), 3)
+            cards = [dict(color=color,face=str(value)) for color,value in zip(colors,values)]
+            if classify(cards,config)[0] == key:
+                break
+        else:
+            raise RuntimeError('Unable to generate color prize hand')
     else:
         for _ in range(1000):
             if key == 'NO_MATCH':
@@ -190,10 +315,17 @@ def distribution(config):
     result = collections.defaultdict(float)
     for key in KEYS:
         p = float(config.percentages[key]) / 100
-        if key.startswith('PAIR_'):
-            counts = collections.Counter(min(sum(h),config.sum_cap) if key=='PAIR_SUM' else min(math.prod(h),config.product_cap) for h in numeric_hands())
+        if key == 'COLOR_PAIR':
+            result[config.color_pair_multiplier] += p
+        elif key == 'COLOR_SEQUENCE':
+            result[config.color_sequence_multiplier] += p
+        elif key.startswith('PAIR_'):
+            hands = positive_sum_hands() if key == 'PAIR_SUM' else positive_product_hands()
+            counts = collections.Counter(
+                min(sum(h),config.sum_cap) if key=='PAIR_SUM'
+                else min(math.prod(h),config.product_cap) for h in hands)
             for multiplier, n in counts.items():
-                result[multiplier] += p * n / len(numeric_hands())
+                result[multiplier] += p * n / len(hands)
         else:
             result[config.multipliers[int(key[-1])-1] if key.startswith('RANK_') else 0] += p
     return sorted(result.items())
@@ -205,6 +337,35 @@ def simulate(payload):
         raise HTTPException(422, 'BET simulasi harus tersedia dalam tahapan BET')
     dist = distribution(config)
     expected = sum(m*p for m,p in dist)
+    if payload.auto_paid_rounds not in (1,3,5,10):
+        raise HTTPException(422,'AUTO hanya menerima 1, 3, 5, atau 10 ronde berbayar')
+    paid_per_auto_rp = payload.stake * payload.auto_paid_rounds * VIRTUAL_RP_PER_COIN
+    free_per_auto_rp = 10 * payload.stake * VIRTUAL_RP_PER_COIN
+    # Five fixed gifts with a randomly selected 30/50/100% value. These gifts
+    # are not part of the card-game RNG or regular theoretical RTP.
+    gift_min_rp = paid_per_auto_rp * 5 * .30
+    gift_expected_rp = paid_per_auto_rp * 5 * (.30+.50+1.0)/3
+    gift_max_rp = paid_per_auto_rp * 5
+    promo_cost_min_rp = payload.auto_sessions * (gift_min_rp + free_per_auto_rp*expected)
+    promo_cost_expected_rp = payload.auto_sessions * (gift_expected_rp + free_per_auto_rp*expected)
+    promo_cost_max_rp = payload.auto_sessions * (gift_max_rp + free_per_auto_rp*expected)
+    period_expected_surplus_rp = (1-expected) * payload.turnover_rp - promo_cost_expected_rp - payload.costs_rp
+    period_worst_surplus_rp = (1-expected) * payload.turnover_rp - promo_cost_max_rp - payload.costs_rp
+    break_even_turnover_rp = ((promo_cost_expected_rp + payload.costs_rp)/(1-expected)
+                              if expected < 1 else None)
+    gross_budget_rp = (1-expected) * payload.turnover_rp - payload.costs_rp
+    expected_cost_per_auto_rp = gift_expected_rp + free_per_auto_rp*expected
+    high_gift_cost_per_auto_rp = gift_max_rp + free_per_auto_rp*expected
+    max_auto_by_paid_turnover = math.floor(payload.turnover_rp/paid_per_auto_rp)
+    max_auto_expected = min(
+        max_auto_by_paid_turnover,
+        max(0, math.floor(max(0, gross_budget_rp)/expected_cost_per_auto_rp)),
+    )
+    max_auto_high_gifts = min(
+        max_auto_by_paid_turnover,
+        max(0, math.floor(max(0, gross_budget_rp)/high_gift_cost_per_auto_rp)),
+    )
+    sessions_over_turnover = payload.auto_sessions > max_auto_by_paid_turnover
     # Same exact multiplier distribution as generator; local seeded RNG never drives gameplay.
     rng = random.Random(payload.seed)
     multipliers, weights = zip(*dist)
@@ -227,9 +388,30 @@ def simulate(payload):
         engine_model=ENGINE_MODEL,
         operator_margin_percent=(1-expected)*100,
         operator_expected_per_round=-((expected-1)*payload.stake),
-        projection=dict(turnover_rp=payload.turnover_rp,expected_payout_rp=expected*payload.turnover_rp,
-            gross_result_rp=(1-expected)*payload.turnover_rp,costs_rp=payload.costs_rp,
-            net_result_rp=(1-expected)*payload.turnover_rp-payload.costs_rp),
+        projection=dict(
+            turnover_rp=payload.turnover_rp, expected_payout_rp=expected*payload.turnover_rp,
+            gross_result_rp=(1-expected)*payload.turnover_rp, costs_rp=payload.costs_rp,
+            net_result_rp=period_expected_surplus_rp,
+            auto_sessions=payload.auto_sessions,
+            paid_auto_turnover_rp=payload.auto_sessions*paid_per_auto_rp,
+            auto_bonus_min_rp=payload.auto_sessions*gift_min_rp,
+            auto_bonus_expected_rp=payload.auto_sessions*gift_expected_rp,
+            auto_bonus_max_rp=payload.auto_sessions*gift_max_rp,
+            free_spin_expected_payout_rp=payload.auto_sessions*free_per_auto_rp*expected,
+            promotional_cost_min_rp=promo_cost_min_rp,
+            promotional_cost_expected_rp=promo_cost_expected_rp,
+            promotional_cost_max_rp=promo_cost_max_rp,
+            period_expected_surplus_rp=period_expected_surplus_rp,
+            period_worst_case_surplus_rp=period_worst_surplus_rp,
+            break_even_turnover_rp=break_even_turnover_rp,
+            max_auto_by_paid_turnover=max_auto_by_paid_turnover,
+            max_auto_sessions_expected=max_auto_expected,
+            max_auto_sessions_high_gift=max_auto_high_gifts,
+            available_extra_auto_sessions_expected=max(0,max_auto_expected-payload.auto_sessions),
+            remaining_promotional_headroom_rp=period_expected_surplus_rp,
+            planned_auto_exceeds_paid_turnover=sessions_over_turnover,
+            feasible_expected_pool=period_expected_surplus_rp>=0 and not sessions_over_turnover,
+            feasible_worst_case_pool=period_worst_surplus_rp>=0 and not sessions_over_turnover),
         expected_net=(expected-1)*payload.stake,
         payout_probability_percent=positive_probability*100,
         average_rounds_per_positive_payout=(1/positive_probability if positive_probability else None),
@@ -239,7 +421,7 @@ def simulate(payload):
         sessions=300, stopped_percent=stopped/3, average_rounds=sum(played)/300,
         average_end_balance=sum(endings)/300, p10_balance=endings[29], median_balance=endings[149], p90_balance=endings[269],
         trace=trace, distribution=[dict(multiplier=m,percent=p*100) for m,p in dist],
-        warning='Ekspektasi teoretis sebelum batas saldo. Simulasi 300 sesi berhenti saat saldo tidak cukup dan menerapkan batas saldo; bukan jaminan hasil.',
+        warning='RTP dasar tidak mencakup 10 ronde gratis dan 5 bonus promosi. Proyeksi pool menghitung keduanya terpisah; surplus tidak dijamin. Simulasi 300 sesi hanya untuk ronde dasar.',
         inflation_warning=expected>1)
 
 
@@ -257,6 +439,65 @@ def read_config(request: Request, response: Response):
             engine_model=ENGINE_MODEL,
             publish_rtp_range=[float(MIN_PUBLISH_RTP), float(MAX_PUBLISH_RTP)])
     finally: db.close()
+
+
+class AutoBudgetPolicy(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    enabled: bool = False
+    daily_budget_coin: StrictInt = Field(ge=0, le=1_000_000_000)
+    max_sessions_per_account_day: StrictInt = Field(ge=1, le=20)
+    max_sessions_per_day: StrictInt = Field(default=2, ge=1, le=100000)
+    planned_paid_turnover_coin: StrictInt = Field(default=0, ge=0, le=1_000_000_000)
+    target_margin_percent: float = Field(default=5.0, ge=0, le=15)
+
+
+@router.get('/promo-policy')
+def read_auto_policy(request: Request, response: Response):
+    """Admin-only daily AUTO promotion budget and reserved virtual liabilities."""
+    require_admin(request)
+    from . import orbit, autoplay
+    db = orbit.open_db()
+    try:
+        response.headers['Cache-Control'] = 'no-store'
+        return autoplay.promo_budget_state(db)
+    finally:
+        db.close()
+
+
+@router.post('/promo-policy')
+def save_auto_policy(request: Request, response: Response, payload: AutoBudgetPolicy):
+    require_admin(request)
+    from . import orbit, autoplay
+    db = orbit.open_db()
+    try:
+        db.execute('BEGIN IMMEDIATE')
+        revision, cfg = active(db)
+        if payload.enabled:
+            if not revision or not cfg:
+                raise HTTPException(422, 'Aktifkan Economy Engine RTP 85–98% dahulu; aturan legacy tidak aman untuk promo.')
+            base_rtp = rtp_percent(cfg)
+            spend_room = int(payload.planned_paid_turnover_coin *
+                             max(0, 100-base_rtp-payload.target_margin_percent)/100)
+            if (payload.daily_budget_coin <= 0
+                    or payload.planned_paid_turnover_coin <= 0
+                    or payload.daily_budget_coin > spend_room):
+                raise HTTPException(422, 'Anggaran Gift melebihi ruang margin dari proyeksi turnover. Perkecil budget atau ubah proyeksi.')
+        db.execute("""UPDATE auto_promo_policy SET enabled=?,
+            daily_budget_coin=?,max_sessions_per_account_day=?,
+            max_sessions_per_day=?,planned_paid_turnover_coin=?,
+            target_margin_percent=?,updated_at=?
+            WHERE id=1""",
+            (int(payload.enabled),payload.daily_budget_coin,
+             payload.max_sessions_per_account_day,payload.max_sessions_per_day,
+             payload.planned_paid_turnover_coin,payload.target_margin_percent,time.time()))
+        result = autoplay.promo_budget_state(db)
+        db.commit()
+        response.headers['Cache-Control'] = 'no-store'
+        return result
+    finally:
+        if db.in_transaction:
+            db.rollback()
+        db.close()
 
 
 @router.post('/simulate')
@@ -305,26 +546,51 @@ def performance(request: Request, response: Response,
     try:
         since = time.time() - days * 86400
         row = db.execute('''SELECT COUNT(*) rounds,COUNT(DISTINCT account_id) players,
-            COALESCE(SUM(stake),0) turnover,COALESCE(SUM(payout),0) payout
+            COALESCE(SUM(charged_stake),0) turnover,
+            COALESCE(SUM(payout),0) regular_payout,
+            COALESCE(SUM(CASE WHEN charged_stake>0 THEN payout ELSE 0 END),0) paid_round_payout,
+            COALESCE(SUM(promo_coin),0) promo_payout,
+            COALESCE(SUM(CASE WHEN charged_stake=0 THEN payout ELSE 0 END),0) free_payout,
+            COALESCE(SUM(CASE WHEN charged_stake=0 THEN 1 ELSE 0 END),0) free_rounds
             FROM orbit_rounds WHERE finished_at IS NOT NULL AND finished_at>=?''', (since,)).fetchone()
-        by_combo = db.execute('''SELECT combo,COUNT(*) rounds,COALESCE(SUM(stake),0) turnover,
-            COALESCE(SUM(payout),0) payout FROM orbit_rounds
+        by_combo = db.execute('''SELECT combo,COUNT(*) rounds,
+            COALESCE(SUM(charged_stake),0) turnover,
+            COALESCE(SUM(payout+promo_coin),0) payout FROM orbit_rounds
             WHERE finished_at IS NOT NULL AND finished_at>=?
             GROUP BY combo ORDER BY rounds DESC,combo''', (since,)).fetchall()
+        from . import autoplay
+        active_sessions = db.execute('SELECT * FROM auto_sessions WHERE finished_at IS NULL').fetchall()
+        reserved_coin = sum(autoplay.remaining_liability(session) for session in active_sessions)
         revision, config = active(db)
-        turnover, payout = int(row['turnover']), int(row['payout'])
+        turnover = int(row['turnover'])
+        regular_payout = int(row['regular_payout'])
+        paid_round_payout = int(row['paid_round_payout'])
+        promo_payout = int(row['promo_payout'])
+        payout = regular_payout + promo_payout
         gross = turnover - payout
         response.headers['Cache-Control'] = 'no-store'
         return dict(days=days,as_of=int(time.time()),rounds=int(row['rounds']),players=int(row['players']),
             turnover_coin=turnover,payout_coin=payout,gross_coin=gross,
             turnover_rp=turnover*VIRTUAL_RP_PER_COIN,payout_rp=payout*VIRTUAL_RP_PER_COIN,
             gross_rp=gross*VIRTUAL_RP_PER_COIN,
+            regular_payout_coin=regular_payout, regular_payout_rp=regular_payout*VIRTUAL_RP_PER_COIN,
+            paid_round_payout_coin=paid_round_payout,
+            paid_round_payout_rp=paid_round_payout*VIRTUAL_RP_PER_COIN,
+            promotional_payout_coin=promo_payout, promotional_payout_rp=promo_payout*VIRTUAL_RP_PER_COIN,
+            free_spin_payout_coin=int(row['free_payout']),
+            free_spin_payout_rp=int(row['free_payout'])*VIRTUAL_RP_PER_COIN,
+            free_rounds=int(row['free_rounds']),
+            pending_bonus_liability_coin=reserved_coin,
+            pending_bonus_liability_rp=reserved_coin*VIRTUAL_RP_PER_COIN,
+            result_after_reserved_coin=gross-reserved_coin,
+            result_after_reserved_rp=(gross-reserved_coin)*VIRTUAL_RP_PER_COIN,
+            actual_regular_rtp_percent=(paid_round_payout/turnover*100 if turnover else None),
             actual_rtp_percent=(payout/turnover*100 if turnover else None),
             active_revision=revision,
             theoretical_rtp_percent=(rtp_percent(config) if config else 195.36),
             engine_model=(ENGINE_MODEL if config else 'legacy-80-percent-gate'),
             by_combo=[dict(combo=item['combo'],rounds=int(item['rounds']),
                 turnover_coin=int(item['turnover']),payout_coin=int(item['payout'])) for item in by_combo],
-            note='Hanya ronde selesai dalam periode ini. Nilai aktual dapat menyimpang dari RTP teoretis, terutama pada sampel kecil.')
+            note='Pool virtual: BET yang benar-benar dipotong minus payout regular (termasuk free spins) minus hadiah promo. Pending bonus adalah kewajiban masa depan; belum termasuk perkiraan payout free spins yang belum dimainkan. Surplus periode tidak dijamin.')
     finally:
         db.close()

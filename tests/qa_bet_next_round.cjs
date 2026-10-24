@@ -13,20 +13,41 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
    const state=await(await c.request.get(base+'/api/orbit/state')).json();
    state.account.balance=950;state.recent=[];
    state.round={id:'fixture',stake:25,picked:1,cards:[{color:'red',face:'1'}],complete:false};
-   const requests=[],errors=[],unexpected=[];let hold=false,held;
+   const requests=[],errors=[],unexpected=[];let hold=false,held,autoSession=null;
    p.on('pageerror',e=>errors.push(e.message));
    function respond(r){
     const data=r.request().postDataJSON();
-    const round=state.round||{id:'fixture',stake:data.stake,picked:0,cards:[],complete:false};
-    if(!state.round)state.account.balance-=data.stake;
+    const auto=data.auto_session_id&&autoSession?.id===data.auto_session_id?autoSession:null;
+    const debit=auto&&auto.completed_rounds>=auto.paid_rounds?0:data.stake;
+    const round=state.round||{id:'fixture',stake:data.stake,charged_stake:debit,
+     auto_session_id:auto?.id??null,free_spin:Boolean(auto&&debit===0),
+     promo_coin:0,picked:0,cards:[],complete:false};
+    if(!state.round)state.account.balance-=debit;
     round.picked++;round.cards.push({color:['red','blue','green'][round.picked-1],face:String(round.picked)});
-    if(round.picked===3)Object.assign(round,{complete:true,combo:'NO_MATCH',payout:0,delta:-round.stake});
+    if(round.picked===3){
+     Object.assign(round,{complete:true,combo:'NO_MATCH',payout:0,delta:-round.charged_stake});
+     if(auto){auto.completed_rounds++;
+      auto.rounds_remaining=auto.paid_rounds+auto.free_rounds-auto.completed_rounds;
+      if(auto.rounds_remaining===0)autoSession=null;
+     }
+    }
     state.round=round.complete?null:round;
     return r.fulfill({json:{account:state.account,round}});
    }
+
    await p.route(base+'/**',async r=>{
     const u=new URL(r.request().url());
     if(u.pathname==='/api/orbit/state')return r.fulfill({json:state});
+    if(u.pathname==='/api/auto/state')return r.fulfill({json:{session:autoSession}});
+    if(u.pathname==='/api/auto/start'){
+     const data=r.request().postDataJSON();
+     if(autoSession)return r.fulfill({json:{session:autoSession,created:false,resumed:true}});
+     autoSession={id:'fixture-auto',stake:data.stake,paid_rounds:data.paid_rounds,
+      free_rounds:10,completed_rounds:0,rounds_remaining:data.paid_rounds+10,
+      promotional_rewards:5,promo_credited_coin:0};
+     return r.fulfill({json:{session:autoSession,created:true,
+      gift:{free_spins:10,voice:'Free Spiinnn!'}}});
+    }
     if(u.pathname==='/api/orbit/pick'){requests.push(r.request().postDataJSON());if(hold){held=r;return;}return respond(r);}
     if(!['GET','HEAD'].includes(r.request().method())){unexpected.push(u.pathname);return r.abort();}
     if(sources&&u.pathname==='/api/ui-version')return r.fulfill({json:{release:'1'.repeat(20)}});
@@ -51,7 +72,7 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     assert.equal(await p.evaluate(()=>window.uiTapCalls.length),before+1,'exactly one push sound per tap');
    };
    assert.equal(await p.locator('#wallet-rupiah').innerText(),'Rp38.000 virtual');
-   assert.deepEqual(await p.locator('.result-bar>div>small').allInnerTexts(),['BET','PAYOUT/WIN','NET']);
+   assert.deepEqual(await p.locator('.result-bar>div>small').allInnerTexts(),['BET','WIN','NET']);
    assert((await p.locator('#win-open').getAttribute('aria-label')).includes('NET'));
    state.recent=[{created_at:1700000000,stake:25,payout:125,delta:100,combo:'PAIR_SUM'},
      {created_at:1700000001,stake:25,payout:0,delta:-25,combo:'NO_MATCH'}];
@@ -59,7 +80,7 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     await tapOnce(p.locator('#'+id));assert.equal(await p.locator('#modal').getAttribute('data-view'),view);
     if(view==='coin'){
      await p.locator('.wallet-dashboard').waitFor();
-     assert.equal(await p.locator('[data-metric="payout"]>span').first().innerText(),'Total PAYOUT/WIN');
+     assert.equal(await p.locator('[data-metric="payout"]>span').first().innerText(),'Total WIN');
      assert.equal(await p.locator('[data-metric="delta"]>span').first().innerText(),'Total NET');
      assert.equal(await p.locator('[data-metric="payout"] .coin-value-text').innerText(),'125 Coin');
      assert.equal(await p.locator('[data-metric="delta"] .wallet-rp').innerText(),'Rp3.000 virtual');
@@ -82,7 +103,8 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
     assert.equal(await p.locator('.auto-budget .coin-value-icon').count(),3);
     await tapOnce(p.locator('[data-rounds="5"]'));
     assert.equal(await p.locator('[data-rounds="5"]').getAttribute('aria-pressed'),'true');
-    assert.equal(await p.locator('.auto-budget .coin-value-text').nth(1).innerText(),'100 Coin');
+    // AUTO now starts after finishing the partial manual round. Five NEW paid rounds cost 5x25.
+    assert.equal(await p.locator('.auto-budget .coin-value-text').nth(1).innerText(),'125 Coin');
     await p.locator('.auto-budget img').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));
     assert(await p.locator('.auto-budget img').evaluateAll(imgs=>imgs.every(i=>i.complete&&i.naturalWidth>0)));
     assert(await p.locator('.modal-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'no horizontal overflow');
@@ -107,17 +129,18 @@ const sources=process.env.UNO_QA_SOURCES?JSON.parse(fs.readFileSync(process.env.
    assert.deepEqual(requests.map(r=>r.stake),[25,25]);
    await p.locator('#spin-btn').tap();await p.waitForFunction(()=>!isSpinning);assert.equal(requests.at(-1).stake,100);
    for(let i=0;i<2;i++){await p.locator('#spin-btn').tap();await p.waitForFunction(()=>!isSpinning);}
+   // The previous manual round is complete. AUTO begins a new paid batch.
    hold=true;const start=requests.length;
    await p.locator('#auto-btn').tap();await p.locator('[data-rounds="3"]').tap();await p.locator('#auto-start').tap();
    await p.waitForFunction(()=>isSpinning);await p.waitForTimeout(100);assert(held);
    await open();await p.locator('[data-bet="250"]').tap();await save();
-   hold=false;await respond(held);await p.waitForFunction(()=>!isAuto&&!isSpinning,{},{timeout:25000});
-   assert.deepEqual(requests.slice(start).map(r=>r.stake),Array(9).fill(100));
+   hold=false;await respond(held);await p.waitForFunction(()=>!isAuto&&!isSpinning,{},{timeout:65000});
+   assert.deepEqual(requests.slice(start).map(r=>r.stake),Array(39).fill(100));
    await p.locator('#spin-btn').tap();await p.waitForFunction(()=>!isSpinning);assert.equal(requests.at(-1).stake,250);
    await p.waitForFunction(()=>window.uiTapResults.length>0);assert((await p.evaluate(()=>window.uiTapResults)).some(Boolean),'push audio played');
    assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);
    assert.deepEqual(await(await c.request.get(base+'/api/sounds/manifest')).json(),sound);
-   console.log('PASS '+engine+': responsive AUTO cards/coin icons, one push cue per tap, mute respected, touch chip selection, cancel, queued BET, paid-round stake preserved, AUTO budget preserved, next request uses new BET, unchanged audio; no live writes');
+   console.log('PASS '+engine+': responsive AUTO cards/coin icons, one push cue per tap, mute respected, touch chip selection, cancel, queued BET, paid-round stake preserved, AUTO budget plus ten free spins preserved, next request uses new BET, unchanged audio; no live writes');
   }finally{await b.close();}
  }
 })().catch(e=>{console.error(e);process.exitCode=1;});

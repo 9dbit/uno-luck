@@ -35,6 +35,7 @@ function splashRemaining(){
   return 0;
 }
 let cloudProfiles=new Map(), cloudRevision='', cloudReady=false, cloudError='';
+let sampleFallbackAllowed=false, sampleAudioActive=false, readOnlyMirror=false;
 let cloudMixer=null, mixerPublishTimer=null;
 let cloudFetch=null, adminKey='';
 try{sessionStorage.removeItem('uno-sound-admin-key');}catch(_){}
@@ -56,7 +57,13 @@ async function syncCloud(force=false){
     if(!response.ok)throw Error('Cloud catalog HTTP '+response.status);
     data=await response.json();
     }finally{clearTimeout(timeout);}
-    if(data.ready!==true){cloudReady=false;cloudError='Cloud storage belum siap';return false;}
+    sampleFallbackAllowed=data.sample_fallback_allowed===true;
+    readOnlyMirror=data.readonly_mirror===true;
+    if(data.ready!==true){
+      cloudReady=false;
+      cloudError=data.error||'Cloud storage belum siap';
+      return false;
+    }
     cloudReady=true;cloudError='';
     if(data.revision!==cloudRevision){
       const oldSplash=cloudProfiles.get('soft-tech-splash-screen')?.revision;
@@ -101,7 +108,8 @@ async function verifyAdminKey(value){
   return true;
 }
 function cloudStatus(){return {ready:cloudReady,revision:cloudRevision,
-  online:cloudProfiles.size,error:cloudError,admin:hasAdminKey()};}
+  online:cloudProfiles.size,error:cloudError,admin:hasAdminKey(),
+  readonlyMirror:readOnlyMirror,sampleFallback:sampleAudioActive};}
 async function publishCue(key,{remove=false}={}){
   if(!known.has(key))throw Error('Sound cue tidak dikenal');
   if(!hasAdminKey())throw Error('Kunci admin diperlukan untuk publish sound ke semua perangkat.');
@@ -221,6 +229,7 @@ function mediaPlayer(){
     fallbackPlayer.playsInline=true;
     fallbackPlayer.setAttribute('playsinline','');
     fallbackPlayer.hidden=true;
+    fallbackPlayer.setAttribute('data-uno-native-sfx','');
     document.body.append(fallbackPlayer);
   }
   return fallbackPlayer;
@@ -416,9 +425,12 @@ function playMusicGesture(){
 // Keep it silent until the game is visible, then unmute without invoking
 // autoplay from an asynchronous handler. This does not change cloud settings.
 function armMusicOnSplashGesture(){
-  // A decoded buffer and unlocked AudioContext need no muted media reservation.
-  // Start BGM on the music bus only when gameplay is visible.
-  if(bufferCache.has('live:background-music')&&window.UNOLuckSound.webAudioState!=='interrupted'){
+  // iPhone Safari/WKWebView may report AudioContext.state === "running"
+  // while producing no audible audio. On iOS, ALWAYS reserve the dedicated
+  // native HTMLMediaElement inside this trusted PLAY gesture.
+  // A successful decode is not evidence that the output route is audible.
+  webMusicArmed=false;
+  if(!isIOS()&&bufferCache.has('live:background-music')&&window.UNOLuckSound.webAudioState!=='interrupted'){
     webMusicArmed=true;
     return window.UNOLuckSound.unlock().then(ok=>Boolean(ok&&
       window.UNOLuckSound.webAudioState==='running'));
@@ -453,27 +465,66 @@ function activateMusicAtGameplay(){
 function isMusicMediaPlaying(){
   return Boolean(bgmPlayer&&!bgmPlayer.muted&&(bgmStarting||(!bgmPlayer.paused&&!bgmPlayer.ended)));
 }
+function audioDiagnostics(){
+  // No credentials, sound upload data or player account information.
+  return {
+    browser: isIOS()?'ios-native-media':'web-audio',
+    soundCloudReady:cloudReady,readOnlyMirror,
+    publishedCues:cloudProfiles.size,
+    sampleAudioActive,
+    webAudioState:window.UNOLuckSound?.webAudioState||'unknown',
+    sfxPlayerReady:!!fallbackPlayer&&fallbackPlayer.readyState>=2,
+    sfxPlayerPlaying:!!fallbackPlayer&&!fallbackPlayer.paused&&!fallbackPlayer.muted,
+    lastCue:fallbackKey,
+    splashPlayerPlaying:fallbackKey==='soft-tech-splash-screen'&&
+      !!fallbackPlayer&&!fallbackPlayer.paused&&!fallbackPlayer.muted,
+    musicPrepared:bgmPrepared,
+    musicReady:bgmPlayer?.readyState??0,
+    musicPlaying:isMusicMediaPlaying(),
+    musicMuted:bgmPlayer?.muted??false,
+    musicPaused:bgmPlayer?.paused??true,
+    musicPosition:Math.round((bgmPlayer?.currentTime||0)*10)/10,
+    lastError:lastError||splashError||cloudError||''
+  };
+}
 function isMusicWebAudioPlaying(){return Boolean(loop?.source);}
 async function prepareSplashMedia(){
   await syncCloud();
   const cfg=liveProfile('soft-tech-splash-screen');
-  if(!cfg.custom&&cfg.source!=='custom'){
+  const hasPublishedOrLocal=Boolean(cfg.custom||cfg.source==='custom');
+  if(!hasPublishedOrLocal&&!sampleFallbackAllowed){
     splashError=cloudError?'Koneksi Sound Cloud belum tersedia. Coba lagi setelah jaringan tersambung.':
       'File Soft Tech Splash belum tersedia di Sound Cloud.';
     return false;
   }
+  sampleAudioActive=!hasPublishedOrLocal&&sampleFallbackAllowed;
   if(splashUrl)return true;
   if(splashPreparation)return splashPreparation;
   splashPreparation=(async()=>{
     if(cfg.source==='custom'&&cfg.url){
       splashUrl=cfg.url;
+    }else if(sampleAudioActive){
+      // The default is ONLY allowed for an explicitly isolated QA instance.
+      // It never edits or replaces the authoritative published Sound Cloud.
+      splashUrl='/assets/audio/tier-1.mp3';
     }else{
       const file=await readFile('soft-tech-splash-screen');
       if(!file)throw Error('File splash lokal tidak ditemukan. Publikasikan dari desktop.');
       const typed=file.type?.startsWith('audio/')?file:new Blob([file],{type:mimeFor(file)});
       splashUrl=URL.createObjectURL(typed);
     }
-    useFallbackSource('soft-tech-splash-screen',splashUrl);
+    const player=useFallbackSource('soft-tech-splash-screen',splashUrl);
+    if(sampleAudioActive){
+      // iOS Safari HTMLMedia playback is primed before the trusted PLAY tap.
+      await Promise.race([
+        new Promise((resolve,reject)=>{
+          if(player.readyState>=1){resolve(true);return;}
+          player.addEventListener('loadedmetadata',()=>resolve(true),{once:true});
+          player.addEventListener('error',()=>reject(Error('Audio sampel QA tidak dapat dimuat')),{once:true});
+        }),
+        new Promise((_,reject)=>setTimeout(()=>reject(Error('Audio sampel QA timeout')),5000))
+      ]);
+    }
     await warmBuffer('soft-tech-splash-screen');
     void warmBuffer('spinning-sound');
     void warmBuffer('chosen-card');
@@ -533,7 +584,10 @@ function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDurat
   return {player,bounds};
 }
 function playSplashGesture(){
-  if(bufferCache.has('live:soft-tech-splash-screen')&&window.UNOLuckSound.webAudioState!=='interrupted'){
+  // Always use the native media route on iOS including ChatGPT's in-app
+  // WebKit browser. WebAudio can claim "running" despite being silent.
+  // No await/fetch may intervene between the actual PLAY tap and .play().
+  if(!isIOS()&&bufferCache.has('live:soft-tech-splash-screen')&&window.UNOLuckSound.webAudioState!=='interrupted'){
     return window.UNOLuckSound.unlock().then(ok=>{
       if(!ok||window.UNOLuckSound.webAudioState!=='running')return false;
       return play('soft-tech-splash-screen');
@@ -544,6 +598,8 @@ function playSplashGesture(){
   if(!splashUrl)return Promise.resolve(false);
   stopFallback();
   const player=useFallbackSource('soft-tech-splash-screen',splashUrl);
+  player.muted=false;
+  player.defaultMuted=false;
   applyMediaBounds('soft-tech-splash-screen',player);
   let promise;
   try{promise=player.play();}catch(error){
@@ -605,6 +661,9 @@ async function playFallback(key,{looping=false,forPreview=false,token=null,susta
     if(sustain&&spinToken!==spinRequest)return false;
     stopFallback();
     const player=useFallbackSource(key,url);
+    player.muted=false;
+    player.defaultMuted=false;
+    player.dataset.unoCue=key;
     const end=applyMediaBounds(key,player,forPreview,looping,mirrorDuration,sustain);
     // Release temporary URLs once a subsequent cue replaces the source.
     // Keeping the current URL intact is required for seeking/repeating.
@@ -830,7 +889,7 @@ async function play(key,{looping=false,forPreview=false,sustain=false,spinToken=
   const jackpotToken=celebrationRequest;
   const serial=loopSerial;
   try{
-    if(window.UNOLuckSound?.webAudioState!=='running'){
+    if(isIOS()||window.UNOLuckSound?.webAudioState!=='running'){
       if(key==='background-music'&&looping&&!forPreview){
         const ready=await prepareMusicMedia();
         if(!ready||serial!==loopSerial)return false;
@@ -944,7 +1003,11 @@ function show(host){
         (!cloudProfiles.has(key)||local.fileName!==cloudProfiles.get(key)?.fileName));
     }).length;
     const auth=state.admin?' · ADMIN AKTIF':' · READ-ONLY';
-    cloudInfo.textContent=state.ready?
+    cloudInfo.textContent=state.readonlyMirror?
+      'QA: MIRROR SOUND CLOUD READ-ONLY · suara yang dipublikasikan di staging direlay tanpa mengubah sumber.':
+      state.sampleFallback?
+      'QA: AUDIO SAMPLE · publikasi Sound Cloud belum dapat diakses; audio asli tidak diganti.':
+      state.ready?
       (state.online?
         'TERHUBUNG · '+state.online+' / 12 kanal dipublikasikan'+auth+
         (unpublished?' · '+unpublished+' draft lokal perlu PUBLISH':''):
@@ -1248,11 +1311,12 @@ window.UNOLuckSoundStudio={show,install(){window.UNOLuckSound?.installStudio?.(t
   prepareSplashMedia,playSplashGesture,stopSplashAudio,
   prepareMusicMedia,playMusicGesture,armMusicOnSplashGesture,
   activateMusicAtGameplay,isMusicMediaPlaying,isMusicWebAudioPlaying,isIOS,
-  syncCloud,cloudStatus,publishedProfile,verifyAdminKey,publishCue,publishAll,
+  syncCloud,cloudStatus,audioDiagnostics,publishedProfile,verifyAdminKey,publishCue,publishAll,
   publishMixer,schedulePublishMixer,hasAdminKey,
   profile,measure,configure,upload,reset,previewCue,getRepeat,setRepeat,mirrorConfig,
   get cues(){return KEYS.map(([key,label])=>({key,label}));},
   get lastError(){return lastError;},get splashError(){return splashError;},
+  get sampleAudioActive(){return sampleAudioActive;},
   get mediaUnlocked(){return mediaUnlocked;},
   get activeCelebrationCue(){
     return celebrationNode?.key||fallbackKey?.startsWith('jackpot-')&&fallbackKey||null;

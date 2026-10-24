@@ -20,12 +20,18 @@
     running.delete(el);
     el.classList.remove('positive', 'negative');
     if (next === null || next === undefined || !Number.isFinite(Number(next))) {
+      el.classList.remove('metric-long','metric-very-long');
       el.textContent = '—';
       valueState.delete(el);
       el.removeAttribute('data-number');
       return;
     }
     const target = Math.round(Number(next));
+    if (id.startsWith('last-')) {
+      const len=format(target).length + Number(Boolean(sign&&target>0));
+      el.classList.toggle('metric-long',len>=7);
+      el.classList.toggle('metric-very-long',len>=10);
+    }
     const positive = sign && target > 0;
     const negative = sign && target < 0;
     if (color) el.classList.toggle('positive', positive);

@@ -16,11 +16,11 @@ import sqlite3
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from . import spin, economy
+from . import spin, economy, autoplay
 
 router = APIRouter(prefix="/api/orbit", tags=["UNO LUCK Orbit"])
 WIN_PERCENT = 80
-RULES_VERSION = 3
+RULES_VERSION = 5
 FACES = spin.FACES
 COLORS = spin.COLORS
 ACTION_TRIO = frozenset(('SKIP', 'REVERSE', '+2'))
@@ -77,6 +77,7 @@ def rank_details(rank: int | None, *, legacy: bool = False) -> dict | None:
 class PickRequest(BaseModel):
     request_id: str = Field(min_length=12, max_length=80)
     stake: int = 25
+    auto_session_id: str | None = None
 
 
 def create_schema(db: sqlite3.Connection) -> None:
@@ -86,6 +87,9 @@ def create_schema(db: sqlite3.Connection) -> None:
             account_id TEXT NOT NULL REFERENCES accounts(id),
             start_key TEXT NOT NULL,
             stake INTEGER NOT NULL,
+            charged_stake INTEGER,
+            auto_session_id TEXT,
+            promo_coin INTEGER NOT NULL DEFAULT 0,
             cards_json TEXT NOT NULL,
             picked INTEGER NOT NULL CHECK(picked BETWEEN 1 AND 3),
             payout INTEGER NOT NULL DEFAULT 0,
@@ -109,6 +113,7 @@ def create_schema(db: sqlite3.Connection) -> None:
     # Existing guest rounds survive the upgrade; legacy matching rounds default
     # to the previous 2x when they are eventually completed.
     economy.schema(db)
+    autoplay.schema(db)
     existing = {r['name'] for r in db.execute('PRAGMA table_info(orbit_rounds)').fetchall()}
     if 'tier' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN tier INTEGER CHECK(tier BETWEEN 1 AND 5)')
@@ -118,6 +123,13 @@ def create_schema(db: sqlite3.Connection) -> None:
 
     if 'economy_json' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN economy_json TEXT')
+    if 'charged_stake' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN charged_stake INTEGER')
+    if 'auto_session_id' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN auto_session_id TEXT')
+    if 'promo_coin' not in existing:
+        db.execute('ALTER TABLE orbit_rounds ADD COLUMN promo_coin INTEGER NOT NULL DEFAULT 0')
+    db.execute('UPDATE orbit_rounds SET charged_stake=stake WHERE charged_stake IS NULL')
 
 
 def open_db() -> sqlite3.Connection:
@@ -227,27 +239,31 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
     complete = picked == 3
     saved_rank = (round_row['tier'] or 5) if round_row['combo'] == 'COLOR_MATCH' else None
     version = int(round_row['rules_version'])
-    if complete and version >= RULES_VERSION and round_row['combo'] == 'COLOR_MATCH':
+    if complete and version >= 3 and round_row['combo'] == 'COLOR_MATCH':
         if classify_rank(dealt) != saved_rank:
             raise RuntimeError('Stored prize rank contradicts actual dealt cards')
     pattern = None
     if complete and round_row['combo'] == 'COLOR_MATCH':
         pattern = (CELEBRATIONS[saved_rank]['pattern']
-                   if version >= RULES_VERSION and saved_rank in CELEBRATIONS
+                   if version >= 3 and saved_rank in CELEBRATIONS
                    else 'LEGACY_COLOR_MATCH')
-    tier_view = rank_details(saved_rank, legacy=version < RULES_VERSION) if complete and saved_rank else None
+    tier_view = rank_details(saved_rank, legacy=version < 3) if complete and saved_rank else None
     snap = json.loads(round_row['economy_json']) if round_row['economy_json'] else None
     if tier_view and snap:
         tier_view['multiplier'] = snap['multiplier']
     return {
         'id': round_row['id'], 'picked': picked, 'stake': round_row['stake'],
+        'charged_stake': round_row['charged_stake'],
+        'auto_session_id': round_row['auto_session_id'],
+        'free_spin': bool(round_row['auto_session_id'] and round_row['charged_stake'] == 0),
         'cards': cards, 'complete': complete,
         'combo': round_row['combo'] if complete else None,
         'tier': tier_view,
-        'bonus': {'kind':round_row['combo'],'multiplier':snap['multiplier']} if complete and snap and round_row['combo'].startswith('PAIR_') else None,
+        'bonus': {'kind':round_row['combo'],'multiplier':snap['multiplier']} if complete and snap and round_row['combo'] in ('PAIR_SUM','PAIR_PRODUCT','COLOR_PAIR','COLOR_SEQUENCE') else None,
         'pattern': pattern, 'rules_version': version,
         'payout': round_row['payout'] if complete else None,
-        'delta': round_row['payout'] - round_row['stake'] if complete else None,
+        'promo_coin': round_row['promo_coin'] if complete else None,
+        'delta': (round_row['payout'] + round_row['promo_coin'] - round_row['charged_stake']) if complete else None,
     }
 
 
@@ -263,11 +279,23 @@ def public_rules(config=None) -> dict:
         'virtual_rp_per_coin': economy.VIRTUAL_RP_PER_COIN,
         'numeric_bonus': {'sum_cap':config.sum_cap,'product_cap':config.product_cap,
                           'draw_two_match':True} if config else None,
+        'color_bonus': {
+            'enabled': bool(config.percentages['COLOR_PAIR'] or config.percentages['COLOR_SEQUENCE']),
+            'pair_multiplier': config.color_pair_multiplier,
+            'sequence_multiplier': config.color_sequence_multiplier,
+            'rule': 'Dua warna sama = Color Pair; dua kartu berdampingan sewarna dan berangka berurutan = Color Sequence. Tiga angka sewarna berurutan tetap Golden Match.'
+        } if config else None,
+        'auto_promotion': {
+            'free_spins': autoplay.FREE_ROUNDS,
+            'guaranteed_bonus_count': autoplay.PROMO_REWARDS,
+            'bonus_rate_options_percent': list(autoplay.PROMO_PERCENTS),
+            'disclosure': 'Bonus AUTO adalah hadiah promosi yang dijamin, bukan hasil RNG kartu. ZONK membayar 0 untuk permainan biasa.'
+        },
         'base_payout_multiplier': config.multipliers[4] if config else 2, 'payout_multiplier': config.multipliers[4] if config else 2,
         'celebrations': tiers,
         'coin_cap': spin.COIN_CAP,
         'spin_sequence': ['kiri','tengah','kanan'],
-        'note': 'Setiap ronde 3 SPIN dan 1 biaya. Payout rank ditentukan dari 3 kartu yang benar-benar muncul. NO MATCH tidak mendapat payout. Saldo dapat dibatasi 1.000.000 koin. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
+        'note': 'Setiap ronde 3 SPIN. BET dibayar sekali, kecuali free spins promosi. ZONK berarti hadiah permainan nol; bonus promosi tercatat terpisah. Saldo maksimal 1.000.000 koin. Tidak ada uang, deposit, atau pencairan. Bukan permainan resmi UNO.',
     }
 
 
@@ -277,19 +305,32 @@ def state(request: Request, response: Response):
     try:
         account = spin.get_account(request,response,db)
         row = current_round(db, account['id'])
-        hist = spin.spin_history(db, account['id'], 8)
-        for item in hist:
-            tier_row = db.execute('SELECT tier,rules_version,cards_json,economy_json FROM orbit_rounds WHERE id=? AND account_id=?', (item['id'], account['id'])).fetchone()
-            version = int(tier_row['rules_version']) if tier_row else 1
-            item['tier'] = (rank_details(tier_row['tier'] or 5, legacy=version < RULES_VERSION)
-                if tier_row and item['combo'] == 'COLOR_MATCH' else None)
-            item['pattern'] = (CELEBRATIONS[tier_row['tier']]['pattern']
-                if tier_row and version >= RULES_VERSION and item['combo'] == 'COLOR_MATCH'
-                and tier_row['tier'] in CELEBRATIONS else
-                'LEGACY_COLOR_MATCH' if tier_row and item['combo'] == 'COLOR_MATCH' else None)
-            if tier_row and tier_row['economy_json'] and item['tier']:
-                item['tier']['multiplier'] = json.loads(tier_row['economy_json'])['multiplier']
-            item['rules_version'] = version
+        completed = db.execute(
+            'SELECT * FROM orbit_rounds WHERE account_id=? AND finished_at IS NOT NULL ORDER BY finished_at DESC,id DESC LIMIT 8',
+            (account['id'],)).fetchall()
+        hist = []
+        for completed_round in completed:
+            item = view_round(completed_round)
+            item['regular_payout'] = item['payout']
+            item['payout'] += item['promo_coin']
+            item['nominal_stake'] = item['stake']
+            item['stake'] = item['charged_stake']
+            item['created_at'] = completed_round['created_at']
+            hist.append(item)
+        # Preserve older Classic/legacy SPIN entries that predate Orbit.
+        # Normal Orbit-paid rows already mirrored in spins must not appear twice.
+        seen = {item['id'] for item in hist}
+        for legacy in spin.spin_history(db, account['id'], 24):
+            if legacy['id'] in seen:
+                continue
+            legacy.update(tier=None, bonus=None, pattern=None, rules_version=1,
+                          nominal_stake=legacy['stake'],
+                          charged_stake=legacy['stake'], free_spin=False,
+                          promo_coin=0, regular_payout=legacy['payout'],
+                          complete=True, picked=3)
+            hist.append(legacy)
+        hist.sort(key=lambda item: (item['created_at'], item['id']), reverse=True)
+        hist = hist[:8]
         response.headers['Cache-Control'] = 'no-store'
         return {'account': spin.account_view(account), 'round': view_round(row),
                 'recent': hist, 'rules': public_rules(economy.active(db)[1])}
@@ -325,9 +366,19 @@ def pick(request: Request, response: Response, payload: PickRequest):
         stamp=time.time()
         if row is None:
             revision, config = economy.active(db)
-            if payload.stake not in (config.stake_options if config else spin.COSTS):
+            if (payload.stake not in (config.stake_options if config else spin.COSTS)
+                    and not payload.auto_session_id):
                 raise HTTPException(422,'Tahapan BET berubah. Muat ulang pengaturan BET.')
-            if acct['balance'] < payload.stake:
+            promotion = None
+            charged_stake = payload.stake
+            if payload.auto_session_id:
+                promotion = autoplay.by_id(db, aid, payload.auto_session_id)
+                if not promotion:
+                    raise HTTPException(409, 'Sesi AUTO tidak ditemukan')
+                if promotion['stake'] != payload.stake:
+                    raise HTTPException(409, 'BET AUTO tidak sesuai')
+                charged_stake, _ = autoplay.round_terms(promotion)
+            if acct['balance'] < charged_stake:
                 raise HTTPException(409,'Koin tidak cukup. Klaim hadiah atau refill gratis.')
             cards=economy.draw(config) if config else choose_cards()
             if config:
@@ -339,16 +390,25 @@ def pick(request: Request, response: Response, payload: PickRequest):
             snapshot=json.dumps({'revision':revision,'multiplier':multiplier,
                 'config':config.model_dump(mode='json')}) if config else None
             rid=spin.new_id()
-            db.execute('INSERT INTO orbit_rounds(id,account_id,start_key,stake,cards_json,picked,combo,tier,rules_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                       (rid,aid,payload.request_id,payload.stake,json.dumps(cards,separators=(',',':')),1,combo,tier,RULES_VERSION,stamp))
+            db.execute('''INSERT INTO orbit_rounds
+                (id,account_id,start_key,stake,charged_stake,auto_session_id,
+                 cards_json,picked,combo,tier,rules_version,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (rid,aid,payload.request_id,payload.stake,charged_stake,
+                 promotion['id'] if promotion else None,
+                 json.dumps(cards,separators=(',',':')),1,combo,tier,RULES_VERSION,stamp))
             db.execute('UPDATE orbit_rounds SET economy_json=? WHERE id=?',(snapshot,rid))
-            new_balance=acct['balance']-payload.stake
+            new_balance=acct['balance']-charged_stake
             db.execute('UPDATE accounts SET balance=? WHERE id=?',(new_balance,aid))
             db.execute('INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)',
-                       (spin.new_id(),aid,'orbit_stake',-payload.stake,new_balance,stamp))
+                       (spin.new_id(),aid,'auto_free_spin' if charged_stake == 0 else 'orbit_stake',
+                        -charged_stake,new_balance,stamp))
             picked=1
         else:
             # The stake is fixed on spin #1. Subsequent requests cannot change it.
+            if (payload.auto_session_id is not None
+                    and payload.auto_session_id != row['auto_session_id']):
+                raise HTTPException(409, 'Ronde sedang berjalan milik sesi lain')
             if payload.stake != row['stake']:
                 raise HTTPException(409,'Biaya ronde sedang berlangsung tidak dapat diganti')
             rid=row['id']
@@ -357,7 +417,7 @@ def pick(request: Request, response: Response, payload: PickRequest):
                 raise HTTPException(409,'Ronde ini sudah selesai')
             if picked == 3:
                 rank=row['tier'] or 5  # Existing v1 unfinished Color Match keeps its original award.
-                if row['combo']=='COLOR_MATCH' and int(row['rules_version'])>=RULES_VERSION:
+                if row['combo']=='COLOR_MATCH' and int(row['rules_version'])>=3:
                     if classify_rank(json.loads(row['cards_json'])) != rank:
                         raise RuntimeError('Invalid stored card/payout combination; settlement blocked')
                 multiplier=CELEBRATIONS[rank]['multiplier'] if row['combo']=='COLOR_MATCH' else 0
@@ -365,7 +425,9 @@ def pick(request: Request, response: Response, payload: PickRequest):
                     snap=json.loads(row['economy_json'])
                     classified=economy.classify(
                         json.loads(row['cards_json']), economy.Config.model_validate(snap['config']),
-                        draw_two_match=int(row['rules_version']) >= 3)
+                        draw_two_match=int(row['rules_version']) >= 3,
+                        zero_product_fallback=int(row['rules_version']) >= 5,
+                        zero_sum_fallback=int(row['rules_version']) >= 5)
                     if classified != (row['combo'],snap['multiplier'],row['tier']):
                         raise RuntimeError('Invalid snapshotted payout; settlement blocked')
                     multiplier=snap['multiplier']
@@ -377,8 +439,21 @@ def pick(request: Request, response: Response, payload: PickRequest):
                            (new_balance,int(row['combo']=='COLOR_MATCH'),aid))
                 db.execute('INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)',
                            (spin.new_id(),aid,'orbit_payout',credited,new_balance,stamp))
-                db.execute('INSERT INTO spins(id,account_id,request_id,stake,payout,delta,balance_after,combo,cards_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                           (rid,aid,row['start_key'],row['stake'],credited,credited-row['stake'],new_balance,row['combo'],row['cards_json'],stamp))
+                promo_coin = 0
+                if row['auto_session_id']:
+                    promo_session = autoplay.by_id(db, aid, row['auto_session_id'])
+                    if promo_session is None:
+                        raise RuntimeError('Missing Auto Play session')
+                    refreshed = db.execute('SELECT * FROM accounts WHERE id=?', (aid,)).fetchone()
+                    promo_coin, _ = autoplay.complete_round(db, promo_session, refreshed, stamp)
+                    db.execute('UPDATE orbit_rounds SET promo_coin=? WHERE id=?',
+                               (promo_coin, rid))
+                    new_balance += promo_coin
+                if row['charged_stake'] > 0:
+                    db.execute('INSERT INTO spins(id,account_id,request_id,stake,payout,delta,balance_after,combo,cards_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                               (rid,aid,row['start_key'],row['charged_stake'],
+                                credited+promo_coin,credited+promo_coin-row['charged_stake'],
+                                new_balance,row['combo'],row['cards_json'],stamp))
             else:
                 db.execute('UPDATE orbit_rounds SET picked=? WHERE id=?',(picked,rid))
         db.execute('INSERT INTO orbit_requests(account_id,request_id,round_id,selected_count) VALUES(?,?,?,?)',

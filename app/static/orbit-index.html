@@ -37,11 +37,12 @@
   <link rel="stylesheet" href="/assets/art/motion.css?v=9">
   <link rel="stylesheet" href="/assets/art/ledwheel.css?v=10">
   <link rel="stylesheet" href="/assets/art/fidelity.css?v=91">
-  <link rel="stylesheet" href="/assets/art/celebrations.css?v=101">
+  <link rel="stylesheet" href="/assets/art/celebrations.css?v=1163">
   <link rel="stylesheet" href="/assets/art/v11.css?v=110">
-  <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1120">
+  <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1161">
   <link rel="stylesheet" href="/assets/art/viewport-v11.css?v=1143">
-  <link rel="stylesheet" href="/assets/player-panels.css?v=1154">
+  <link rel="stylesheet" href="/assets/player-panels.css?v=1157">
+  <link rel="stylesheet" href="/assets/art/responsive-gameplay.css?v=1165">
   <title>UNO LUCK | Dragon Spin v1.1</title>
 </head>
 <body>
@@ -82,6 +83,7 @@
       <img id="color-match-burst" class="color-match-burst" src="/assets/art/v4/color-match.webp" alt="" aria-hidden="true" hidden>
       <span id="match-live" class="match-sr-only" role="status" aria-live="assertive"></span>
       <p>3 kartu <span>•</span> <span id="combination-label">5 kombinasi</span> <span>•</span> <strong id="reward-range">2×–200×</strong></p>
+
     </section>
     <section class="result-area" aria-label="Tiga kartu hasil SPIN">
       <div class="result-frame" id="result-frame">
@@ -96,9 +98,14 @@
     </section>
     <div class="result-bar" aria-live="polite">
         <div><small>BET</small><strong id="last-stake">25</strong><button type="button" class="metric-open" id="bet-open" aria-label="Pengaturan BET" aria-haspopup="dialog"></button></div>
-        <div><small>PAYOUT/WIN</small><strong id="last-payout">—</strong><button type="button" class="metric-open" id="payout-open" aria-label="Wallet PAYOUT atau WIN bruto" aria-haspopup="dialog"></button></div>
+        <div><small>WIN</small><strong id="last-payout">—</strong><button type="button" class="metric-open" id="payout-open" aria-label="Wallet WIN bruto" aria-haspopup="dialog"></button></div>
         <div><small>NET</small><strong id="last-delta">—</strong><button type="button" class="metric-open" id="win-open" aria-label="Wallet NET atau selisih setelah BET" aria-haspopup="dialog"></button></div>
       </div>
+    <section id="total-bet-row" class="total-bet-row" role="group" aria-label="Total BET dalam Rupiah virtual">
+      <span class="activity-total-label">TOTAL BET</span>
+      <strong id="activity-total" class="activity-total" aria-label="Total BET dalam ekuivalen Rupiah virtual">—</strong>
+      <span id="activity-mode" class="activity-mode">MEMUAT</span>
+    </section>
     <section class="wheel-area" aria-label="Setengah lingkaran sembilan placeholder kartu LED">
       <div class="wheel-stage">
       <img class="dragon-wheel-art wheel-static-v09" src="/assets/art/v2/wheel-dragon.webp" alt="" aria-hidden="true" decoding="async">
@@ -114,7 +121,16 @@
       </div>
       </div>
       <div class="spin-caption" id="spin-caption" role="status" aria-live="polite">SPIN pertama mengisi kartu kiri</div>
+      <button id="audio-retry" class="audio-retry" type="button" hidden aria-label="Aktifkan suara iPhone">🔊 AKTIFKAN SUARA</button>
       <div id="win-particles" class="win-particles" aria-hidden="true"></div>
+    </section>
+    <section id="activity-board" class="activity-board" aria-label="Running text payout virtual">
+      <div class="activity-topline">
+        <strong class="activity-head">PAYOUT</strong>
+      </div>
+      <div class="activity-viewport" aria-label="Daftar payout terakhir">
+        <div id="activity-feed" class="activity-feed"><span>Menunggu aktivitas payout…</span></div>
+      </div>
     </section>
     <footer class="game-footer">
 
@@ -143,15 +159,17 @@
     <div class="modal-card"><div class="modal-header"><button id="modal-back" type="button" aria-label="Kembali ke menu" hidden>‹</button><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" aria-label="Tutup">×</button></div><div class="modal-content" id="modal-content"></div></div>
   </dialog>
   <script src="/assets/art/motion.js?v=8" defer></script>
-  <script src="/assets/art/ledwheel.js?v=1139" defer></script>
-  <script src="/assets/art/sound.js?v=1152" defer></script>
+  <script src="/assets/art/ledwheel.js?v=1163" defer></script>
+  <script src="/assets/art/sound.js?v=1161" defer></script>
   <script src="/assets/art/mirror-loop.js?v=1120" defer></script>
-  <script src="/assets/art/sound-studio.js?v=1155" defer></script>
+  <script src="/assets/art/sound-studio.js?v=1161" defer></script>
   <script src="/assets/art/match-announce.js?v=111" defer></script>
   <script src="/assets/art/celebrations.js?v=1152" defer></script>
-  <script src="/assets/orbit.js?v=1155" defer></script>
+  <script src="/assets/art/promo-audio.js?v=1163" defer></script>
+  <script src="/assets/art/activity-ticker.js?v=1164" defer></script>
+  <script src="/assets/orbit.js?v=1163" defer></script>
   <script src="/assets/pwa-update.js?v=1144" defer></script>
   <script src="/assets/viewport-v11.js?v=1140" defer></script>
-  <script src="/assets/boot.js?v=1144" defer></script>
+  <script src="/assets/boot.js?v=1161" defer></script>
 </body>
 </html>

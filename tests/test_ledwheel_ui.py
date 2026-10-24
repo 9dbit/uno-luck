@@ -13,7 +13,7 @@ def test_single_approved_static_wheel_with_nine_led_placeholders():
     assert HTML.count('id="spin-btn"')==1
     assert HTML.count('wheel-dragon.webp')==1
     assert 'wheel360.js?v=8' not in HTML
-    assert '/assets/art/ledwheel.js?v=1139' in HTML
+    assert '/assets/art/ledwheel.js?v=1163' in HTML
     assert '/assets/art/ledwheel.css?v=10' in HTML
     assert 'const RING_COUNT = 9' in ORBIT
     assert 'GEOMETRY = [' in WHEEL
@@ -59,6 +59,8 @@ def test_ledger_probability_and_request_deduplication_unchanged():
     assert 'secrets.randbelow(100) < WIN_PERCENT' in SERVER
     assert 'def choose_cards()' in SERVER
     assert "db.execute('SELECT round_id,selected_count FROM orbit_requests" in SERVER
-    assert 'new_balance=acct[\'balance\']-payload.stake' in SERVER
+    assert 'charged_stake = payload.stake' in SERVER
+    assert "new_balance=acct['balance']-charged_stake" in SERVER
+    assert "autoplay.round_terms(promotion)" in SERVER
     assert "multiplier * row['stake']" in SERVER and 'CELEBRATIONS' in SERVER
     assert 'fetch(' not in WHEEL

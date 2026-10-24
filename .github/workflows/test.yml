@@ -28,6 +28,8 @@ jobs:
       - run: node --check app/static/pwa-update.js
       - run: node --check app/static/art/motion.js
       - run: node --check app/static/art/ledwheel.js
+      - run: node --check app/static/art/promo-audio.js
+      - run: node --check app/static/art/activity-ticker.js
       - run: node --check app/static/art/sound.js
       - run: node --check app/static/art/sound-studio.js
       - run: node --check app/static/art/mirror-loop.js
@@ -51,6 +53,8 @@ jobs:
           export UNO_SOUND_ADMIN_TOKEN="uno-ci-only-shared-sound-secret-for-playwright-2026"
           export UNO_QA_ADMIN_PASSWORD="ci-password-test-only"
           export UNO_ADMIN_PASSWORD_HASH="$(python -c 'import os; from app.admin_auth import hash_password; print(hash_password(os.environ["UNO_QA_ADMIN_PASSWORD"]))')"
+          sudo apt-get update -qq && sudo apt-get install -y -qq espeak
+          python scripts/build_promo_audio.py --root app/static
           python tests/seed_ci_published_sounds.py
           python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-server.log 2>&1 &
           for i in $(seq 1 30); do
@@ -61,6 +65,8 @@ jobs:
           npm install --no-save --package-lock=false playwright
           python tests/visual_qa_admin_password.py
           node tests/qa_numeric_bonus.cjs
+          node tests/qa_zero_product.cjs
+          node tests/qa_led_watchdog.cjs
           UNO_SPIN_DB_PATH=/tmp/uno-economy-qa.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8081 > /tmp/uno-economy-server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8081/health >/dev/null; then break; fi
@@ -73,6 +79,14 @@ jobs:
             sleep 1
           done
           UNO_QA_URL=http://127.0.0.1:8082 UNO_QA_ENGINE=webkit node tests/qa_economy.cjs
+          UNO_QA_ACTIVITY_DEMO=1 UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_SPIN_DB_PATH=/tmp/uno-auto-gift-qa.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8083 > /tmp/uno-auto-gift-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8083/health >/dev/null; then break; fi
+            sleep 1
+          done
+          UNO_QA_URL=http://127.0.0.1:8083 node tests/qa_auto_gift.cjs
+          UNO_QA_URL=http://127.0.0.1:8083 node tests/qa_activity_ticker.cjs
+          UNO_QA_URL=http://127.0.0.1:8083 node tests/qa_responsive_mobile.cjs
           python tests/visual_qa_led_chase.py
           python tests/visual_qa_player_admin.py
           python tests/visual_qa_player_panels.py
@@ -85,7 +99,9 @@ jobs:
           UNO_QA_ENGINE=chromium python tests/visual_qa_iphone15pro_fullbleed.py
           python tests/visual_qa_sound_studio.py
           python tests/visual_qa_jackpot_sfx.py
+          python tests/visual_qa_qa_audio_fallback.py
           python tests/visual_qa_ios_safari_audio.py
+          python tests/visual_qa_ios_native_audio.py
           python tests/visual_qa_gameplay_music.py
           python tests/visual_qa_shared_sound.py
       - name: Upload QA screenshots
@@ -105,6 +121,7 @@ jobs:
             artifacts/uno-v11-led-chase/*.png
             artifacts/uno-v11-gameplay-music/*.png
             artifacts/uno-v12-iphone15pro-fullbleed/*.png
+            artifacts/uno-v1164-responsive/*.png
             artifacts/uno-v11-sound-studio/*.png
             artifacts/uno-v11-jackpot-audio/*.png
             artifacts/uno-v11-ios-safari-audio/*.png

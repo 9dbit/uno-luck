@@ -34,7 +34,7 @@ def test_activate_preset_once_without_overwriting(tmp_path):
     try:
         first=activate(db)
         assert first['activated'] is True and first['revision']==1
-        assert first['rtp_percent']==pytest.approx(89.99952285714286)
+        assert first['rtp_percent']==pytest.approx(economy.rtp_percent(economy.PRESET))
         second=activate(db)
         assert second['activated'] is False and second['revision']==1
         assert db.execute('SELECT COUNT(*) FROM economy_configs').fetchone()[0]==1
@@ -73,14 +73,18 @@ def test_exact_math_independent_enumeration():
     cfg=economy.PRESET
     numbers=[h for h in itertools.product(range(10),repeat=3) if h[0]==h[1] or h[1]==h[2] or h[0]==h[2]]
     assert len(numbers)==280
-    expected=.085656*sum(min(sum(h),10) for h in numbers)/280+.004*sum(min(h[0]*h[1]*h[2],20) for h in numbers)/280
+    nonzero=[h for h in numbers if h[0]*h[1]*h[2]>0]
+    assert len(nonzero)==225
+    sum_nonzero=[h for h in numbers if sum(h)>0]
+    assert len(sum_nonzero)==279
+    expected=.085656*sum(min(sum(h),10) for h in sum_nonzero)/len(sum_nonzero)+.004*sum(min(h[0]*h[1]*h[2],20) for h in nonzero)/len(nonzero)
     expected += .0025*25+.0004*40+.00008*80+.000015*150+.000002*300
     result=economy.simulate(economy.Simulation(config=cfg))
     assert result['rtp_percent']==pytest.approx(expected*100)
-    assert result['rtp_percent']==pytest.approx(89.99952285714286)
+    assert result['rtp_percent']==pytest.approx(91.6621770609319)
     assert sum(x['percent'] for x in result['distribution'])==pytest.approx(100)
-    assert result['payout_probability_percent']==pytest.approx(9.156129642857143)
-    assert result['average_rounds_per_positive_payout']==pytest.approx(10.921645)
+    assert result['payout_probability_percent']==pytest.approx(9.265292500000001)
+    assert result['average_rounds_per_positive_payout']==pytest.approx(10.79296741036508)
     assert result['expected_net']==pytest.approx((expected-1)*10)
     assert result==economy.simulate(economy.Simulation(config=cfg))
     empty=economy.simulate(economy.Simulation(config=cfg,balance=9))
@@ -91,7 +95,8 @@ def test_exact_math_independent_enumeration():
     ((2,2,1),('red','blue','green'),'PAIR_SUM',5),
     ((3,3,2),('blue',)*3,'PAIR_PRODUCT',18),
     ((9,9,9),('blue',)*3,'PAIR_PRODUCT',20),
-    ((0,0,0),('blue',)*3,'PAIR_PRODUCT',0),
+    ((0,0,0),('blue',)*3,'COLOR_MATCH',25),
+    ((6,0,6),('blue',)*3,'COLOR_MATCH',25),
     (('+2','+2',4),('red','blue','yellow'),'PAIR_SUM',8),
     (('+2','+2',4),('blue',)*3,'PAIR_PRODUCT',16),
     ((2,3,4),('blue',)*3,'COLOR_MATCH',40),
@@ -120,6 +125,45 @@ def test_settlement_snapshot_replay_and_ledger(client,monkeypatch,faces,colors,c
     db.close()
 
 
+def test_zero_product_rank_five_new_version_and_legacy_snapshot(client,monkeypatch):
+    assert publish(client).status_code==200
+    cards=hand((6,0,6),('blue',)*3)
+    assert economy.classify(cards,economy.PRESET)==('COLOR_MATCH',25,5)
+    assert economy.classify(cards,economy.PRESET,zero_product_fallback=False)==(
+        'PAIR_PRODUCT',0,None)
+
+    monkeypatch.setattr(economy,'draw',lambda cfg:cards)
+    first=pick(client,1,25).json()
+    assert first['round']['payout'] is None
+    assert first['round']['picked']==1
+    assert first['account']['balance']==975
+    assert pick(client,2,25).status_code==200
+    corrected=pick(client,3,25).json()
+    assert client.get('/api/orbit/state').json()['rules']['rules_version']==5
+    assert corrected['round']['combo']=='COLOR_MATCH'
+    assert corrected['round']['tier']['rank']==5
+    assert corrected['round']['payout']==625
+    assert corrected['round']['delta']==600
+    assert corrected['account']['balance']==1600
+    assert pick(client,3,25).json()['replayed']
+
+    # A previously issued rules-v4 card contract has an immutable payout
+    # snapshot. Preserve replay/history, never edit an already-booked win.
+    first=pick(client,4,25).json()
+    db=orbit.open_db()
+    row=db.execute('SELECT id,economy_json FROM orbit_rounds WHERE picked=1').fetchone()
+    old_snapshot=json.loads(row['economy_json'])
+    old_snapshot['multiplier']=0
+    db.execute("""UPDATE orbit_rounds SET rules_version=4,combo='PAIR_PRODUCT',
+        tier=NULL,economy_json=? WHERE id=?""",(json.dumps(old_snapshot),row['id']))
+    db.close()
+    assert pick(client,5,25).status_code==200
+    old_result=pick(client,6,25).json()
+    assert old_result['round']['combo']=='PAIR_PRODUCT'
+    assert old_result['round']['payout']==0
+    assert old_result['account']['balance']==1575
+
+
 def test_removed_stake_can_finish_and_replay(client,monkeypatch):
     publish(client);monkeypatch.setattr(economy,'draw',lambda cfg:hand((2,2,1),('red','blue','green')))
     assert pick(client,1,20).status_code==200
@@ -145,6 +189,8 @@ def test_generator_boundaries_match_categories(monkeypatch):
     # Exercise exact interval boundaries rather than a noisy statistical test.
     for key in economy.KEYS:
         size=int(cfg.percentages[key]*10000)
+        if not size:
+            continue  # Newly added categories remain disabled in the historical preset.
         for value in (roll,roll+size-1):
             # Patch only selection randbelow; tier-4 also uses it for a face start.
             calls=iter([value])
@@ -164,7 +210,7 @@ def test_draw_two_pair_is_value_two_without_changing_distribution():
     assert economy.classify(cards,cfg,draw_two_match=False)==('NO_MATCH',0,None)
     mixed=hand(('+2',2,4),('red','blue','yellow'))
     assert economy.classify(mixed,cfg)==('NO_MATCH',0,None)
-    assert economy.rtp_percent(cfg)==pytest.approx(89.99952285714286)
+    assert economy.rtp_percent(cfg)==pytest.approx(91.6621770609319)
 
 
 def test_balance_cap_and_corrupted_snapshot(client,monkeypatch):
@@ -200,10 +246,11 @@ def test_operator_projection_and_target_are_read_only(client):
     before=client.get('/api/orbit/state').json()['account']['balance']
     result=client.post('/api/admin/economy/simulate',headers=HEAD,json={
         'config':config(),'turnover_rp':1000000,'costs_rp':50000}).json()
-    assert result['operator_margin_percent']==pytest.approx(10.000477142857136)
-    assert result['projection']['expected_payout_rp']==pytest.approx(899995.2285714286)
-    assert result['projection']['gross_result_rp']==pytest.approx(100004.77142857136)
-    assert result['projection']['net_result_rp']==pytest.approx(50004.77142857136)
+    expected_rtp=economy.rtp_percent(economy.PRESET)/100
+    assert result['operator_margin_percent']==pytest.approx((1-expected_rtp)*100)
+    assert result['projection']['expected_payout_rp']==pytest.approx(1000000*expected_rtp)
+    assert result['projection']['gross_result_rp']==pytest.approx(1000000*(1-expected_rtp))
+    assert result['projection']['net_result_rp']==pytest.approx(1000000*(1-expected_rtp)-50000)
     response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':config(),'margin_percent':10})
     assert response.status_code==200
     result=response.json();proposed=result['config']
@@ -251,7 +298,7 @@ def test_publish_guardrail_and_actual_performance(client,monkeypatch):
     assert result['rounds']==1 and result['players']==1
     assert result['turnover_coin']==10 and result['payout_coin']==50 and result['gross_coin']==-40
     assert result['actual_rtp_percent']==500
-    assert result['theoretical_rtp_percent']==pytest.approx(89.99952285714286)
+    assert result['theoretical_rtp_percent']==pytest.approx(91.6621770609319)
     assert result['active_revision']==1 and result['engine_model']==economy.ENGINE_MODEL
     assert result['by_combo']==[{'combo':'PAIR_SUM','rounds':1,'turnover_coin':10,'payout_coin':50}]
     assert client.get('/api/admin/economy/performance?days=0',headers=HEAD).status_code==422

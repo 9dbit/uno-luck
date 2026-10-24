@@ -11,7 +11,8 @@ const MUTE_EFFECTS = 'uno_orbit_sfx';
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let account = null, currentRound=null, last=null, ruleset=null, stakeIndex=1, isSpinning=false;
 let nextBetIndex=null;
-let isTurbo=false, isAuto=false, cancelAuto=false, ringCards=[], wheel=null;
+let isTurbo=false, isAuto=false, autoStarting=false, cancelAuto=false, ringCards=[], wheel=null;
+let activeAutoSession=null, announceAutoGift=false, giftModalOpen=false;
 const AUTO_ROUNDS=[1,3,5,10];
 let autoRounds=10;
 let audioContext=null, musicTimer=null, musicEnabled=localStorage.getItem(MUTE_MUSIC)!=='off';
@@ -23,7 +24,7 @@ function symbol(face){return ({SKIP:'⊘',REVERSE:'⇄','+2':'+2','+4':'+4',WILD
 
 function htmlCard(data,small=false,placeholder=false){
   const color = COLORS.includes(data.color) ? data.color : (data.color==='wild'?'wild':'blue');
-  const face = String(data.face || '?').slice(0,8);
+  const face = String(data.face ?? '?').slice(0,8);
   const asset = placeholder ? 'card-placeholder' : `card-${color}`;
   const el=document.createElement('div');
   el.className='card3d'+(placeholder?' placeholder':'');
@@ -58,8 +59,8 @@ function paintRound(round,preview=false,animateMetrics=false){
     slot.replaceChildren(element);
     slot.classList.remove('picked');
   }
-  const stake=round?.stake ?? STAKES[stakeIndex];
-  const payout=round?.complete?round.payout:null;
+  const stake=round?.charged_stake ?? round?.stake ?? STAKES[stakeIndex];
+  const payout=round?.complete?round.payout+(round.promo_coin||0):null;
   const delta=round?.complete?round.delta:null;
   if(window.UNOLuckMotion) window.UNOLuckMotion.numbers({stake,payout,delta,animate:animateMetrics});
   else {
@@ -93,19 +94,23 @@ function syncAccount(a){
 }
 function updateButtons(){
   const stake=currentRound?.stake ?? STAKES[stakeIndex];
-  $('spin-btn').disabled=isSpinning||isAuto||!account||(!currentRound && account.balance<stake);
-  $('turbo-btn').disabled=isSpinning;
+  $('spin-btn').disabled=isSpinning||isAuto||autoStarting||giftModalOpen||
+    Boolean(activeAutoSession?.gift_ready)&&!activeAutoSession?.gift_acknowledged||
+    !account||(!currentRound && account.balance<stake);
+  $('turbo-btn').disabled=isSpinning||autoStarting;
   $('turbo-btn').setAttribute('aria-pressed',String(isTurbo));
   $('auto-btn').setAttribute('aria-pressed',String(isAuto));
-  $('auto-btn').disabled=!isAuto&&(isSpinning||!account);
+  $('auto-btn').disabled=autoStarting||(!isAuto&&(isSpinning||!account));
   $('auto-btn').setAttribute('aria-label',isAuto?'Hentikan AUTO':'Pengaturan AUTO');
   $('auto-label').textContent=isAuto?'STOP':'AUTO';
 }
 async function api(path,method='GET',body){
   const req={method,credentials:'same-origin',headers:{}};
-  const controller=method==='GET'?new AbortController():null;
-  const timeout=controller?setTimeout(()=>controller.abort(),6000):null;
-  if(controller){req.signal=controller.signal;req.cache='no-store';}
+  const controller=new AbortController();
+  // POST /pick uses a replay-safe request ID; timeouts must never freeze
+  // Safari while its wheel keeps spinning. State recovery checks the server.
+  const timeout=setTimeout(()=>controller.abort(),method==='GET'?6000:14500);
+  req.signal=controller.signal;req.cache='no-store';
   if(method!=='GET'){req.headers['Content-Type']='application/json';req.headers['X-UNO-Client']='spin-ui';req.body=JSON.stringify(body??{});}
   try{
   let response;
@@ -113,13 +118,29 @@ async function api(path,method='GET',body){
   let data;try{data=await response.json();}catch(_){throw Error('Server mengirim respons tak valid.');}
   if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:`HTTP ${response.status}`);
   return data;
-  }finally{if(timeout!==null)clearTimeout(timeout);}
+  }finally{clearTimeout(timeout);}
 }
 async function legacyBonus(endpoint){
   const response=await fetch('/api/spin/'+endpoint,{method:'POST',headers:{'X-UNO-Client':'spin-ui','Content-Type':'application/json'},credentials:'same-origin',body:'{}'});
   const data=await response.json();
   if(!response.ok)throw Error(data.detail||'Gagal mengklaim hadiah');
   return data;
+}
+async function autoApi(path,method='GET',body){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),12000);
+  try{
+    const response=await fetch('/api/auto'+path,{method,credentials:'same-origin',
+      signal:controller.signal,cache:'no-store',
+      headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},
+      ...(body?{body:JSON.stringify(body)}:{})});
+    const data=await response.json().catch(()=>null);
+    if(!response.ok||!data)throw Error(data?.detail||'AUTO server tidak tersedia.');
+    return data;
+  }catch(error){
+    if(error.name==='AbortError')throw Error('Koneksi AUTO timeout, coba lagi. Sesi tetap tersimpan.');
+    throw error;
+  }finally{clearTimeout(timer);}
 }
 function sfx(name){if(sfxEnabled)window.UNOLuckSound?.play(name);}
 function startMusic(){
@@ -132,7 +153,17 @@ async function unlockAudio(){
   if(ok){window.UNOLuckSound.setEnabled(sfxEnabled);startMusic();}
   return Boolean(ok);
 }
-window.UNOLuckAudio={unlock:unlockAudio,preview:()=>sfx('tap'),get state(){return window.UNOLuckSound?.state||'inactive';}};
+function activateSoundFromSplash(){
+  // PLAY WITH SOUND is an explicit opt-in even after a prior saved mute.
+  // Keep ALL Sound Cloud mixer values and trim selections unchanged.
+  musicEnabled=true;sfxEnabled=true;
+  localStorage.setItem(MUTE_MUSIC,'on');
+  localStorage.setItem(MUTE_EFFECTS,'on');
+  window.UNOLuckSound?.setEnabled(true);
+}
+window.UNOLuckAudio={unlock:unlockAudio,preview:()=>sfx('tap'),
+  enableFromSplash:activateSoundFromSplash,
+  get state(){return window.UNOLuckSound?.state||'inactive';}};
 function winBurst(card,count=36){
   const layer=$('win-particles');layer.replaceChildren();
   if(reducedMotion)return;
@@ -154,7 +185,7 @@ function newRequestId(){return typeof crypto.randomUUID==='function'?crypto.rand
    from the wheel to the upper-left, upper-center, or upper-right display. */
 const pendingKey='uno_orbit_pending_v08'; // Keep request recovery keys across upgrades.
 // The updater may only refresh between completed rounds, never during a pick.
-window.UNOLuckCanReload=()=>Boolean(account)&&!isSpinning&&!isAuto&&!currentRound&&
+window.UNOLuckCanReload=()=>Boolean(account)&&!isSpinning&&!isAuto&&!autoStarting&&!currentRound&&
   !pendingInfo()&&!$('modal').open&&$('celebration-overlay').hidden;
 function pendingInfo(){
   try{const data=JSON.parse(localStorage.getItem(pendingKey)||'null');
@@ -164,7 +195,8 @@ function pendingInfo(){
 async function pickOne(){
   if(isSpinning||!account)return false;
   const stake=currentRound?.stake ?? STAKES[stakeIndex];
-  if(!currentRound && account.balance<stake){say('Saldo virtual tidak cukup. Klaim hadiah harian.');return false;}
+  const freeAuto = isAuto && activeAutoSession && activeAutoSession.completed_rounds >= activeAutoSession.paid_rounds;
+  if(!currentRound && account.balance<stake && !freeAuto){say('Saldo virtual tidak cukup. Klaim hadiah harian.');return false;}
   const expected=(currentRound?.picked||0)+1;
   let pending=pendingInfo();
   if(!pending||pending.expected!==expected){
@@ -172,6 +204,10 @@ async function pickOne(){
     localStorage.setItem(pendingKey,JSON.stringify(pending));
   }
   isSpinning=true;updateButtons();
+  // A fresh SPIN 1/3 must not display the last completed hand and its NET.
+  // Until the server settles the new round, show three covered cards and
+  // pending WIN/NET instead of presenting a previous 0 as a new result.
+  if(expected===1&&!currentRound)paintRound(null);
   window.UNOLuckMatch?.clear();
   window.UNOLuckMotion?.beginSpin();
   void unlockAudio();
@@ -179,7 +215,7 @@ async function pickOne(){
   let confirmed=null;
   try {
     wheel.begin({turbo:isTurbo});
-    confirmed=await api('/pick','POST',{request_id:pending.id,stake});
+    confirmed=await api('/pick','POST',{request_id:pending.id,stake,auto_session_id:isAuto?activeAutoSession?.id??null:null});
     const phase=confirmed.round.picked;
     const card=confirmed.round.cards[phase-1];
     if(!card)throw Error('Server belum memberikan kartu terpilih');
@@ -193,6 +229,14 @@ async function pickOne(){
     window.UNOLuckMotion?.pick(phase-1);
     syncAccount(confirmed.account);
     if(confirmed.round.complete){
+      if(isAuto&&activeAutoSession){
+        activeAutoSession.completed_rounds++;
+        // The server does not grant any extra game-RNG prize here: the
+        // three illustrated JACKPOT cards are a separate promotional reveal.
+        if(activeAutoSession.completed_rounds>=1 && !activeAutoSession.gift_acknowledged)
+          activeAutoSession.gift_ready=true;
+      }
+
       last=confirmed.round;
       // A winning round is scored by exactly one tier-specific jackpot cue.
       // Do not overlap RESULT SOUND with the user-selected JACKPOT 1–5 file.
@@ -205,9 +249,18 @@ async function pickOne(){
         await window.UNOLuckCelebration?.present(last);
       }else if(last.bonus&&last.payout>0){
         const drawTwo=(last.cards||[]).filter(card=>String(card.face)==='+2').length>=2;
-        say(`${drawTwo?'Draw Two Match':last.bonus.kind==='PAIR_PRODUCT'?'Bonus perkalian':'Bonus penjumlahan'} · +${idMoney(last.payout)} Coin · ${virtualRp(last.payout)}`);
-        showNumericBonus(last);
-      }else{say(last.bonus?'Angka kembar menghasilkan payout 0. Mulai ronde baru!':'Belum ada kecocokan warna. Mulai ronde baru!');}
+        const kinds={PAIR_SUM:'Bonus penjumlahan',PAIR_PRODUCT:'Bonus perkalian',
+          COLOR_PAIR:'Color Pair',COLOR_SEQUENCE:'Color Sequence'};
+        say(`${drawTwo?'Draw Two Match':kinds[last.bonus.kind]||'Bonus warna'} · +${idMoney(last.payout)} Coin · ${virtualRp(last.payout)}`);
+        await showNumericBonus(last,{fullTadaa:isAuto});
+      }else{say(last.bonus?'Payout permainan 0. Mulai ronde baru!':'ZONK · Tidak ada kemenangan permainan.');}
+      if(last.promo_coin>0)showPromotionalWin(last.promo_coin);
+      // First AUTO GIFT is revealed only AFTER all three result cards
+      // have finished spinning, settling and showing their ordinary payout.
+      if(isAuto&&activeAutoSession?.gift_ready&&!activeAutoSession.gift_acknowledged){
+        const ack=await showAutoGift();
+        if(!ack){cancelAuto=true;return false;}
+      }
     }else say(`Kartu ${['kiri','tengah','kanan'][phase-1]} terpilih. SPIN ${phase+1}/3 berikutnya.`);
     navigator.vibrate?.(18);
     return true;
@@ -221,11 +274,12 @@ async function pickOne(){
     isSpinning=false;
     applyNextBet();
     window.UNOLuckMotion?.endSpin();
+    if(wheel?.active)wheel.cancel();
     wheel?.startIdle();
     updateButtons();
   }
 }
-function canChangeBet(){return !!account&&!isSpinning&&!isAuto&&!currentRound&&!pendingInfo();}
+function canChangeBet(){return !!account&&!isSpinning&&!isAuto&&!autoStarting&&!currentRound&&!pendingInfo();}
 // Only promote a confirmed choice after the paid round, AUTO batch and any
 // uncertain request finish. Never change the stake used for an in-flight retry.
 function applyNextBet(){
@@ -233,13 +287,14 @@ function applyNextBet(){
   stakeIndex=nextBetIndex;nextBetIndex=null;
 }
 let numericBonusTimer;
-function showNumericBonus(round){
+async function showNumericBonus(round,{fullTadaa=false}={}){
   document.getElementById('numeric-bonus')?.remove();clearTimeout(numericBonusTimer);
   const toast=panelNode('aside','numeric-bonus');toast.id='numeric-bonus';toast.setAttribute('role','status');
   const drawTwo=(round.cards||[]).filter(card=>String(card.face)==='+2').length>=2;
   toast.classList.toggle('is-draw-two',drawTwo);
   const amount=panelNode('strong','numeric-bonus-amount','+0 Coin');
-  toast.append(panelNode('small','numeric-bonus-title',drawTwo?'DRAW TWO MATCH':'PAIR MATCH'),
+  const bonusTitles={COLOR_PAIR:'COLOR PAIR',COLOR_SEQUENCE:'COLOR SEQUENCE',PAIR_SUM:'PAIR MATCH',PAIR_PRODUCT:'PAIR MATCH'};
+  toast.append(panelNode('small','numeric-bonus-title',drawTwo?'DRAW TWO MATCH':bonusTitles[round.bonus?.kind]||'BONUS'),
     festiveArt('coins'),amount,
     panelNode('span','',`${round.bonus?.multiplier||0}× BET · ${virtualRp(round.payout)}`));
   document.body.append(toast);
@@ -252,28 +307,202 @@ function showNumericBonus(round){
     setTimeout(()=>{if(amount.isConnected)amount.textContent=`+${idMoney(target)} Coin`;},duration+80);
   }
   winBurst(round.cards?.find(card=>String(card.face)==='+2')||round.cards?.[0]||{color:'yellow'},18);
-  if(sfxEnabled&&round.payout>0)window.UNOLuckSound?.numericBonus?.();
-  numericBonusTimer=setTimeout(()=>toast.remove(),2400);
-}
-function autoBudget(rounds){return (rounds-(currentRound?1:0))*(currentRound?.stake??STAKES[stakeIndex]);}
-async function autoLoop(roundLimit){
-  if(isAuto||isSpinning||!account||pendingInfo()||document.hidden||
-      !AUTO_ROUNDS.includes(roundLimit)||account.balance<autoBudget(roundLimit))return;
-  // Keep the confirmed setup stake after a restored paid round completes.
-  const autoStakeIndex=STAKES.indexOf(currentRound?.stake??STAKES[stakeIndex]);
-  if(autoStakeIndex<0){say('BET ronde lama tidak tersedia untuk AUTO. Selesaikan ronde dengan SPIN, lalu pilih BET baru.');return;}
-  stakeIndex=autoStakeIndex;
-  isAuto=true;cancelAuto=false;updateButtons();
-  // The selected limit includes an existing paid partial round. Each card
-  // still uses the same server-issued pick and persistent request ID.
-  for(let rounds=0;rounds<roundLimit&&!cancelAuto&&!document.hidden;rounds++){
-    for(let k=(currentRound?.picked||0);k<3&&!cancelAuto&&!document.hidden;k++){
-      const done=await pickOne();if(!done){cancelAuto=true;break;}if(cancelAuto)break;
-      await wait(isTurbo?130:230);
-    }
-    if(!cancelAuto)await wait(isTurbo?270:510);
+  const fanfareStarted=performance.now();
+  let sound=Promise.resolve(false);
+  if(sfxEnabled&&round.payout>0)
+    sound=Promise.resolve(fullTadaa?
+      window.UNOLuckPromoAudio?.playTadaa?.():window.UNOLuckSound?.numericBonus?.());
+  numericBonusTimer=setTimeout(()=>toast.remove(),fullTadaa?3300:2400);
+  // TURBO accelerates LEDs, not the fanfare. Even if iOS rejects playback,
+  // the toast and animation still hold their normal 2.85s celebration beat.
+  if(fullTadaa){
+    await Promise.race([sound.catch(()=>false),wait(3900)]);
+    const remaining=2850-(performance.now()-fanfareStarted);
+    if(remaining>0)await wait(remaining);
   }
-  isAuto=false;applyNextBet();updateButtons();
+}
+async function showAutoGift(){
+  if(!activeAutoSession?.gift_ready||activeAutoSession.gift_acknowledged)return true;
+  if(giftModalOpen)return false;
+  giftModalOpen=true;updateButtons();
+  document.getElementById('auto-gift-banner')?.remove();
+  const overlay=panelNode('section','auto-gift-stage');
+  overlay.id='auto-gift-banner';
+  overlay.setAttribute('role','dialog');
+  overlay.setAttribute('aria-modal','true');
+  overlay.setAttribute('aria-label','Hadiah promosi 10 Free Spins, lanjutkan setelah mendengar audio');
+  const confetti=panelNode('div','auto-gift-confetti');
+  confetti.setAttribute('aria-hidden','true');
+  if(!reducedMotion){
+    const hues=['#ffe870','#ff3b70','#ffba27','#73efff','#a86bff','#6ffc96'];
+    for(let i=0;i<65;i++){
+      const fragment=panelNode('i','auto-gift-piece');
+      fragment.style.setProperty('--x',(Math.random()*100).toFixed(1)+'%');
+      fragment.style.setProperty('--travel',(80+Math.random()*72).toFixed(1)+'dvh');
+      fragment.style.setProperty('--delay',(Math.random()*1.1).toFixed(2)+'s');
+      fragment.style.setProperty('--duration',(2.3+Math.random()*1.7).toFixed(2)+'s');
+      fragment.style.setProperty('--rot',Math.floor(Math.random()*720)+'deg');
+      fragment.style.setProperty('--gift-color',hues[i%hues.length]);
+      confetti.append(fragment);
+    }
+  }
+  const panel=panelNode('div','auto-gift-inner');
+  panel.append(panelNode('small','auto-gift-eyebrow','JACKPOT GIFT · BONUS PROMOSI'));
+  const cards=panelNode('div','auto-gift-cards');
+  for(let index=0;index<3;index++){
+    const card=panelNode('div','auto-gift-card');
+    card.append(panelNode('span','auto-gift-card-top','UNO LUCK'),
+      panelNode('strong','','JACKPOT'),
+      panelNode('span','auto-gift-card-bottom','GIFT'));
+    card.setAttribute('aria-label','Kartu promosi jackpot '+(index+1));
+    cards.append(card);
+  }
+  panel.append(cards,
+    panelNode('h2','auto-gift-heading','10 FREE SPINS!'),
+    panelNode('p','auto-gift-copy',
+      '3 kartu JACKPOT GIFT ini adalah animasi bonus promosi, terpisah dari hasil acak tiga kartu permainan. 10 Free Spins dan 5 hadiah bonus sudah tercatat dalam sesi Anda.'));
+  const status=panelNode('p','auto-gift-status','🔊 FREE SPIINNN! · efek ledakan dan fanfare');
+  status.setAttribute('role','status');
+  const action=panelNode('button','auto-gift-continue','MENYIAPKAN SUARA…');
+  action.type='button';action.disabled=true;
+  const stop=panelNode('button','auto-gift-stop','STOP AUTO · LANJUTKAN NANTI');
+  stop.type='button';
+  panel.append(status,action,stop);
+  overlay.append(confetti,panel);
+  document.body.append(overlay);
+  winBurst({color:'yellow'},48);
+  let done=false,voiceStarted=false,waitingForSound=false,voiceAttempts=0;
+  const release=()=>{if(overlay.isConnected)overlay.remove();giftModalOpen=false;updateButtons();};
+  try {
+    const approved=await new Promise(resolve=>{
+      const close=value=>{if(done)return;done=true;resolve(value);};
+      stop.addEventListener('click',()=>{cancelAuto=true;close(false);});
+      // A backgrounded PWA cannot keep an inaccessible CONTINUE overlay.
+      const hide=()=>{if(document.hidden){cancelAuto=true;close(false);}};
+      document.addEventListener('visibilitychange',hide,{once:true});
+      const voice=async()=>{
+        if(waitingForSound)return;
+        voiceAttempts++;
+        waitingForSound=true;
+        action.disabled=true;action.textContent='🔊 FREE SPIINNN…';
+        status.textContent='🔊 Free Spiinnn! · Boom! · Tadaa!';
+        let played=false;
+        try{
+          played=await Promise.race([
+            Promise.resolve(window.UNOLuckPromoAudio?.playGift?.()).then(Boolean),
+            wait(5300).then(()=>false)
+          ]);
+        }catch(error){console.warn('[UNO PROMO VOICE]',error);}
+        if(done)return;
+        waitingForSound=false;
+        voiceStarted=Boolean(played);
+        if(voiceStarted){
+          status.textContent='✨ 10 FREE SPINS SUDAH SIAP · tekan CONTINUE';
+          action.textContent='CONTINUE ▶';
+        }else if(voiceAttempts>=2){
+          // A user must never become locked in a promo overlay just because
+          // Safari denies native media. Disclose audio failure explicitly.
+          voiceStarted=true;
+          status.textContent='Suara diblokir perangkat. Periksa volume atau aktifkan audio, lalu lanjutkan.';
+          action.textContent='CONTINUE ▶ (TANPA AUDIO)';
+        }else{
+          // iOS may deny audio outside a trusted tap. Do not silently skip
+          // the requested voice: the next tap retries .play() synchronously.
+          status.textContent='iPhone memerlukan ketukan untuk suara Free Spins.';
+          action.textContent='🔊 PUTAR FREE SPINS';
+        }
+        action.disabled=false;
+      };
+      action.addEventListener('click',async()=>{
+        if(!voiceStarted){
+          void voice();return;
+        }
+        action.disabled=true;action.textContent='MELANJUTKAN…';
+        try{
+          const confirmed=await autoApi('/gift/continue','POST',
+            {session_id:activeAutoSession.id});
+          activeAutoSession=confirmed.session;
+          announceAutoGift=false;
+          close(true);
+        }catch(error){
+          status.textContent='Gagal menyimpan CONTINUE: '+error.message+'. Coba lagi.';
+          action.disabled=false;action.textContent='CONTINUE ▶';
+        }
+      });
+      void voice();
+    });
+    return approved;
+  }finally{release();}
+}
+function showPromotionalWin(coin){
+  if(!coin)return;
+  document.getElementById('auto-promo-win')?.remove();
+  const toast=panelNode('aside','numeric-bonus auto-gift-banner');
+  toast.id='auto-promo-win';toast.setAttribute('role','status');
+  toast.append(panelNode('small','numeric-bonus-title','AUTO PROMO GIFT'),
+    festiveArt('coins'),panelNode('strong','numeric-bonus-amount','+'+idMoney(coin)+' Coin'),
+    panelNode('span','','Hadiah promosi terpisah dari payout kartu · '+virtualRp(coin)));
+  document.body.append(toast);
+  if(sfxEnabled)sfx('coin');
+  setTimeout(()=>toast.remove(),2800);
+}
+function autoBudget(rounds){
+  const stake=activeAutoSession?.stake ?? currentRound?.stake ?? STAKES[stakeIndex];
+  if(activeAutoSession){
+    const paidRemaining=Math.max(0,activeAutoSession.paid_rounds-activeAutoSession.completed_rounds-(currentRound?1:0));
+    return paidRemaining*stake;
+  }
+  return rounds*stake;
+}
+async function autoLoop(roundLimit){
+  if(isAuto||autoStarting||isSpinning||!account||pendingInfo()||document.hidden||!AUTO_ROUNDS.includes(roundLimit))return;
+  if(currentRound&&currentRound.auto_session_id!==activeAutoSession?.id){
+    say('Selesaikan ronde yang sedang berjalan sebelum melanjutkan AUTO.');
+    return;
+  }
+  const requestedStake=activeAutoSession?.stake ?? STAKES[stakeIndex];
+  if(account.balance<autoBudget(roundLimit)){
+    say('Saldo belum cukup untuk seluruh ronde AUTO berbayar.');
+    return;
+  }
+  autoStarting=true;updateButtons();
+  try{
+    void unlockAudio();
+    window.UNOLuckPromoAudio?.prime?.(); // direct AUTO click gesture, no edits to Sound Cloud
+    const opened=await autoApi('/start','POST',
+      {request_id:newRequestId(),paid_rounds:roundLimit,stake:requestedStake});
+    activeAutoSession=opened.session;
+    announceAutoGift=Boolean(opened.created||opened.session?.gift_ready);
+    const idx=STAKES.indexOf(activeAutoSession.stake);
+    if(idx<0)throw Error('BET dari sesi AUTO sebelumnya tidak tersedia lagi.');
+    stakeIndex=idx;
+    // The server handshake is done. Restore the STOP button for a running AUTO.
+    autoStarting=false;
+    isAuto=true;cancelAuto=false;updateButtons();
+    if(opened.resumed)say('Melanjutkan Free Spins dari sesi sebelumnya.');
+    if(activeAutoSession.gift_ready&&!activeAutoSession.gift_acknowledged){
+      if(!(await showAutoGift()))cancelAuto=true;
+    }
+    const remaining=activeAutoSession.rounds_remaining;
+    for(let rounds=0;rounds<remaining&&!cancelAuto&&!document.hidden;rounds++){
+      for(let k=(currentRound?.picked||0);k<3&&!cancelAuto&&!document.hidden;k++){
+        const done=await pickOne();
+        if(!done){cancelAuto=true;break;}
+        if(cancelAuto)break;
+        await wait(isTurbo?130:230);
+      }
+      if(!cancelAuto)await wait(isTurbo?270:510);
+    }
+    if(activeAutoSession && activeAutoSession.completed_rounds >=
+       activeAutoSession.paid_rounds+activeAutoSession.free_rounds){
+      activeAutoSession=null;
+    }
+  }catch(error){
+    say(error.message||'Gagal memulai AUTO. Tidak ada saldo yang dipotong oleh tombol AUTO.');
+  }finally{
+    isAuto=false;autoStarting=false;announceAutoGift=false;
+    applyNextBet();updateButtons();
+  }
 }
 function modal(title){delete $('modal').dataset.view;$('modal-back').hidden=title==='Menu';$('modal').classList.remove('coin-modal','player-panel');$('modal').querySelector('.panel-actions')?.remove();$('modal-title').textContent=title;$('modal-content').replaceChildren();$('modal-content').scrollTop=0;if(!$('modal').open)$('modal').showModal();return $('modal-content');}
 function paragraph(parent,text){const p=document.createElement('p');p.textContent=text;parent.append(p);return p;}
@@ -324,13 +553,13 @@ async function showWallet(view='all'){
     const recent=data.recent||[];
     const dashboard=panelNode('section','wallet-dashboard');dashboard.setAttribute('aria-label','Ringkasan riwayat wallet');
     dashboard.append(panelNode('p','panel-eyebrow',`RINGKASAN ${recent.length} RONDE TERAKHIR`));
-    for(const [label,key] of [['Total BET','stake'],['Total PAYOUT/WIN','payout'],['Total NET','delta']]){
+    for(const [label,key] of [['Total BET','stake'],['Total WIN','payout'],['Total NET','delta']]){
       const value=recent.reduce((sum,item)=>sum+(Number(item[key])||0),0);
       const metric=panelNode('div','wallet-metric');metric.dataset.metric=key;
       metric.classList.toggle('is-highlighted',(view==='payout'&&key==='payout')||(view==='net'&&key==='delta'));
       metric.append(panelNode('span','',label),coinValue(value),panelNode('small','wallet-rp',virtualRp(value)));dashboard.append(metric);
     }
-    dashboard.append(panelNode('p','panel-fine','PAYOUT/WIN adalah hadiah bruto. NET adalah PAYOUT dikurangi BET, sehingga bisa negatif saat tidak mendapat hadiah. Ringkasan hanya mencakup riwayat yang ditampilkan, bukan seluruh masa bermain.'));
+    dashboard.append(panelNode('p','panel-fine','WIN adalah hadiah bruto. NET adalah PAYOUT dikurangi BET, sehingga bisa negatif saat tidak mendapat hadiah. Ringkasan hanya mencakup riwayat yang ditampilkan, bukan seluruh masa bermain.'));
     history.append(dashboard);
     if(!data.recent?.length)paragraph(history,'Belum ada bet selesai.');
     for(const item of data.recent||[]){
@@ -338,7 +567,13 @@ async function showWallet(view='all'){
       const stamp=new Date(item.created_at*1000);
       const time=document.createElement('time');time.dateTime=stamp.toISOString();
       time.textContent=stamp.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'});
-      const result=document.createElement('strong');result.textContent=item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':item.combo==='PAIR_SUM'?'BONUS PENJUMLAHAN':item.combo==='PAIR_PRODUCT'?'BONUS PERKALIAN':'NO MATCH');
+      const result=document.createElement('strong');result.textContent=
+        item.combo==='PAIR_PRODUCT'&&Number(item.payout)===0?'BONUS PERKALIAN (ATURAN LAMA)': 
+        item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':
+        item.combo==='PAIR_SUM'?'BONUS PENJUMLAHAN':
+        item.combo==='PAIR_PRODUCT'?'BONUS PERKALIAN':
+        item.combo==='COLOR_PAIR'?'COLOR PAIR':
+        item.combo==='COLOR_SEQUENCE'?'COLOR SEQUENCE':'ZONK / NO MATCH');
       const values=document.createElement('p');values.textContent=`BET ${idMoney(item.stake)} · PAYOUT/WIN ${idMoney(item.payout)} · NET ${item.delta>=0?'+':''}${idMoney(item.delta)}`;
       const rupiah=panelNode('p','wallet-rp',`BET ${virtualRp(item.stake)} · PAYOUT/WIN ${virtualRp(item.payout)} · NET ${virtualRp(item.delta)}`);
       row.append(time,result,values,rupiah);history.append(row);
@@ -369,10 +604,14 @@ function showRules(){
   }else paragraph(area,'Daftar kombinasi sedang disinkronkan dari server. Periksa koneksi sebelum bermain.');
   const details=panelNode('details','rules-details'),summary=panelNode('summary','','Cara bermain & ketentuan');details.append(summary);
   paragraph(details,'Gambar kartu di atas adalah contoh kombinasi. Hasil setiap ronde ditentukan oleh server. Wild dan Wild +4 tidak mempunyai warna; hanya tiga Wild sejenis yang memenuhi Rank 1/2.');
-  if(ruleset?.numeric_bonus)paragraph(area,`PAIR MATCH · Tiga kartu dengan minimal dua angka sama, termasuk pasangan Draw Two (+2). +2 bernilai 2. Warna berbeda menjumlahkan nilainya (maks. ${ruleset.numeric_bonus.sum_cap}× BET); semua sewarna mengalikan nilainya (maks. ${ruleset.numeric_bonus.product_cap}× BET). Bonus mendapat tadaa dan selebrasi Coin kecil, bukan celebration Rank. Hanya satu hadiah per ronde; angka 0 dapat menghasilkan payout 0.`);
-  paragraph(area,'NO MATCH · Tidak ada kombinasi yang cocok, tidak ada payout.');
-  paragraph(details,'Tidak ada jaminan jackpot atau bonus setelah sejumlah spin.');
-  paragraph(details,'AUTO maksimal 10 ronde, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
+  if(ruleset?.numeric_bonus)paragraph(area,`PAIR MATCH · Tiga kartu dengan minimal dua angka sama, termasuk pasangan Draw Two (+2). +2 bernilai 2. Warna berbeda menjumlahkan nilainya (maks. ${ruleset.numeric_bonus.sum_cap}× BET); semua sewarna mengalikan nilainya (maks. ${ruleset.numeric_bonus.product_cap}× BET). Jika perkalian bernilai 0 dan ketiga kartu sewarna, hasilnya menjadi Lucky Color Win Rank 5 agar tidak ada hadiah 0 untuk kombinasi menang. Bonus pasangan mendapat selebrasi Coin kecil. Hanya satu hadiah per ronde.`);
+  if(ruleset?.color_bonus?.enabled){
+    paragraph(area,`COLOR PAIR · Minimal dua kartu memiliki warna sama, kecuali jika memenuhi Rank/angka kembar yang lebih tinggi. Hadiah ${ruleset.color_bonus.pair_multiplier}× BET.`);
+    paragraph(area,`COLOR SEQUENCE · Dua kartu berdampingan sewarna dengan angka berurutan. Hadiah ${ruleset.color_bonus.sequence_multiplier}× BET. Tiga angka sewarna berurutan tetap Golden Match.`);
+  }
+  paragraph(area,'ZONK (NO MATCH) · Tidak ada kemenangan dari kombinasi kartu, payout permainan 0.');
+  paragraph(details,'Hadiah permainan biasa dan jackpot Rank tetap ditentukan RNG independen, tanpa jaminan hasil tertentu. Untuk AUTO, 5 bonus promosi dijamin setelah memulai sesi berbayar, ditempatkan acak pada 10 free spins dan dicatat terpisah dari hasil kartu.');
+  paragraph(details,'AUTO maksimal 10 ronde berbayar ditambah 10 ronde gratis, TURBO hanya mengubah animasi. Koin tidak mempunyai nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat menurunkan jumlah yang benar-benar dikreditkan. Ini bukan aturan permainan UNO resmi.');
   area.append(details);
 }
 function showStakeChoices(){
@@ -419,14 +658,15 @@ function coinValue(value,tag='span'){
 }
 function showAutoSettings(){
   if(isAuto){cancelAuto=true;updateButtons();say('AUTO berhenti setelah SPIN saat ini.');return;}
-  if(isSpinning||!account)return;
-  const area=playerPanel('Auto Play');$('modal').dataset.view='auto';let selected=autoRounds;
+  if(isSpinning||autoStarting||!account)return;
+  const area=playerPanel('Auto Play');$('modal').dataset.view='auto';let selected=activeAutoSession?.paid_rounds??autoRounds;
   panelHero(area,'cards','KEEP THE FUN GOING','Atur ritme bermain','Pilih ronde, lalu biarkan AUTO melanjutkan.');
   area.append(panelNode('p','panel-eyebrow','PILIH JUMLAH RONDE'));
-  paragraph(area,'Setiap ronde membuka tiga kartu. AUTO dapat dihentikan setelah SPIN yang sedang berjalan.');
+  paragraph(area,'Setelah SPIN 3/3 ronde pertama selesai, muncul 3 kartu JACKPOT GIFT sebagai animasi promosi. Suara Free Spiinnn, ledakan, confetti, lalu pemain menekan CONTINUE. Bonus 10 ronde gratis dan 5 hadiah PROMO tidak mengubah hasil acak kartu permainan. AUTO dapat dihentikan dan dilanjutkan.');
   const grid=panelNode('div','auto-grid');grid.setAttribute('role','group');grid.setAttribute('aria-label','Jumlah ronde AUTO');area.append(grid);
   for(const rounds of AUTO_ROUNDS){
     const btn=modalButton(grid,'',()=>{selected=rounds;refresh();});btn.dataset.rounds=String(rounds);
+    if(activeAutoSession&&rounds!==activeAutoSession.paid_rounds)btn.disabled=true;
     btn.setAttribute('aria-label',rounds+' ronde');
     const cards=panelNode('span','auto-card-fan');cards.setAttribute('aria-hidden','true');
     for(const color of ['red','blue','green']){const card=panelNode('img','');card.src=`/assets/art/v2/card-${color}.webp`;card.alt='';cards.append(card);}
@@ -439,18 +679,19 @@ function showAutoSettings(){
     panelNode('dt','','Total kebutuhan'),total,panelNode('dt','','Saldo tersedia'),balance);area.append(budget);
   const message=panelNode('p','panel-note','');message.setAttribute('role','status');area.append(message);
   const virtualBudget=paragraph(area,'');virtualBudget.className='panel-fine';
-  if(currentRound)paragraph(area,'Ronde yang sudah dimulai dihitung sebagai ronde pertama. BET ronde tersebut sudah dipotong.');
-  else paragraph(area,'Kebutuhan coin dihitung tanpa mengandalkan hadiah dari ronde berikutnya.');
-  const start=panelAction('MULAI AUTO',()=>{
+  if(activeAutoSession)paragraph(area,'Sesi sebelumnya masih aktif. Lanjutkan untuk menggunakan sisa ronde gratis dan bonus yang belum diklaim.');
+  else paragraph(area,'Jumlah ronde pilihan adalah ronde berbayar. Setelahnya AUTO menambahkan 10 free spins. Bonus promosi terpisah dari kemenangan kartu; ZONK tetap payout permainan 0.');
+  const start=panelAction(activeAutoSession?'LANJUTKAN AUTO':'MULAI AUTO',()=>{
     if(isAuto||isSpinning||pendingInfo()||!account||account.balance<autoBudget(selected)){refresh();return;}
     autoRounds=selected;closeModal();void autoLoop(selected);
   });start.id='auto-start';
   function refresh(){
     for(const btn of grid.children)btn.setAttribute('aria-pressed',String(Number(btn.dataset.rounds)===selected));
     const required=autoBudget(selected);virtualBudget.textContent='Kebutuhan '+virtualRp(required)+' · 1 Coin = Rp40 virtual';total.querySelector('.coin-value-text').textContent=idMoney(required)+' Coin';balance.querySelector('.coin-value-text').textContent=idMoney(account?.balance??0)+' Coin';
-    const blocked=!!pendingInfo()||isSpinning||isAuto||!account;
+    const blocked=!!pendingInfo()||isSpinning||isAuto||autoStarting||!account||
+      (!!currentRound&&currentRound.auto_session_id!==activeAutoSession?.id);
     start.disabled=blocked||account.balance<required;
-    message.textContent=blocked?'Selesaikan sinkronisasi SPIN sebelum memulai AUTO.':account.balance<required?'Coin belum cukup. Pilih jumlah ronde lebih kecil atau ubah BET.':`${selected} ronde · ${isTurbo?'TURBO aktif':'Kecepatan normal'}`;
+    message.textContent=blocked?'Selesaikan ronde atau sinkronisasi SPIN terlebih dahulu.':account.balance<required?'Coin belum cukup untuk BET berbayar.':`${selected} ronde berbayar + 10 free spins · 5 hadiah PROMO · ${isTurbo?'TURBO':'NORMAL'}`;
   }
   refresh();
 }
@@ -557,7 +798,10 @@ async function loadState(quiet=false){
     const payouts=ruleset?.celebrations?.map(t=>t.multiplier).filter(Number.isFinite);
     if(payouts?.length){$('reward-range').textContent=ruleset.numeric_bonus?'≤'+Math.max(...payouts)+'×':Math.min(...payouts)+'×–'+Math.max(...payouts)+'×';$('combination-label').textContent=ruleset.numeric_bonus?'5 rank + bonus':'5 kombinasi';}
     syncAccount(data.account);currentRound=data.round;
-    if(Array.isArray(ruleset?.stake_options)&&!isAuto){
+    if(!isAuto&&!autoStarting){
+      try{activeAutoSession=(await autoApi('/state')).session;}catch(error){console.warn('AUTO state refresh:',error);}
+    }
+    if(Array.isArray(ruleset?.stake_options)&&!isAuto&&!autoStarting){
       const selected=STAKES[stakeIndex],queued=nextBetIndex===null?null:STAKES[nextBetIndex];
       STAKES=[...ruleset.stake_options];
       stakeIndex=Math.max(0,STAKES.indexOf(selected));
@@ -586,6 +830,19 @@ const initialConnectionTimer=setInterval(()=>{
   if(account){clearInterval(initialConnectionTimer);return;}
   recoverInitialConnection();
 },8000);
+function refreshAudioRetry(){
+  const button=$('audio-retry');
+  if(!button)return;
+  const studio=window.UNOLuckSoundStudio;
+  const ios=Boolean(studio?.isIOS?.());
+  const booted=!$('game-shell').classList.contains('is-booting');
+  const needs=ios&&booted&&musicEnabled&&!studio?.isMusicMediaPlaying?.();
+  button.hidden=!needs;
+  if(needs){
+    button.title=studio?.audioDiagnostics?.().lastError||
+      'iPhone menghentikan pemutaran musik. Ketuk untuk mengaktifkan suara.';
+  }
+}
 function listeners(){
   // One delegated activation handles dynamic menus, touch, mouse and keyboard.
   // Capture before handlers disable/remove controls; no sound on scroll or disabled choices.
@@ -595,9 +852,18 @@ function listeners(){
     control.classList.remove('ui-pressed');
     control.classList.add('ui-pressed');
     setTimeout(()=>control.classList.remove('ui-pressed'),140);
-    if(control.id==='boot-play')void Promise.resolve(window.UNOLuckSound?.unlock()).then(()=>sfx('tap')); // splash owns music activation
-    else sfx('tap');
+    // The splash is the native iOS audio activation gesture. Do not schedule
+    // an extra async click SFX that may interrupt/steal its media route.
+    if(control.id!=='boot-play')sfx('tap');
   },true);
+  $('audio-retry')?.addEventListener('click',()=>{
+    // The native .play() call must be the FIRST audio operation on this tap.
+    // Async work, if any, may follow; no file or volume configuration changes.
+    const resumed=window.UNOLuckSoundStudio?.playMusicGesture?.();
+    void unlockAudio();
+    void Promise.resolve(resumed).catch(error=>console.warn('[UNO AUDIO] restore',error))
+      .finally(()=>setTimeout(refreshAudioRetry,500));
+  });
   $('spin-btn').addEventListener('click',pickOne);
   $('turbo-btn').addEventListener('click',()=>{if(isSpinning)return;isTurbo=!isTurbo;updateButtons();void unlockAudio();say(isTurbo?'Turbo aktif, animasi lebih cepat.':'Turbo nonaktif.');});
   $('auto-btn').addEventListener('click',showAutoSettings);
@@ -614,6 +880,12 @@ function listeners(){
   addEventListener('resize',layoutRing);
   // The intro is hands-free. Background Music is requested immediately on
   // entering gameplay, not only on a later touch or visibilitychange.
+  window.addEventListener('uno:boot-finished',()=>{
+    // Safari may pause a pre-armed muted track when gameplay unmutes it.
+    // Surface a genuine user-gesture recovery button only if that happens.
+    setTimeout(refreshAudioRetry,950);
+    setTimeout(refreshAudioRetry,3000);
+  });
   window.addEventListener('uno:boot-finished',async()=>{
     if(!musicEnabled)return;
     // Splash PLAY activated a separate music lane inside the user's native
@@ -631,12 +903,15 @@ function listeners(){
     if($('game-shell').classList.contains('is-booting'))return;
     // HTMLMediaElement.play() MUST run in the trusted iOS event before any
     // awaited AudioContext.resume(), otherwise WebKit may reject the request.
-    if(musicEnabled&&window.UNOLuckSound?.webAudioState!=='running')
+    const nativeIOS=Boolean(window.UNOLuckSoundStudio?.isIOS?.());
+    if(musicEnabled&&(nativeIOS||window.UNOLuckSound?.webAudioState!=='running'))
       void window.UNOLuckSoundStudio?.playMusicGesture?.();
     void unlockAudio().then(yes=>{
+      refreshAudioRetry();
       const musicReady=!musicEnabled ||
-        window.UNOLuckSound?.webAudioState==='running' ||
-        window.UNOLuckSoundStudio?.isMusicMediaPlaying?.();
+        (nativeIOS?window.UNOLuckSoundStudio?.isMusicMediaPlaying?.():
+          window.UNOLuckSound?.webAudioState==='running' ||
+          window.UNOLuckSoundStudio?.isMusicMediaPlaying?.());
       if(yes&&musicReady){
         document.removeEventListener('pointerdown',activate,true);
         document.removeEventListener('touchend',activate,true);
