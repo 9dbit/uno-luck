@@ -307,14 +307,19 @@ async function showNumericBonus(round,{fullTadaa=false}={}){
     setTimeout(()=>{if(amount.isConnected)amount.textContent=`+${idMoney(target)} Coin`;},duration+80);
   }
   winBurst(round.cards?.find(card=>String(card.face)==='+2')||round.cards?.[0]||{color:'yellow'},18);
+  const fanfareStarted=performance.now();
   let sound=Promise.resolve(false);
   if(sfxEnabled&&round.payout>0)
     sound=Promise.resolve(fullTadaa?
       window.UNOLuckPromoAudio?.playTadaa?.():window.UNOLuckSound?.numericBonus?.());
   numericBonusTimer=setTimeout(()=>toast.remove(),fullTadaa?3300:2400);
-  // TURBO accelerates LEDs, not the fanfare. The next AUTO round waits until
-  // the full 2.85-second tadaa has ended (or the bounded media error timeout).
-  if(fullTadaa)await Promise.race([sound.catch(()=>false),wait(3900)]);
+  // TURBO accelerates LEDs, not the fanfare. Even if iOS rejects playback,
+  // the toast and animation still hold their normal 2.85s celebration beat.
+  if(fullTadaa){
+    await Promise.race([sound.catch(()=>false),wait(3900)]);
+    const remaining=2850-(performance.now()-fanfareStarted);
+    if(remaining>0)await wait(remaining);
+  }
 }
 async function showAutoGift(){
   if(!activeAutoSession?.gift_ready||activeAutoSession.gift_acknowledged)return true;
