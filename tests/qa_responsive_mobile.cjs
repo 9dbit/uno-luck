@@ -112,7 +112,7 @@ const layouts=[
    // Portrait stacks HUD -> TOTAL BET -> wheel; landscape shares a row
    // with the wheel in a separate right-side column.
    const totalPlaced=measured.totalBet.top>=measured.bet.bottom-3 &&
-     (layout.width>layout.height
+     (layout.width>layout.height && layout.height<=470
        ? measured.totalBet.right<=measured.wheel.left+3
        : measured.totalBet.bottom<=measured.wheel.top+3);
    assert(totalPlaced,
