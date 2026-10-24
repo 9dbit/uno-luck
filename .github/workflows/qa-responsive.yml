@@ -39,12 +39,16 @@ jobs:
             sleep 1
           done
           curl -fsS http://127.0.0.1:8080/health > /dev/null
-          UNO_QA_URL=http://127.0.0.1:8080 node tests/qa_activity_ticker.cjs
-          UNO_QA_URL=http://127.0.0.1:8080 node tests/qa_responsive_mobile.cjs
+          echo 'VERIFY payout ticker placement / Rp virtual'
+          UNO_QA_URL=http://127.0.0.1:8080 timeout 50s node tests/qa_activity_ticker.cjs
+          echo 'VERIFY 16 responsive Chromium + WebKit screenshots'
+          UNO_QA_URL=http://127.0.0.1:8080 timeout 260s node tests/qa_responsive_mobile.cjs
+          echo 'VERIFY iPhone safe-area WebKit fullbleed'
           UNO_QA_URL=http://127.0.0.1:8080 UNO_QA_ENGINE=webkit \
-            python tests/visual_qa_iphone15pro_fullbleed.py
+            timeout 140s python tests/visual_qa_iphone15pro_fullbleed.py
+          echo 'VERIFY iPhone safe-area Chromium fullbleed'
           UNO_QA_URL=http://127.0.0.1:8080 UNO_QA_ENGINE=chromium \
-            python tests/visual_qa_iphone15pro_fullbleed.py
+            timeout 140s python tests/visual_qa_iphone15pro_fullbleed.py
       - name: Upload portrait, landscape, and desktop snapshots
         if: always()
         uses: actions/upload-artifact@v4
