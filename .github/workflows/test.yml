@@ -86,6 +86,7 @@ jobs:
           done
           UNO_QA_URL=http://127.0.0.1:8083 node tests/qa_auto_gift.cjs
           UNO_QA_URL=http://127.0.0.1:8083 node tests/qa_activity_ticker.cjs
+          UNO_QA_URL=http://127.0.0.1:8083 node tests/qa_responsive_mobile.cjs
           python tests/visual_qa_led_chase.py
           python tests/visual_qa_player_admin.py
           python tests/visual_qa_player_panels.py
@@ -120,6 +121,7 @@ jobs:
             artifacts/uno-v11-led-chase/*.png
             artifacts/uno-v11-gameplay-music/*.png
             artifacts/uno-v12-iphone15pro-fullbleed/*.png
+            artifacts/uno-v1164-responsive/*.png
             artifacts/uno-v11-sound-studio/*.png
             artifacts/uno-v11-jackpot-audio/*.png
             artifacts/uno-v11-ios-safari-audio/*.png
