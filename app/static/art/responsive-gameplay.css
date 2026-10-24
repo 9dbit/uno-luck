@@ -590,7 +590,7 @@
 .activity-board .activity-feed{
   flex:0 0 auto;
   white-space:nowrap!important;
-  font-size:clamp(12px,2.95vw,17px)!important;
+  font-size:clamp(13px,3.45vw,18px)!important;
   line-height:1.1!important;
 }
 @media (orientation:portrait) and (min-width:351px) and (max-width:520px) and (min-height:660px){
