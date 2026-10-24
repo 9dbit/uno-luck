@@ -65,6 +65,7 @@ jobs:
           python tests/visual_qa_admin_password.py
           node tests/qa_numeric_bonus.cjs
           node tests/qa_zero_product.cjs
+          node tests/qa_led_watchdog.cjs
           UNO_SPIN_DB_PATH=/tmp/uno-economy-qa.sqlite3 python -m uvicorn app.main:app --host 127.0.0.1 --port 8081 > /tmp/uno-economy-server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8081/health >/dev/null; then break; fi
