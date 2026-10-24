@@ -109,9 +109,15 @@ const layouts=[
      !measured.tickerText.includes('PAYOUT SIMULASI') &&
      !measured.tickerText.includes('COIN VIRTUAL'),
      [engine,layout.name,measured.tickerText]);
-   assert(measured.totalBet.top>=measured.bet.bottom-3 &&
-     measured.totalBet.bottom<=measured.wheel.top+3,
-     [engine,layout.name,'unboxed TOTAL BET must sit between BET and wheel',measured]);
+   // Portrait stacks HUD -> TOTAL BET -> wheel; landscape shares a row
+   // with the wheel in a separate right-side column.
+   const totalPlaced=measured.totalBet.top>=measured.bet.bottom-3 &&
+     (layout.width>layout.height
+       ? measured.totalBet.right<=measured.wheel.left+3
+       : measured.totalBet.bottom<=measured.wheel.top+3);
+   assert(totalPlaced,
+     [engine,layout.name,'unboxed TOTAL BET location',
+       JSON.stringify({bet:measured.bet,total:measured.totalBet,wheel:measured.wheel})]);
    assert(measured.totalVisual.background==='rgba(0, 0, 0, 0)' &&
      measured.totalVisual.image==='none' &&
      measured.totalVisual.border===0 &&
