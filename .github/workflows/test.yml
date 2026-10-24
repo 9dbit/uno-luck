@@ -51,6 +51,8 @@ jobs:
           export UNO_SOUND_ADMIN_TOKEN="uno-ci-only-shared-sound-secret-for-playwright-2026"
           export UNO_QA_ADMIN_PASSWORD="ci-password-test-only"
           export UNO_ADMIN_PASSWORD_HASH="$(python -c 'import os; from app.admin_auth import hash_password; print(hash_password(os.environ["UNO_QA_ADMIN_PASSWORD"]))')"
+          sudo apt-get update -qq && sudo apt-get install -y -qq espeak
+          python scripts/build_promo_audio.py --root app/static
           python tests/seed_ci_published_sounds.py
           python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-server.log 2>&1 &
           for i in $(seq 1 30); do
