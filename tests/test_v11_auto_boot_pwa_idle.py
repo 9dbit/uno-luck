@@ -86,7 +86,7 @@ def test_led_previews_show_random_uno_cards_not_nine_ones():
     assert "this.displays[PICKS]={...this.lastSelected}" in WHEEL
     assert "this.displays[PICKS]={...this.ready.card}" in WHEEL
     assert "textContent='1'" not in WHEEL
-    assert 'ledwheel.js?v=1139' in HTML
+    assert 'ledwheel.js?v=1163' in HTML
     assert 'ledwheel.css?v=10' in HTML
     assert 'Sembilan panel kartu UNO berwarna' in HTML
 
