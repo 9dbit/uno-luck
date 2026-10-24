@@ -553,13 +553,14 @@
   container-type:size;overflow:hidden!important;
 }
 .wheel-area .wheel-stage{
-  top:-7px!important;
-  width:min(calc(44dvh + 12px),calc(100% - 5px),460px)!important;
+  /* Keep the complete 3D dragon visible above the caption and ticker. */
+  top:5px!important;
+  width:min(calc(44dvh - 24px),calc(100% - 5px),460px)!important;
   max-width:100%!important;
 }
 @supports (width:100cqh){
   .wheel-area .wheel-stage{
-    width:min(calc(100cqh + 14px),calc(100cqw - 5px),460px)!important;
+    width:min(calc(100cqh - 26px),calc(100cqw - 5px),460px)!important;
   }
 }
 .game-shell>#activity-board.activity-board{
@@ -602,12 +603,12 @@
   .game-shell{
     grid-template-rows:9% 9% 22% 8.5% 4.5% minmax(0,42.5%) minmax(0,4.5%)!important;
   }
-  .wheel-area .wheel-stage{top:-4px!important}
+  .wheel-area .wheel-stage{top:5px!important}
 }
 @media (orientation:portrait) and (max-height:620px){
   @supports (width:100cqh){
     .wheel-area .wheel-stage{
-      width:min(calc(100cqh + 6px),calc(100cqw - 5px),420px)!important;
+      width:min(calc(100cqh - 26px),calc(100cqw - 5px),420px)!important;
     }
   }
 }

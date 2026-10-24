@@ -123,8 +123,10 @@ const layouts=[
      measured.totalVisual.border===0 &&
      measured.totalVisual.shadow==='none',
      [engine,layout.name,'TOTAL BET has a background/frame/shadow',measured.totalVisual]);
-   assert(measured.stage.width>=Math.min(measured.wheel.width,measured.wheel.height)-17,
-     [engine,layout.name,'Dragon SPIN panel did not grow to fill its row',measured]);
+   // Reserve caption clearance: wheel grows to row height minus 26px,
+   // instead of the previous 31px gap, without clipping the dragon.
+   assert(measured.stage.width>=Math.min(measured.wheel.width,measured.wheel.height)-32,
+     [engine,layout.name,'Dragon SPIN panel too small for its safe row',measured]);
    assert(measured.total.startsWith('Rp'),
      [engine,layout.name,'No Rupiah prefix',measured.total]);
    assert(measured.digits==='625',[engine,layout.name,measured.digits]);
