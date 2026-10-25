@@ -42,7 +42,7 @@
   <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1161">
   <link rel="stylesheet" href="/assets/art/viewport-v11.css?v=1143">
   <link rel="stylesheet" href="/assets/player-panels.css?v=1157">
-  <link rel="stylesheet" href="/assets/art/responsive-gameplay.css?v=1165">
+  <link rel="stylesheet" href="/assets/art/responsive-gameplay.css?v=1166">
   <title>UNO LUCK | Dragon Spin v1.1</title>
 </head>
 <body>
@@ -106,6 +106,14 @@
       <strong id="activity-total" class="activity-total" aria-label="Total BET dalam ekuivalen Rupiah virtual">—</strong>
       <span id="activity-mode" class="activity-mode">MEMUAT</span>
     </section>
+    <section id="activity-board" class="activity-board" aria-label="Payout Coin virtual berjalan; status simulasi tercantum di TOTAL BET">
+      <div class="activity-topline">
+        <strong class="activity-head">PAYOUT</strong>
+      </div>
+      <div class="activity-viewport" aria-label="Daftar payout terakhir">
+        <div id="activity-feed" class="activity-feed"><span>Menunggu aktivitas payout…</span></div>
+      </div>
+    </section>
     <section class="wheel-area" aria-label="Setengah lingkaran sembilan placeholder kartu LED">
       <div class="wheel-stage">
       <img class="dragon-wheel-art wheel-static-v09" src="/assets/art/v2/wheel-dragon.webp" alt="" aria-hidden="true" decoding="async">
@@ -123,14 +131,6 @@
       <div class="spin-caption" id="spin-caption" role="status" aria-live="polite">SPIN pertama mengisi kartu kiri</div>
       <button id="audio-retry" class="audio-retry" type="button" hidden aria-label="Aktifkan suara iPhone">🔊 AKTIFKAN SUARA</button>
       <div id="win-particles" class="win-particles" aria-hidden="true"></div>
-    </section>
-    <section id="activity-board" class="activity-board" aria-label="Running text payout virtual">
-      <div class="activity-topline">
-        <strong class="activity-head">PAYOUT</strong>
-      </div>
-      <div class="activity-viewport" aria-label="Daftar payout terakhir">
-        <div id="activity-feed" class="activity-feed"><span>Menunggu aktivitas payout…</span></div>
-      </div>
     </section>
     <footer class="game-footer">
 
@@ -166,7 +166,7 @@
   <script src="/assets/art/match-announce.js?v=111" defer></script>
   <script src="/assets/art/celebrations.js?v=1152" defer></script>
   <script src="/assets/art/promo-audio.js?v=1163" defer></script>
-  <script src="/assets/art/activity-ticker.js?v=1164" defer></script>
+  <script src="/assets/art/activity-ticker.js?v=1166" defer></script>
   <script src="/assets/orbit.js?v=1163" defer></script>
   <script src="/assets/pwa-update.js?v=1144" defer></script>
   <script src="/assets/viewport-v11.js?v=1140" defer></script>

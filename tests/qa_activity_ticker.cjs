@@ -29,6 +29,25 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   assert((await page.locator('#activity-total').innerText()).startsWith('Rp'));
   assert((await page.locator('#activity-feed').innerText()).includes('Rp88.000'));
   assert((await page.locator('#activity-feed').innerText()).includes('maxw**'));
+  const rail=await page.evaluate(()=>{
+    const feed=document.querySelector('#activity-feed');
+    const cycles=feed.querySelectorAll('.activity-cycle');
+    const clip=document.querySelector('.activity-viewport');
+    const style=getComputedStyle(document.querySelector('#activity-board'));
+    return {copies:cycles.length,
+      width:cycles[0]?.getBoundingClientRect().width||0,
+      clipWidth:clip.getBoundingClientRect().width,
+      background:style.backgroundColor,
+      border:parseFloat(style.borderTopWidth),
+      shadow:style.boxShadow,
+      animation:getComputedStyle(feed).animationName};
+  });
+  assert.equal(rail.copies,2);
+  assert(rail.width>=rail.clipWidth,['marquee begins blank',rail]);
+  assert.equal(rail.background,'rgba(0, 0, 0, 0)');
+  assert.equal(rail.border,0);
+  assert.equal(rail.shadow,'none');
+  assert(rail.animation.includes('unoPayoutSeamless'),rail);
   const label=await page.locator('#activity-total').getAttribute('title');
   assert(label.includes('SIMULASI'));
   const read=async()=>Number((await page.locator('#activity-total').innerText()).replace(/[^0-9]/g,''));
@@ -57,7 +76,7 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
         style.backgroundImage==='none' &&
         parseFloat(style.borderTopWidth)===0 &&
         style.boxShadow==='none',
-      afterWheel:a.top>=wheel.bottom-3,
+      betweenTotalAndWheel:a.top>=total.bottom-3&&a.bottom<=wheel.top+3,
       afterBet:a.top>=bar.bottom+3,
       awayFromTitle:a.top>=h.bottom+3,
       awayFromCards:a.top>=cards.bottom+3,
@@ -68,10 +87,10 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
   });
   assert(layout.totalBelowBet&&layout.totalAboveWheel&&layout.transparentTotal,
     ['unboxed TOTAL BET placement/background',layout]);
-  assert(layout.afterWheel&&layout.afterBet&&layout.awayFromTitle&&
+  assert(layout.betweenTotalAndWheel&&layout.afterBet&&layout.awayFromTitle&&
     layout.awayFromCards&&layout.inViewport,layout);
   assert(layout.font>=12,layout);
   assert(layout.width<=layout.screen,layout);
-  console.log('PASS: transparent TOTAL BET beneath HUD, labeled QA counter, bottom payout ticker, mobile bounds');
+  console.log('PASS: transparent TOTAL BET/PAYOUT, continuous nonblank marquee above wheel, mobile bounds');
   await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -38,6 +38,50 @@ function makeItems(data){
     return span;
   });
 }
+/* The old 100%-left marquee inserted an entire blank screen before the
+ * first payout. Two equal-width, measured cycles form a seamless loop whose
+ * initial frame already contains text. No client-generated real winnings. */
+const viewportEl=board.querySelector('.activity-viewport');
+let lastTickerWidth=0;
+function paintTicker(data){
+  const entries=makeItems(data);
+  feedEl.replaceChildren();
+  feedEl.classList.remove('is-running','is-empty');
+  feedEl.style.removeProperty('--uno-ticker-distance');
+  feedEl.style.removeProperty('--uno-ticker-duration');
+  if(!entries.length){
+    const empty=document.createElement('span');
+    empty.textContent='Belum ada payout pemain tercatat';
+    empty.className='activity-win';
+    feedEl.append(empty);
+    feedEl.classList.add('is-empty');
+    return;
+  }
+  const cycle=document.createElement('span');
+  cycle.className='activity-cycle';
+  feedEl.append(cycle);
+  const appendEntries=()=>{
+    for(const entry of entries)cycle.append(entry.cloneNode(true));
+  };
+  appendEntries();
+  // Always fill at least the available width before the marquee starts.
+  const available=Math.max(1,viewportEl.getBoundingClientRect().width);
+  lastTickerWidth=available;
+  let extra=0;
+  while(cycle.getBoundingClientRect().width<available+24 && extra++<16){
+    appendEntries();
+  }
+  const duplicate=cycle.cloneNode(true);
+  duplicate.setAttribute('aria-hidden','true');
+  feedEl.append(duplicate);
+  const distance=cycle.getBoundingClientRect().width;
+  if(distance>0){
+    feedEl.style.setProperty('--uno-ticker-distance',distance+'px');
+    feedEl.style.setProperty('--uno-ticker-duration',
+      Math.max(15,distance/35).toFixed(2)+'s');
+    feedEl.classList.add('is-running');
+  }
+}
 function render(data){
   state=data;
   const simulated=data.mode==='simulation';
@@ -47,18 +91,7 @@ function render(data){
   if(head)head.textContent='✦ PAYOUT';
   modeEl.title=simulated?'Contoh visual dengan nama dan jumlah acak, bukan aktivitas nyata':
     'Kemenangan dari ronde berbayar yang sudah dicatat pada server';
-  const items=makeItems(data);
-  feedEl.replaceChildren();
-  const label=document.createElement('b');label.textContent='PAYOUT:';
-  label.className='activity-feed-label';feedEl.append(label);
-  if(items.length){
-    for(let pass=0;pass<2;pass++)
-      items.forEach(item=>feedEl.append(item.cloneNode(true)));
-  }else{
-    const empty=document.createElement('span');empty.textContent='Belum ada payout pemain tercatat';
-    empty.className='activity-win';feedEl.append(empty);
-  }
-  feedEl.classList.toggle('is-empty',items.length===0);
+  paintTicker(data);
   updateCount();
 }
 function updateCount(){
@@ -118,5 +151,9 @@ void refresh();
 liveTimer=setInterval(()=>{if(!document.hidden)void refresh();},12000);
 simTimer=setInterval(updateCount,1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)void refresh();});
+window.addEventListener('resize',()=>{
+  if(state && Math.abs(viewportEl.getBoundingClientRect().width-lastTickerWidth)>2)
+    paintTicker(state);
+});
 window.UNOLuckActivity={refresh,get mode(){return state?.mode||'loading';}};
 })();

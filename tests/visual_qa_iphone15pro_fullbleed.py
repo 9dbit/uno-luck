@@ -128,13 +128,13 @@ with sync_playwright() as p:
             assert data['dragon']['bottom']<=data['caption']['top']-2,(name,'caption hides dragon tail',data)
             assert 5<=float(data['wheelDrop'].replace('px',''))<=19,(name,data)
             assert data['stage']['top']>=data['area']['top']+4,(name,data)
-            # Ticker is a SEPARATE 6th row, after the wheel. Do not demand
-            # the wheel itself touches the iPhone home-indicator area.
-            assert data['ticker']['top']>=data['area']['bottom']-3,(name,'payout ticker overlaps wheel',data)
+            # The flat PAYOUT line is now directly under TOTAL BET,
+            # before the enlarged wheel, which takes the last gameplay row.
+            assert data['ticker']['bottom']<=data['area']['top']+3,(name,'payout overlaps wheel',data)
+            assert data['area']['bottom']>=data['innerHeight']-data['safeBottom']-10,(name,'wheel too high',data)
             assert data['ticker']['top']>=data['betBar']['bottom']+3,(name,'ticker overlaps BET',data)
             assert data['ticker']['top']>=data['cards']['bottom']+3,(name,'ticker overlaps cards',data)
             assert data['ticker']['top']>=data['title']['bottom']+3,(name,'ticker overlaps title',data)
-            assert data['ticker']['bottom']>=data['innerHeight']-data['safeBottom']-12,(name,'ticker too high',data)
             assert data['ticker']['bottom']<=data['game']['bottom']+2,(name,'ticker clipped',data)
         for item in data['controls']:
             assert item['left']>=-2 and item['right']<=width+2,(name,item)

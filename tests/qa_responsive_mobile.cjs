@@ -69,9 +69,17 @@ const layouts=[
          width:r.width,height:r.height};
      };
      const totalStyle=getComputedStyle(get('#total-bet-row'));
+     const payoutStyle=getComputedStyle(get('#activity-board'));
+     const rail=get('#activity-feed');
+     const cycle=get('.activity-cycle');
+     const tickerClip=get('.activity-viewport');
      const hud=[...get('.result-bar').querySelectorAll(':scope>div')].map(
        c=>({label:c.querySelector('small').textContent,
          direction:getComputedStyle(c).flexDirection,
+         labelMidY:(c.querySelector('small').getBoundingClientRect().top+
+           c.querySelector('small').getBoundingClientRect().bottom)/2,
+         valueMidY:(c.querySelector('strong').getBoundingClientRect().top+
+           c.querySelector('strong').getBoundingClientRect().bottom)/2,
          labelFont:parseFloat(getComputedStyle(c.querySelector('small')).fontSize),
          valueFont:parseFloat(getComputedStyle(c.querySelector('strong')).fontSize),
          minX:c.getBoundingClientRect().left,maxX:c.getBoundingClientRect().right}));
@@ -82,6 +90,12 @@ const layouts=[
        ticker:rect('#activity-board'),totalBet:rect('#total-bet-row'),
        totalVisual:{background:totalStyle.backgroundColor,image:totalStyle.backgroundImage,
          border:parseFloat(totalStyle.borderTopWidth),shadow:totalStyle.boxShadow},
+       payoutVisual:{background:payoutStyle.backgroundColor,image:payoutStyle.backgroundImage,
+         border:parseFloat(payoutStyle.borderTopWidth),shadow:payoutStyle.boxShadow},
+       tickerCycleWidth:cycle?.getBoundingClientRect().width||0,
+       tickerVisibleWidth:tickerClip.getBoundingClientRect().width,
+       tickerCopies:rail.querySelectorAll('.activity-cycle').length,
+       tickerAnimation:getComputedStyle(rail).animationName,
        shell:rect('#game-shell'),
        hud,headline:get('.activity-head').textContent,
        tickerText:get('#activity-board').textContent,
@@ -142,8 +156,24 @@ const layouts=[
      assert(measured[key].left>=-3&&measured[key].right<=measured.screenW+3,
        [engine,layout.name,key,'horizontal clip',measured]);
    }
-   assert(measured.ticker.top>=measured.wheel.bottom-3,
-     [engine,layout.name,'ticker/wheel overlap',measured]);
+   const shortLandscape=layout.width>layout.height && layout.height<=470;
+   assert(measured.ticker.top>=measured.totalBet.bottom-3,
+     [engine,layout.name,'PAYOUT should appear below TOTAL BET',measured]);
+   if(shortLandscape){
+     assert(measured.ticker.top>=measured.wheel.bottom-3,
+       [engine,layout.name,'landscape ticker overlaps wheel',measured]);
+   }else{
+     assert(measured.ticker.bottom<=measured.wheel.top+3,
+       [engine,layout.name,'PAYOUT should appear above Dragon Spin',measured]);
+   }
+   assert(measured.payoutVisual.background==='rgba(0, 0, 0, 0)' &&
+     measured.payoutVisual.image==='none' &&
+     measured.payoutVisual.border===0 &&
+     measured.payoutVisual.shadow==='none',
+     [engine,layout.name,'PAYOUT has a background/pillshape',measured.payoutVisual]);
+   assert(measured.tickerCopies===2 &&
+     measured.tickerCycleWidth>=measured.tickerVisibleWidth,
+     [engine,layout.name,'PAYOUT rail has a blank gap',measured]);
    assert(measured.ticker.top>=measured.bet.bottom+3,
      [engine,layout.name,'ticker/bet overlap',measured]);
    assert(measured.ticker.bottom<=measured.shell.bottom+2,
@@ -156,16 +186,17 @@ const layouts=[
        r.top>=-3&&r.bottom<=measured.screenH+3,
        [engine,layout.name,'control clipped',r]);
    if(layout.width<layout.height){
-     assert(measured.hud.every(x=>x.direction==='column'),
-       [engine,layout.name,'HUD not stacked',measured.hud]);
+     assert(measured.hud.every(x=>x.direction==='row' &&
+       Math.abs(x.labelMidY-x.valueMidY)<7),
+       [engine,layout.name,'BET/WIN/NET must align horizontally',measured.hud]);
      if(layout.width>=390&&layout.height>=659){
-       assert(measured.hud.every(x=>x.labelFont>=12&&x.valueFont>=20),
+       assert(measured.hud.every(x=>x.labelFont>=11&&x.valueFont>=17),
          [engine,layout.name,'HUD still too small',measured.hud]);
        assert(measured.fontTicker>=12,
          [engine,layout.name,'ticker still too small',measured.fontTicker]);
      }
      if(layout.width>=390&&layout.height>=660){
-       assert(measured.hud.every(x=>x.labelFont>=14&&x.valueFont>=24),
+       assert(measured.hud.every(x=>x.labelFont>=13&&x.valueFont>=21),
          [engine,layout.name,'approved mobile HUD should be 2x legible',measured.hud]);
        assert(measured.cardNumberFont>=50,
          [engine,layout.name,'card numbers should dominate result',measured.cardNumberFont]);
@@ -178,12 +209,13 @@ const layouts=[
        [engine,layout.name,'title/cards overlap',measured]);
      assert(measured.cards.bottom<=measured.bet.top+3,
        [engine,layout.name,'cards/bet overlap',measured]);
-     assert(measured.bet.bottom<=measured.wheel.top+3,
-       [engine,layout.name,'bet/wheel overlap',measured]);
+     assert(measured.bet.bottom<=measured.totalBet.top+3 &&
+       measured.ticker.bottom<=measured.wheel.top+3,
+       [engine,layout.name,'HUD/TOTAL BET/PAYOUT/wheel overlap',measured]);
    }
    await page.screenshot({path:path.join(OUT,engine+'-'+layout.name+'.png')});
    assert.deepEqual(errors,[],[engine,layout.name,errors]);
-   console.log(engine+' '+layout.name+': PASS seven rows, unboxed TOTAL BET, larger SPIN, bottom ticker, no overlap');
+   console.log(engine+' '+layout.name+': PASS slim inline HUD, unboxed TOTAL BET + PAYOUT, seamless rail, enlarged SPIN');
    await context.close();
   }
   await browser.close();
