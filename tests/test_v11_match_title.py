@@ -43,7 +43,7 @@ def test_first_rank_is_fullscreen_but_other_four_replace_wheel():
 
 
 def test_exact_bet_labels_and_original_tier_policy():
-    for label in ('<small>BET</small>', '<small>PAYOUT/WIN</small>', '<small>NET</small>'):
+    for label in ('<small>BET</small>', '<small>WIN</small>', '<small>NET</small>'):
         assert HTML.count(label) == 1
     assert sum(x['weight'] for x in orbit.CELEBRATIONS.values()) == 1_000_000
     assert orbit.WIN_PERCENT == 80

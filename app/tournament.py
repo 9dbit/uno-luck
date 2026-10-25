@@ -37,6 +37,7 @@ def snapshot(db, aid, stamp):
           FROM tournament_entries e JOIN orbit_rounds r ON r.account_id=e.account_id
           WHERE e.day=? AND r.created_at>=e.joined_at AND r.created_at>=?
             AND r.finished_at<? AND r.picked=3 AND r.rules_version>=?
+            AND COALESCE(r.charged_stake,r.stake)>0
         ), scores AS (
           SELECT account_id,COUNT(*) AS rounds,SUM(points) AS points
           FROM eligible WHERE n<=? GROUP BY account_id
@@ -50,7 +51,7 @@ def snapshot(db, aid, stamp):
             ROW_NUMBER() OVER (ORDER BY points DESC,joined_at,account_id) AS rownum,
             COUNT(*) OVER () AS participants FROM standings
         ) SELECT * FROM ranked WHERE rownum<=20 OR account_id=? ORDER BY rownum
-        ''', (day, start, end, orbit.RULES_VERSION, ROUND_LIMIT, day, aid)).fetchall()
+        ''', (day, start, end, 3, ROUND_LIMIT, day, aid)).fetchall()
     def public(row):
         return {'name': row['display_name'], 'points': row['points'], 'rounds': row['rounds'],
                 'position': row['position'], 'is_you': row['account_id'] == aid}

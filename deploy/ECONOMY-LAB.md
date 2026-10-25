@@ -1,4 +1,4 @@
-# Virtual economy editor (1156)
+# Virtual economy editor (1157, draft PR #23)
 
 `/admin` → Economy Lab. Uses the existing admin token through the authenticated
 `/api/admin/economy` endpoints. No audio manifest writes. Credentials stay in
@@ -103,3 +103,146 @@ the counter. This limiter is process-local and resets on restart. Forwarding
 headers are not trusted as identities. Proxied clients may share a limit.
 Browser credentials live only in memory and must be re-entered after reload.
 Adding or rotating the password does not publish audio or economy configuration.
+
+## PR #23: color rules and Period Prize Pool (review before release)
+
+The eight-category table above remains the **historical revision 1 baseline**.
+The new ten-category editor adds **COLOR_PAIR** and **COLOR_SEQUENCE** with
+initial 0% probability when loading old published configurations. A change to
+the published economy is NEVER automatic; use the new draft shortcut or enter
+nonzero probabilities, then simulate and explicitly publish with an authenticated
+admin. New multipliers default to 2x BET (Color Pair) and 4x BET (Color Sequence).
+ZONK is NO_MATCH: zero game payout. A two-card same-color numeric sequence
+requires adjacent displayed cards with consecutive numbers. The preexisting
+three-card single-color numeric straight remains Golden Match, and overlapping
+categories do not pay twice.
+
+An accepted paid AUTO batch now schedules 10 *additional* no-BET rounds and
+five **promotional**, guaranteed Coin gifts. Each promotional gift rate is
+randomly selected from 30%, 50%, or 100% of the paid AUTO batch turnover, and
+its placement is randomly selected among 10 free spins. Ordinary game rounds
+remain server-side RNG draws; promo gifts are disclosed, separately journaled,
+and do not turn a ZONK into a card win. The bonus count, amount, and use of
+free vouchers are persisted and replay-safe. On first confirmed AUTO spin the
+client shows the Free Spins gift and attempts native voice playback; physical
+Safari playback still requires device QA.
+
+The period simulator accepts **paid turnover**, costs, AUTO session count,
+and paid rounds per AUTO. It reports RTP *before* promotional extras and a
+separate virtual period projection, including all five gift obligations and
+expected payouts for the 10 free rounds. The manual target tool can solve for
+a desired **period net margin**, returning a validation error when impossible
+within the published base RTP guardrail of 85–98%. This is an expectation,
+not a commitment that the operator will earn a surplus; actual losses from
+ordinary independent outcomes and increased AUTO participation are possible.
+For actual periods, the admin report separates charged BET, game payouts,
+free-spin payouts, promotional payouts, remaining promotional liabilities,
+and the observed margin. It does not adjust any player's outcome or odds.
+
+No new feature spends money, accepts deposits, converts to legal currency,
+redeems Coin, or allows withdrawals. Sound Cloud published files/revisions
+are deliberately unchanged. All work remains draft until integration QA,
+physical iPhone acceptance and an explicitly approved staging deployment.
+See `deploy/PERIOD-PRIZE-POOL.md` for the promotion funding analysis.
+
+The forecast now also displays a recommended **maximum number of AUTO
+sessions** supportable by the supplied BET turnover and target base RTP:
+one estimate at expected gift cost and one at maximum gift rate, with
+ordinary free-spin payouts still projected at average RTP. This is not an
+enforced runtime admission quota; the operator must actively plan promotion
+availability and may still have actual period losses. A proposed AUTO session
+count exceeding the period's total nominal paid BET is flagged as infeasible.
+
+### Server-enforced AUTO admission
+The **Pengaman Gift AUTO · Server** section in the authenticated Economy Lab
+controls three persisted settings: enable/disable new Gift AUTO sessions,
+virtual Coin booking budget per WIB day, and maximum accepted sessions per
+player per day. Default disabled, budget 0, per-player limit 1. Admin can view
+booked budget and remaining allocation. A session booking is atomic and
+idempotent; previously accepted sessions remain valid when the admin toggles
+the policy off. The actual paid-round RTP excludes free-round payouts, while
+effective period RTP includes free rounds and promo credits. Promotional budget
+is an admission gate, **not** a per-player win quota or guarantee of margin.
+
+## Rules v5: zero-value numeric match correction (24 Oct 2026)
+
+A three-card, same-color numeric pair involving a **0** was formerly
+classified as `PAIR_PRODUCT`, with multiplication such as
+`6 × 0 × 6 = 0`; it consequently displayed "PAYOUT/WIN 0" despite the
+three matching colors. New rounds classify this as `COLOR_MATCH`
+(**Rank 5**) instead: for BET 25 Coin and the current Rank 5 multiplier
+25×, PAYOUT is 625 Coin and NET is +600 Coin, subject to the existing
+balance cap. A mixed-color triple with numeric sum zero is **ZONK**,
+unless another explicitly enabled Color Pair rule applies.
+
+New CSPRNG product and sum lanes exclude zero-valued bonuses. This
+adjusts the theoretical fixed-RTP distribution. For the legacy PRESET
+percentages interpreted under rules v5, theoretical base RTP is
+**91.6621770609%** (gross expected house margin ≈ 8.3378229391%).
+This is not the older 89.9995% legacy model. Published probability
+percentages and all independent RNG outcomes remain fixed; changes are
+made openly via versioned rules, with no individual-player targeting.
+Already accepted v4 rounds retain their **original saved payout
+contract**, with version-aware settlement and idempotent replay.
+Completed historical records and Coin balances are not rewritten.
+
+Under the QA example of 80,000 Coin daily paid turnover and target
+5% projected house margin, the effective promotion allocation is
+limited to **2,670 Coin/day**, even if a historical admin configuration
+still displays 3,000. The server reports both configured and effective
+limits in Economy Lab. The projected overall result may still be
+negative if actual turnover is lower, free-spin payouts are high, or
+other costs arise. The limit is not a guarantee of profit.
+
+At the start of a NEW SPIN 1/3, the mobile interface clears the
+previous three-card result and shows WIN/NET as pending ("—") rather
+than misleadingly pairing old results with the new spin indicator.
+The latest JavaScript uses a bumped Safari cache version.
+
+## Auto Spin promotion UX, rules v6 QA (24 October 2026)
+
+The AUTO campaign is accepted atomically by the existing daily virtual-Coin
+budget gate, and its ten Free Spins and five transparent promotional awards
+remain independent from the usual game CSPRNG. The player first completes
+**all three cards of the first PAID round**. Once the third actual server card
+has settled and any real rank/bonus has finished, the client presents
+**THREE GOLD JACKPOT GIFT CARDS AS A PROMOTIONAL REVEAL**. These illustrated
+cards do not replace or falsify the three server-drawn game result cards,
+do not imply a separate paid win and do not debit or award additional Coin.
+
+The new full-screen promotion includes confetti, offline WAV speech saying
+"Free Spiinnn!" with an explosion and long fanfare, then **CONTINUE**. On
+iOS, if audio is blocked outside a native touch, the same button first
+offers **PUTAR FREE SPINS**, then CONTINUE after playback. If media is
+unavailable even after a retry, the error is disclosed and a no-audio
+CONTINUE path prevents trapping the user. STOP defers the reveal.
+
+The server stores an idempotent `gift_ack_at` flag. New paid/free rounds
+are refused until CONTINUE follows one complete 3-card first round.
+Relaunching the PWA resumes the same pending gift once, and the endpoint
+never creates payout or changes RNG. Previously accepted older AUTO sessions
+which had already passed their first round are marked previously acknowledged
+on migration so legacy credits and payout contracts remain unchanged.
+
+The LED animation has a watchdog that settles an already-confirmed server
+card even if iOS suspends requestAnimationFrame; card transfer animation
+has a separate timeout. API POST waits are bounded with retained idempotent
+request identifiers. Turbo changes the LED movement only: its numeric
+fanfare runs on a separate native 2.85-second audio element and the next
+AUTO round waits for it to end. The UI no longer uses unreliable late
+speechSynthesis as the only Free Spins voice source.
+
+### Privacy-safe PAYOUT ticker
+
+`GET /api/activity/public` returns public *settled* PAYOUT and total BET
+Coin from the database, not invented activity. Display names are masked,
+stable **pseudonyms**. Live totals increase only when actual settlements
+are committed; no "fake progress" is shown to players.
+
+The opt-in QA flag `UNO_QA_ACTIVITY_DEMO=1` instead serves visibly marked
+**SIMULASI QA / PAYOUT DEMO**, with sample masked Indonesian aliases and
+synthetic virtual-Coin awards. The illustrative BET ticker starts at
+**889,980,250 Coin** and increases every second in that QA-only demo,
+but it is NOT a transaction count or operator revenue. The simulation
+designation must remain prominent and must never be passed off as live
+player social proof. This flag must not be enabled in production.

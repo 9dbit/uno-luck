@@ -1,0 +1,83 @@
+/* v1167: focused balance, full-height spin, truthful gold-edge win effects. */
+.game-header .balance-readout>small,
+.game-header .balance-readout>.wallet-rupiah{display:none!important}
+.game-header .balance-readout{justify-content:center!important;align-items:center!important;gap:0!important}
+.game-header .balance-readout #wallet-balance{
+  font-size:clamp(22px,6vw,32px)!important;line-height:1.12!important;
+  max-width:100%;font-variant-numeric:tabular-nums;
+}
+/* Keep status semantics for assistive technology without a bottom caption row.
+   A recoverable connection/balance error is an overlay, never silently hidden. */
+.wheel-area #spin-caption{
+  position:absolute!important;top:auto!important;bottom:0!important;
+  left:0!important;right:auto!important;width:1px!important;height:1px!important;
+  min-height:0!important;padding:0!important;margin:0!important;
+  overflow:hidden!important;clip-path:inset(50%)!important;
+  white-space:nowrap!important;pointer-events:none!important;
+}
+.wheel-area #spin-caption.is-actionable{
+  left:8px!important;right:8px!important;width:auto!important;
+  height:auto!important;min-height:20px!important;bottom:3px!important;
+  padding:4px 8px!important;clip-path:none!important;white-space:normal!important;
+  background:#26030ae8;color:#fff2d5;font-size:11px!important;
+  border:1px solid #ffca6266;border-radius:6px;z-index:80;
+}
+@media (orientation:portrait) and (min-height:660px){
+  .game-shell{grid-template-rows:8.5% 8.5% 22.5% 5% 4% 3.5% minmax(0,48%)!important}
+}
+@media (orientation:portrait), (min-height:471px){
+  .wheel-area .wheel-stage{
+    top:5px!important;width:min(calc(48dvh - 9px),calc(100% - 4px),495px)!important;
+  }
+  @supports(width:100cqh){
+    .wheel-area .wheel-stage{width:min(calc(100cqh - 9px),calc(100cqw - 4px),495px)!important}
+  }
+}
+/* Filters flatten 3D descendants in WebKit. Settled award cards and static
+   catalog examples never flip: remove their back face from painting so it
+   cannot cover the authoritative numbers/colors when a glow is composited. */
+.result-area .card3d.award-winning .card-back,
+.result-area .card3d.award-muted .card-back,
+.rules-paytable .card3d .card-back{display:none!important}
+.result-area .card3d.award-winning{filter:drop-shadow(0 0 6px #ffd229b0)!important}
+.result-area .card3d.award-muted{filter:brightness(.72)!important}
+.result-area .award-edge{
+  display:block;position:absolute;inset:0;width:100%;height:100%;
+  overflow:visible;z-index:9;pointer-events:none;
+}
+.award-edge-base{stroke:#ffd52d;stroke-width:2.4;filter:drop-shadow(0 0 3px #ffbd15)}
+.award-edge-runner{
+  stroke:#fff9b4;stroke-width:4;stroke-linecap:round;stroke-dasharray:18 82;
+  filter:drop-shadow(0 0 4px #ffe52b);
+  animation:unoGoldEdge 2.6s linear infinite;
+}
+.result-area .award-veil{
+  position:absolute;inset:5%;border-radius:9%;overflow:hidden;
+  z-index:7;pointer-events:none;
+}
+.award-sheen{
+  display:block;position:absolute;inset:-20% -60%;
+  background:linear-gradient(110deg,transparent 38%,#fff6bb05 42%,#fff7b989 49%,#ffe05b27 54%,transparent 62%);
+  transform:translate3d(-70%,0,0);
+  animation:unoGoldGloss 3.1s ease-in-out infinite;
+}
+@keyframes unoGoldEdge{to{stroke-dashoffset:-100}}
+@keyframes unoGoldGloss{0%,15%{transform:translate3d(-70%,0,0)}65%,100%{transform:translate3d(70%,0,0)}}
+.award-paused .award-edge-runner,.award-paused .award-sheen{animation-play-state:paused!important}
+.award-tier{
+  display:grid;grid-template-columns:1fr;gap:8px;margin:10px 0;padding:12px;
+  border:1px solid #ffc45c66;border-radius:14px;
+  background:linear-gradient(145deg,#3e0715c9,#17040bc9);
+}
+.award-tier .rules-tier-top{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.award-tier .rules-multiplier{font-size:12px;max-width:72%;text-align:right;color:#ffe38a;white-space:normal}
+.award-tier .rules-hand{display:flex;justify-content:center;gap:10px;height:108px;margin:2px 0}
+.award-tier .rules-hand .card3d{width:66px!important;height:99px!important;max-width:28%!important;flex:0 1 66px}
+.award-tier .rules-description h3{font-size:17px;margin:4px 0;color:#ffe59a}
+.award-tier .rules-description p{font-size:12px;line-height:1.5;margin:0;color:#ffedd4}
+.award-status{display:block;color:#e2bb82;font-size:11px;margin-top:5px}
+.award-tier.is-inactive{border-style:dashed}
+@media (prefers-reduced-motion:reduce){
+  .award-edge-runner{animation:none!important;stroke-dasharray:none;stroke-width:2}
+  .award-sheen{animation:none!important;display:none!important}
+}

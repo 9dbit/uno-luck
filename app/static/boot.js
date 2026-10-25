@@ -46,12 +46,18 @@
   // Errors are explanatory text, not another confirmation card or button.
   function reportAudioError(reason){
     const message=String(reason||'Audio belum dapat diputar.').slice(0,220);
-    if(playError){playError.textContent=message+' Ketuk PLAY WITH SOUND untuk mencoba lagi.';playError.hidden=false;}
+    if(playError){playError.removeAttribute('data-mode');playError.textContent=message+' Ketuk PLAY WITH SOUND untuk mencoba lagi.';playError.hidden=false;}
     if(playButton){playButton.disabled=false;playButton.hidden=false;playButton.title=message;}
     if(playText)playText.textContent='PLAY WITH SOUND';
   }
   function clearAudioError(){
-    if(playError){playError.hidden=true;playError.textContent='';}
+    if(playError){
+      const sample=Boolean(studio()?.sampleAudioActive);
+      playError.hidden=!sample;
+      playError.dataset.mode=sample?'sample':'';
+      playError.textContent=sample?
+        'Mode QA: memakai efek suara cadangan. Audio Soft Tech asli tetap disimpan di Sound Cloud.':'';
+    }
     if(playButton)playButton.removeAttribute('title');
   }
   function prepareAgain(){
@@ -85,7 +91,10 @@
   },8000);
   function onPlay(){
     if(released||started||retrying||!playButton||playButton.disabled)return;
-    const musicWanted=localStorage.getItem('uno_orbit_music')!=='off';
+    // The user chose WITH SOUND, which overrides older stored mute toggles.
+    // Do not change any sound file, custom trim or published mixer volume.
+    window.UNOLuckAudio?.enableFromSplash?.();
+    const musicWanted=true;
     if(!splashReady||(musicWanted&&!musicReady)){
       reportAudioError(!splashReady?
         (studio()?.splashError||'File custom splash belum selesai dimuat.'):

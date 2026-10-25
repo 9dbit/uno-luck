@@ -19,7 +19,9 @@
   function result(winning){
     if(!audioEnabled||fxLevel===0)return false;
     if(studio?.isCustomized('result-sound'))return studio.play('result-sound');
-    if(!isActive())return studio?.play('push-button')??false;
+    // On iOS the WebAudio graph may say "running" while the hardware
+    // audio route is silent. Prefer a native media cue in that case.
+    if(studio?.isIOS?.()||!isActive())return studio?.play('push-button')??false;
     chime(winning?1080:260);return true;
   }
   const buffers=new Map();
@@ -123,6 +125,15 @@
   }
   async function play(name){
     if(!audioEnabled||fxLevel===0)return false;
+    // The iPhone's custom Sound Cloud files and bundled backup cues must
+    // all use HTMLMediaElement rather than an apparently-running but silent
+    // AudioContext. Keep the published selection, trim and mixer unchanged.
+    if(studio?.isIOS?.()){
+      const nativeCue=cueMap[name]||(name==='tick'?'push-button':
+        name==='coin'||name==='win'||name==='lose'?
+          (studio?.isCustomized('result-sound')?'result-sound':'push-button'):null);
+      return nativeCue?Boolean(await studio.play(nativeCue)):false;
+    }
     if(!isActive()){
       const fallback=cueMap[name]||(name==='tick'?'push-button':
         name==='coin'||name==='win'||name==='lose'?'result-sound':null);
@@ -164,6 +175,10 @@
     // The music lane was preactivated on splash PLAY and is already playing
     // when gameplay opens. Do not start another AudioBufferSource on top.
     if(playIt&&studio?.isMusicMediaPlaying?.())return true;
+    if(playIt&&studio?.isIOS?.()){
+      if(document.hidden)return false;
+      return Boolean(await studio?.play('background-music',{looping:true}));
+    }
     if(!isActive()){
       if(!playIt)return false;
       // Music has its own mute preference. SFX OFF must not mute music.
@@ -268,7 +283,7 @@
   }
   function numericBonus(){
     if(!audioEnabled||fxLevel===0||masterLevel===0)return false;
-    if(!isActive()){
+    if(studio?.isIOS?.()||!isActive()){
       if(!bonusPrimed||!bonusMedia)return false;
       bonusMedia.currentTime=0;bonusMedia.muted=false;bonusMedia.volume=fxLevel*masterLevel;
       void bonusMedia.play().catch(()=>{});return true;

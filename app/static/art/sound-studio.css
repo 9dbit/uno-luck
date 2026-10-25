@@ -285,3 +285,22 @@
   .sound-studio .studio-mirror-panel{padding:9px}
   .sound-studio .studio-mirror-fade{gap:6px}
 }
+/* Recovery is shown only when iPhone media is paused after entering gameplay.
+   It is deliberately a small, accessible pill below the SPIN caption. */
+.audio-retry {
+  display:block;
+  margin:.35rem auto .15rem;
+  padding:.42rem 1rem;
+  max-width:calc(100% - 2rem);
+  border:1px solid rgba(255,195,75,.75);
+  border-radius:999px;
+  color:#fff5df;
+  background:linear-gradient(100deg,rgba(105,31,17,.96),rgba(182,42,20,.96));
+  box-shadow:0 0 12px rgba(255,154,35,.25);
+  font:700 clamp(.62rem,2.5vw,.85rem)/1.25 system-ui,sans-serif;
+  letter-spacing:.045em;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+.audio-retry[hidden]{display:none!important}
+.audio-retry:focus-visible{outline:2px solid #ffe0a0;outline-offset:3px}

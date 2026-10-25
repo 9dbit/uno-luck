@@ -34,8 +34,8 @@ def test_safari_play_button_activates_published_splash_in_trusted_event():
     assert "URL.createObjectURL(typed)" in STUDIO
     assert "promise=player.play()" in STUDIO
     assert "media-src 'self' blob:" in HTML
-    assert "boot.js?v=1144" in HTML
-    assert "sound-studio.js?v=1155" in HTML
+    assert "boot.js?v=1161" in HTML
+    assert "sound-studio.js?v=1161" in HTML
     assert "const activate=()=>{" in (ROOT/'orbit.js').read_text()
 
 
@@ -46,7 +46,10 @@ def test_ios_media_fallback_preserves_sound_studio_settings():
     assert "if(t>=stop-.025&&!mirrorDuration)" in STUDIO
     assert "stopFallback(key)" in STUDIO
     assert "get mediaUnlocked()" in STUDIO
-    assert "if(window.UNOLuckSound?.webAudioState!=='running')" in STUDIO
+    assert "if(isIOS()||window.UNOLuckSound?.webAudioState!=='running')" in STUDIO
+    assert "if(!isIOS()&&bufferCache.has('live:soft-tech-splash-screen')" in STUDIO
+    assert "if(!isIOS()&&bufferCache.has('live:background-music')" in STUDIO
+    assert "window.UNOLuckAudio?.enableFromSplash?.()" in BOOT
     assert "window.UNOLuckSound?.channels?.()?.context" in STUDIO
     assert "context.decodeAudioData(bytes.slice(0))" in STUDIO
     assert "if(!isActive()){" in SOUND

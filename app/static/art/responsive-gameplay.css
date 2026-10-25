@@ -1,0 +1,878 @@
+/* UNO LUCK mobile/desktop HUD composition v1.1.64
+ * Final override after golden-master, LED, iOS viewport and player panels.
+ * No visual change is allowed to mutate server odds, wallet Coin or Sound Cloud.
+ * Dedicated six-row composition prevents PAYOUT ticker overlapping title.
+ */
+:root{
+  --uno-wheel-drop:8px;
+  --uno-layout-edge:clamp(8px,2.5vw,15px);
+}
+.game-shell{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-rows:9.5% 10.5% 23.5% 8.5% minmax(0,41%) minmax(0,7%)!important;
+}
+/* Header remains a compact functional HUD, with a more generous winged logo. */
+.game-shell .game-header{
+  grid-column:1;grid-row:1;
+  grid-template-columns:24% minmax(0,1fr) 12.5% 12.5%!important;
+  gap:1%!important;
+  padding:0 3% 0!important;
+  align-items:center!important;
+  min-width:0;
+}
+.game-header .uno-logo{
+  width:86%!important;max-width:100%!important;
+  max-height:94%!important;
+  justify-self:start!important;
+}
+.game-header .balance-chip{
+  width:100%!important;max-width:100%!important;
+  min-height:36px!important;
+  justify-self:stretch!important;
+  padding:3px 8px!important;gap:5px!important;
+  box-sizing:border-box;
+}
+.game-header .balance-readout{min-width:0!important;overflow:hidden}
+.game-header .balance-readout strong{
+  font-size:clamp(15px,4.2vw,23px)!important;
+  line-height:1.05!important;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.game-header .balance-readout small{
+  font-size:clamp(9px,2.6vw,12px)!important;
+}
+.game-header .balance-readout .wallet-rupiah{
+  font-size:clamp(8px,2.2vw,12px)!important;
+}
+.game-header #gift-btn,.game-header #profile-btn{
+  max-width:100%!important;
+  justify-self:center!important;
+}
+/* No activity feed inside title: headline and rule line have their own space. */
+.game-shell>.title-area{
+  grid-column:1;grid-row:2;
+  padding:0 2.4%!important;
+  min-width:0;min-height:0;
+}
+.title-area .motion-title{
+  top:1%!important;left:2%!important;width:96%!important;
+  height:72%!important;
+  font-size:clamp(34px,10.1vw,61px)!important;
+  line-height:.98!important;
+  letter-spacing:-.052em!important;
+  white-space:nowrap;
+  overflow:visible!important;
+  text-align:center;
+}
+.title-area>p{
+  bottom:0!important;
+  max-width:98%!important;
+  padding:2px clamp(8px,2.2vw,15px)!important;
+  font-size:clamp(11px,3.05vw,16px)!important;
+  line-height:1.12!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+}
+/* Three real 3D result cards, never covered by a social proof ticker. */
+.game-shell>.result-area{
+  grid-column:1;grid-row:3;
+  padding:0 3.5% 0!important;
+  min-width:0;min-height:0;
+  display:grid!important;
+  grid-template-rows:minmax(0,1fr)!important;
+}
+.result-area .result-frame,.result-area .result-cards{
+  max-height:100%;
+  min-height:0;
+}
+.result-area .result-cards{
+  gap:3%!important;
+  padding:0 1%!important;
+}
+.result-area .result-cell .card3d{
+  width:min(100%,17.1dvh,160px)!important;
+  height:auto!important;
+  max-height:100%!important;
+  aspect-ratio:2/3!important;
+}
+.result-area .result-cell .card3d .number{
+  font-size:clamp(40px,12.8vw,75px)!important;
+  letter-spacing:-.055em;
+  -webkit-text-stroke:clamp(.8px,.25vw,1.8px) #152043;
+}
+.result-area .result-cell .card3d .small-num{
+  font-size:clamp(11px,3.5vw,20px)!important;
+}
+/* The user controls remain three separate accessible click targets.
+ * BET / WIN / NET are vertically stacked, twice the prior HUD font size. */
+.game-shell>.result-bar{
+  grid-column:1;grid-row:4;
+  width:94%!important;max-width:94%!important;
+  height:91%!important;
+  margin:auto!important;
+  padding:2px 5.6%!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  align-self:center!important;
+  justify-self:center!important;
+  position:relative;z-index:5;
+}
+.game-shell>.result-bar>div{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:clamp(2px,.6dvh,6px)!important;
+  line-height:1.05!important;
+  white-space:nowrap!important;
+  padding:0 3px!important;
+  text-align:center!important;
+  min-width:0!important;
+}
+.game-shell>.result-bar>div::before{
+  display:none!important;
+  content:none!important;
+}
+.game-shell>.result-bar small{
+  font-size:clamp(12px,3.4vw,19px)!important;
+  font-weight:1000!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  color:#fff0cf!important;
+  letter-spacing:.045em!important;
+}
+.game-shell>.result-bar strong{
+  font-size:clamp(21px,6vw,34px)!important;
+  line-height:1.08!important;
+  letter-spacing:-.045em!important;
+  max-width:100%;
+  min-width:0;
+  overflow:hidden;
+  font-variant-numeric:tabular-nums!important;
+  color:#ffe76c!important;
+  text-overflow:clip;
+}
+.game-shell>.result-bar strong.positive{
+  color:#41ffa2!important;
+}
+.game-shell>.result-bar strong.negative{
+  color:#ff6b7c!important;
+}
+.game-shell>.result-bar strong.metric-long{
+  font-size:clamp(15px,4vw,22px)!important;
+  letter-spacing:-.045em!important;
+}
+.game-shell>.result-bar strong.metric-very-long{
+  font-size:clamp(12px,3.2vw,17px)!important;
+}
+/* Avoid obscuring the dragon or the spin CTA while reserving a real bottom row
+ * for the new ticker. Container query units track the actual wheel row height.
+ * Fall back to viewport units for older Safari versions.
+ */
+.game-shell>.wheel-area{
+  grid-column:1;grid-row:5;
+  min-height:0!important;
+  overflow:hidden!important;
+  container-type:size;
+}
+.wheel-area .wheel-stage{
+  top:var(--uno-wheel-drop,8px)!important;
+  width:min(100%,calc(38dvh - 32px),430px)!important;
+  max-width:100%!important;
+  left:50%!important;
+  transform:translate3d(-50%,0,0)!important;
+  height:auto!important;
+  aspect-ratio:1!important;
+}
+@supports (width:100cqh){
+  .wheel-area .wheel-stage{
+    width:min(calc(100cqh - 31px),calc(100cqw - 9px),430px)!important;
+  }
+}
+.wheel-stage #spin-btn{
+  /* Large enough to tap reliably; keep the original approved gold asset. */
+  min-width:0!important;
+  touch-action:manipulation;
+}
+.wheel-stage .side-action{
+  width:clamp(66px,26%,115px)!important;
+  height:clamp(36px,12%,53px)!important;
+  min-height:36px!important;
+  bottom:2.1%!important;
+}
+.wheel-stage .side-action small{
+  font-size:clamp(11px,2.7vw,17px)!important;
+}
+.wheel-stage .side-action .action-icon{
+  font-size:clamp(16px,4.1vw,25px)!important;
+}
+.wheel-area .spin-caption{
+  font-size:clamp(9px,2.3vw,12px)!important;
+  bottom:1%!important;
+  min-height:13px;
+}
+/* Separate ticker: no overlap with title, cards, BET row or wheel buttons.
+ * Simulation badges remain visible, while user-facing wording is simply
+ * PAYOUT and TOTAL BET, not "PAYOUT DEMO" or "COIN VIRTUAL".
+ */
+.game-shell>#activity-board.activity-board{
+  grid-column:1;grid-row:6;
+  align-self:center;justify-self:center;
+  margin:0 0 2px!important;
+  width:calc(100% - 2 * var(--uno-layout-edge))!important;
+  max-width:calc(100% - 2 * var(--uno-layout-edge))!important;
+  height:calc(100% - 6px)!important;
+  min-height:0!important;
+  border:2px solid #ffca65!important;
+  border-radius:999px!important;
+  background:linear-gradient(180deg,#5d0a11 0%,#2a0009 43%,#140006 100%);
+  box-shadow:inset 0 2px 2px #ffe1a54d,inset 0 -3px 8px #0009,
+    0 0 13px #fe5e258c!important;
+  overflow:hidden!important;
+  display:grid!important;
+  grid-template-rows:44% minmax(0,56%)!important;
+  position:relative;z-index:6;
+  contain:layout paint;
+}
+.activity-board .activity-topline{
+  height:100%;
+  min-height:0!important;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:clamp(4px,1.2vw,9px)!important;
+  padding:1px clamp(8px,2.2vw,16px)!important;
+  white-space:nowrap;
+  border-bottom:1px solid #f7bc6944;
+  font-variant-numeric:tabular-nums;
+}
+.activity-board .activity-head{
+  flex:none;
+  color:#fff1b9!important;
+  font-size:clamp(10px,2.95vw,16px)!important;
+  font-weight:1000!important;
+  line-height:1!important;
+  letter-spacing:.015em!important;
+}
+.activity-board .activity-total-label{
+  color:#ffe8b5!important;
+  font-size:clamp(9px,2.6vw,14px)!important;
+  font-weight:900!important;
+  margin-left:auto!important;
+  flex:none;
+}
+.activity-board .activity-total{
+  color:#ffe568!important;
+  font-size:clamp(13px,3.45vw,21px)!important;
+  font-weight:1000!important;
+  font-variant-numeric:tabular-nums!important;
+  white-space:nowrap;
+  line-height:1!important;
+  min-width:0;
+}
+.activity-board .activity-mode{
+  flex:none;
+  font-size:clamp(7px,1.9vw,10px)!important;
+  font-weight:900;
+  padding:2px 4px!important;
+  line-height:1!important;
+  border-radius:999px!important;
+}
+.activity-board[data-mode="live"] .activity-mode{
+  color:#84ffc8!important;background:#19261a!important;
+}
+.activity-board .activity-viewport{
+  min-height:0!important;overflow:hidden!important;
+  display:flex;align-items:center;
+}
+.activity-board .activity-feed{
+  font-size:clamp(12px,3.05vw,18px)!important;
+  line-height:1.14!important;
+  letter-spacing:0!important;
+  gap:clamp(11px,3vw,19px)!important;
+  padding-left:100%!important;
+  font-weight:850!important;
+  animation:activityScroll 21s linear infinite!important;
+  will-change:transform;
+}
+.activity-board .activity-feed-label{
+  color:#ffe7b0!important;
+  font-weight:1000!important;
+}
+.activity-board .activity-win{
+  gap:6px!important;
+}
+.activity-board .activity-win b{
+  color:#fff2dc!important;
+}
+.activity-board .activity-win strong{
+  color:#ffe766!important;
+  font-variant-numeric:tabular-nums!important;
+}
+.activity-board .activity-feed.is-empty{
+  animation:none!important;padding-left:9px!important;
+}
+@media (max-width:350px){
+  .game-shell{
+    grid-template-rows:9% 10% 23.5% 9% minmax(0,41%) minmax(0,7.5%)!important;
+  }
+  .title-area .motion-title{font-size:clamp(28px,9.9vw,36px)!important}
+  .title-area>p{font-size:10px!important;max-width:99%!important}
+  .result-area .result-cell .card3d{width:min(100%,15.6dvh)!important}
+  .game-shell>.result-bar{width:97%!important;max-width:97%!important;padding:1px 5.3%!important}
+  .game-shell>.result-bar small{font-size:11px!important}
+  .game-shell>.result-bar strong{font-size:19px!important}
+  .game-shell>.result-bar strong.metric-long{font-size:13px!important}
+  .game-shell>.result-bar strong.metric-very-long{font-size:11px!important}
+  .activity-board .activity-head{font-size:10px!important}
+  .activity-board .activity-total-label{font-size:9px!important}
+  .activity-board .activity-total{font-size:12px!important}
+  .activity-board .activity-mode{font-size:7px!important;padding:1px 3px!important}
+  .activity-board .activity-feed{font-size:11px!important}
+  .wheel-stage .side-action{width:clamp(57px,24%,85px)!important}
+}
+@media (max-height:620px) and (orientation:portrait){
+  .game-shell{grid-template-rows:9% 10% 23% 8% minmax(0,42%) 8%!important}
+  .game-shell>.result-bar strong{font-size:clamp(17px,5.2vw,24px)!important}
+  .game-shell>.result-bar small{font-size:clamp(10px,2.8vw,14px)!important}
+  .wheel-stage .side-action{min-height:34px!important;height:35px!important}
+  .wheel-area .spin-caption{font-size:9px!important}
+}
+@media (prefers-reduced-motion:reduce){
+  .activity-board .activity-feed{
+    animation:none!important;will-change:auto!important;
+    max-width:100%!important;
+    padding-left:8px!important;
+    overflow-x:auto!important;
+    scrollbar-width:none;
+  }
+}
+/* In short landscape preserve the old three-column gameplay structure,
+ * reserving a fourth, dedicated row for the payout ticker. */
+@media (orientation:landscape) and (max-height:470px){
+  .game-shell{
+    width:min(100vw,970px)!important;
+    grid-template-columns:22% minmax(0,37%) minmax(0,41%)!important;
+    grid-template-rows:41px minmax(0,1fr) 31px 35px!important;
+  }
+  .game-shell>.game-header{grid-column:1/-1;grid-row:1;padding:0 7px!important}
+  .game-shell>.title-area{grid-column:1;grid-row:2}
+  .title-area .motion-title{
+    top:12%!important;height:54%!important;
+    font-size:clamp(19px,3.1vw,35px)!important;
+    white-space:normal;
+  }
+  .title-area>p{bottom:8%!important;font-size:clamp(8px,1.2vw,10px)!important;
+    line-height:1.1!important;white-space:normal!important}
+  .game-shell>.result-area{grid-column:2;grid-row:2;padding:0 2%!important}
+  .game-shell>.result-bar{
+    grid-column:1/3;grid-row:3;
+    height:95%!important;width:96%!important;max-width:96%!important;
+  }
+  .game-shell>.result-bar>div{
+    flex-direction:row!important;
+    gap:3px!important;
+  }
+  .game-shell>.result-bar small{font-size:clamp(10px,1.2vw,13px)!important}
+  .game-shell>.result-bar strong{font-size:clamp(15px,1.8vw,20px)!important}
+  .game-shell>.wheel-area{grid-column:3;grid-row:2/4;container-type:size}
+  .wheel-area .wheel-stage{
+    top:50%!important;transform:translate3d(-50%,-50%,0)!important;
+    width:min(100%,calc(100dvh - 92px))!important;
+  }
+  @supports(width:100cqh){
+    .wheel-area .wheel-stage{
+      width:min(calc(100cqh - 7px),calc(100cqw - 7px))!important;
+    }
+  }
+  .game-shell>#activity-board.activity-board{
+    grid-column:1/-1;grid-row:4;
+    height:31px!important;
+    width:calc(100% - 12px)!important;max-width:calc(100% - 12px)!important;
+    margin:auto 0!important;
+  }
+  .activity-board .activity-feed{font-size:11px!important}
+  .activity-board .activity-total{font-size:13px!important}
+}
+
+
+/* Mobile master composition, approved portrait mockup (24 Oct 2026).
+   Visual-only refinements: no RNG, currency conversion, payout or sound changes.
+   Six distinct rows avoid the previous ticker/title overlap. */
+@media (orientation:portrait) and (min-width:351px) and (max-width:520px)
+       and (min-height:660px){
+  .game-shell{
+    grid-template-rows:9% 9.5% 25.5% 9% minmax(0,40%) minmax(0,7%)!important;
+  }
+  .game-shell>.title-area{
+    padding-top:0!important;
+    justify-content:space-evenly!important;
+  }
+  .title-area .motion-title{
+    height:69%!important;
+    top:0!important;
+    font-size:clamp(37px,10.4vw,54px)!important;
+  }
+  .title-area>p{
+    bottom:1%!important;
+    font-size:clamp(11px,3.1vw,15px)!important;
+  }
+  .game-shell>.result-area{
+    padding:0 2.4% 0!important;
+  }
+  .result-area .result-cards{
+    gap:2.5%!important;
+    align-items:center!important;
+  }
+  .result-area .result-cell .card3d{
+    width:min(100%,19.8dvh,171px)!important;
+    max-height:99%!important;
+    filter:drop-shadow(0 0 7px #ffc04973)
+      drop-shadow(0 4px 5px #27000cab)!important;
+  }
+  .result-area .result-cell .card3d .number{
+    font-size:clamp(50px,15vw,81px)!important;
+  }
+  .game-shell>.result-bar{
+    width:96%!important;
+    max-width:96%!important;
+    height:94%!important;
+    padding:2px 3%!important;
+    border-width:2.5px!important;
+    box-shadow:inset 0 3px 5px #ffcd7773,
+      inset 0 -5px 8px #150000cc,0 0 13px #ff9b3859!important;
+  }
+  .game-shell>.result-bar small{
+    font-size:clamp(14px,3.85vw,19px)!important;
+  }
+  .game-shell>.result-bar strong{
+    font-size:clamp(24px,6.9vw,35px)!important;
+  }
+  .game-shell>.result-bar strong.metric-long{
+    font-size:clamp(17px,4.65vw,24px)!important;
+  }
+  .game-shell>.result-bar strong.metric-very-long{
+    font-size:clamp(13px,3.55vw,18px)!important;
+  }
+  .wheel-area .wheel-stage{
+    top:4px!important;
+  }
+  .game-shell>#activity-board.activity-board{
+    height:calc(100% - 4px)!important;
+    margin-bottom:0!important;
+    grid-template-rows:44% minmax(0,56%)!important;
+  }
+  .activity-board .activity-topline{
+    padding-inline:clamp(9px,2.3vw,14px)!important;
+  }
+  .activity-board .activity-feed{
+    font-size:clamp(13px,3.45vw,17px)!important;
+    gap:clamp(12px,3.7vw,19px)!important;
+  }
+  .activity-board .activity-head{
+    font-size:clamp(11px,3vw,15px)!important;
+  }
+  .activity-board .activity-total{
+    font-size:clamp(13px,3.55vw,20px)!important;
+  }
+}
+/* Short devices require legibility without sacrificing the SPIN tap target. */
+@media (orientation:portrait) and (max-height:659px){
+  .game-shell>.result-bar small{font-size:clamp(10px,3.1vw,14px)!important}
+  .game-shell>.result-bar strong{font-size:clamp(17px,5.3vw,26px)!important}
+  .game-shell>.result-bar strong.metric-long{font-size:clamp(13px,3.8vw,20px)!important}
+  .game-shell>.result-bar strong.metric-very-long{font-size:clamp(11px,3vw,16px)!important}
+  .activity-board .activity-feed{font-size:clamp(12px,3.15vw,14px)!important}
+}
+/* Desktop: make the ticker legible but never enlarge it over the card board. */
+@media (orientation:landscape) and (min-height:471px){
+  .game-shell>.result-bar{min-width:0}
+  .game-shell>#activity-board.activity-board{max-width:calc(100% - 20px)!important}
+}
+
+
+/* v1.1.65: approved mobile composition, 24 Oct 2026.
+   TOTAL BET is bare text on the artwork, NOT a pill/frame/background.
+   Keep real vs SIMULASI QA labeling and the separate bottom PAYOUT feed.
+   Larger dragon + SPIN controls remain a visual-only change. */
+.game-shell{
+  grid-template-rows:9.2% 9.5% 22.3% 8.5% 4.3% minmax(0,41.6%) minmax(0,4.6%)!important;
+}
+.game-shell>.total-bet-row{
+  grid-column:1;grid-row:5;
+  align-self:center;justify-self:center;
+  width:calc(100% - 2 * var(--uno-layout-edge));
+  max-width:100%;height:100%;
+  min-height:0;min-width:0;
+  box-sizing:border-box;
+  display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;
+  align-items:center;column-gap:clamp(6px,1.8vw,13px);
+  padding:0 clamp(4px,1.1vw,9px);
+  margin:0;
+  background:transparent!important;background-image:none!important;
+  border:0!important;border-radius:0!important;
+  box-shadow:none!important;outline:0!important;
+  position:relative;z-index:7;
+  white-space:nowrap;
+  text-shadow:0 2px 4px #170000,0 0 9px #8d330077;
+}
+.game-shell>.total-bet-row::before,
+.game-shell>.total-bet-row::after{
+  content:none!important;display:none!important;
+  background:none!important;border:0!important;box-shadow:none!important;
+}
+.total-bet-row .activity-total-label{
+  color:#ffebbd;font-weight:1000;
+  font-size:clamp(11px,3.15vw,17px);
+  letter-spacing:.025em;
+}
+.total-bet-row .activity-total{
+  display:block;justify-self:start;
+  min-width:0;max-width:100%;overflow:hidden;
+  color:#ffe668;
+  font-size:clamp(13px,4.15vw,23px);
+  font-weight:1000;
+  font-variant-numeric:tabular-nums;
+  text-overflow:ellipsis;
+  line-height:1.05;
+  border:0!important;border-left:1px solid #ffe9b0b5!important;
+  padding-left:clamp(7px,2vw,13px);
+}
+.total-bet-row .activity-mode{
+  justify-self:end;flex:none;
+  color:#ffe9a8;
+  font-size:clamp(7px,1.9vw,10px);
+  line-height:1.05;font-weight:900;
+  letter-spacing:.01em;
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;border-radius:0!important;
+  box-shadow:none!important;
+}
+/* The ticker itself stays at screen bottom. Only TOTAL BET moves up. */
+.game-shell>.wheel-area{
+  grid-column:1;grid-row:6;
+  container-type:size;overflow:hidden!important;
+}
+.wheel-area .wheel-stage{
+  /* Keep the complete 3D dragon visible above the caption and ticker. */
+  top:5px!important;
+  width:min(calc(44dvh - 24px),calc(100% - 5px),460px)!important;
+  max-width:100%!important;
+}
+@supports (width:100cqh){
+  .wheel-area .wheel-stage{
+    width:min(calc(100cqh - 26px),calc(100cqw - 5px),460px)!important;
+  }
+}
+.game-shell>#activity-board.activity-board{
+  grid-column:1;grid-row:7;
+  align-self:center;justify-self:center;
+  height:calc(100% - 3px)!important;
+  min-height:0!important;
+  display:flex!important;flex-direction:row!important;
+  align-items:center!important;
+  grid-template-rows:none!important;
+  gap:0!important;
+  border-radius:999px!important;
+  padding:0 4px!important;
+}
+.activity-board .activity-topline{
+  flex:0 0 auto;
+  width:auto!important;height:100%!important;
+  padding:0 7px!important;
+  border:0!important;
+  display:flex!important;align-items:center!important;
+  white-space:nowrap!important;
+}
+.activity-board .activity-viewport{
+  flex:1 1 auto;
+  width:auto!important;min-width:0!important;height:100%!important;
+  display:flex!important;align-items:center!important;
+}
+.activity-board .activity-feed{
+  flex:0 0 auto;
+  white-space:nowrap!important;
+  font-size:clamp(13px,3.45vw,18px)!important;
+  line-height:1.1!important;
+}
+@media (orientation:portrait) and (min-width:351px) and (max-width:520px) and (min-height:660px){
+  .game-shell{
+    grid-template-rows:9% 9.2% 22.5% 8.5% 4.3% minmax(0,42%) minmax(0,4.5%)!important;
+  }
+}
+@media (orientation:portrait) and (max-height:659px){
+  .game-shell{
+    grid-template-rows:9% 9% 22% 8.5% 4.5% minmax(0,42.5%) minmax(0,4.5%)!important;
+  }
+  .wheel-area .wheel-stage{top:5px!important}
+}
+@media (orientation:portrait) and (max-height:620px){
+  @supports (width:100cqh){
+    .wheel-area .wheel-stage{
+      width:min(calc(100cqh - 26px),calc(100cqw - 5px),420px)!important;
+    }
+  }
+}
+@media (orientation:portrait) and (max-width:350px){
+  .game-shell{
+    grid-template-rows:9% 9% 22% 9% 5% minmax(0,41.5%) minmax(0,4.5%)!important;
+  }
+  .total-bet-row .activity-total-label{font-size:11px}
+  .total-bet-row .activity-total{font-size:13px;padding-left:6px}
+  .total-bet-row .activity-mode{font-size:7px}
+  .game-shell>.total-bet-row{column-gap:5px;padding-inline:3px}
+  .activity-board .activity-head{font-size:10px!important}
+  .activity-board .activity-feed{font-size:12px!important}
+}
+@media (orientation:landscape) and (max-height:470px){
+  .game-shell{
+    grid-template-columns:22% minmax(0,37%) minmax(0,41%)!important;
+    grid-template-rows:41px minmax(0,1fr) 31px 19px 30px!important;
+  }
+  .game-shell>.total-bet-row{
+    grid-column:1/3;grid-row:4;
+    height:19px!important;
+    width:96%!important;
+    padding-inline:5px!important;
+    column-gap:8px!important;
+  }
+  .total-bet-row .activity-total-label{font-size:11px}
+  .total-bet-row .activity-total{font-size:14px}
+  .total-bet-row .activity-mode{font-size:8px}
+  .game-shell>.wheel-area{grid-column:3;grid-row:2/5}
+  .wheel-area .wheel-stage{
+    top:50%!important;transform:translate3d(-50%,-50%,0)!important;
+    width:min(100%,calc(100dvh - 92px))!important;
+  }
+  @supports(width:100cqh){
+    .wheel-area .wheel-stage{
+      width:min(calc(100cqh - 7px),calc(100cqw - 7px))!important;
+    }
+  }
+  .game-shell>#activity-board.activity-board{
+    grid-column:1/-1;grid-row:5;
+    height:27px!important;
+    width:calc(100% - 12px)!important;
+  }
+}
+
+
+/* v1.1.66: compact inline BET/WIN/NET, transparent zero-blank PAYOUT,
+   larger intact Dragon Spin (iPhone-first, visual-only). The fixed
+   server-led center result, audio, Coin and economy are unchanged. */
+.game-shell{
+  grid-template-rows:9% 9% 22.5% 5% 4% 3.5% minmax(0,47%)!important;
+}
+.game-shell>.result-bar{
+  grid-column:1;grid-row:4;
+  height:92%!important;
+  margin:auto!important;
+  padding:0 4.4%!important;
+  align-self:center!important;
+}
+.game-shell>.result-bar>div{
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:clamp(4px,1.15vw,8px)!important;
+  padding:0 2px!important;
+  line-height:1!important;
+  min-width:0!important;
+}
+.game-shell>.result-bar small{
+  display:inline!important;
+  font-size:clamp(11px,3.45vw,16px)!important;
+  line-height:1!important;
+  flex:none!important;
+}
+.game-shell>.result-bar strong{
+  font-size:clamp(17px,5.8vw,30px)!important;
+  line-height:1!important;
+  flex:0 1 auto!important;
+  min-width:0!important;
+}
+.game-shell>.result-bar strong.metric-long{
+  font-size:clamp(12px,3.6vw,19px)!important;
+}
+.game-shell>.result-bar strong.metric-very-long{
+  font-size:clamp(10px,2.8vw,15px)!important;
+}
+.game-shell>.total-bet-row{
+  grid-column:1;grid-row:5;
+  background:transparent!important;
+  background-image:none!important;
+  border:0!important;border-radius:0!important;box-shadow:none!important;
+}
+/* PAYOUT is a typography-only line directly after TOTAL BET, not a capsule.
+   This clipper masks off-screen text, without adding padding before the rail. */
+.game-shell>#activity-board.activity-board{
+  grid-column:1;grid-row:6;
+  width:calc(100% - 2 * var(--uno-layout-edge))!important;
+  max-width:calc(100% - 2 * var(--uno-layout-edge))!important;
+  height:100%!important;
+  min-height:0!important;
+  margin:0 auto!important;
+  padding:0 2px!important;
+  align-self:center!important;justify-self:center!important;
+  display:flex!important;align-items:center!important;
+  background:transparent!important;background-image:none!important;
+  border:0!important;border-radius:0!important;
+  box-shadow:none!important;outline:0!important;
+  overflow:hidden!important;
+  contain:layout paint;
+}
+.activity-board .activity-topline{
+  display:flex!important;align-items:center!important;
+  justify-content:flex-start!important;
+  height:100%!important;
+  flex:0 0 auto!important;
+  padding:0 clamp(5px,1.4vw,10px) 0 0!important;
+  margin:0!important;
+  background:transparent!important;
+  border:0!important;box-shadow:none!important;
+}
+.activity-board .activity-head{
+  font-size:clamp(11px,3.05vw,15px)!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+.activity-board .activity-viewport{
+  flex:1 1 0!important;
+  min-width:0!important;
+  width:auto!important;
+  height:100%!important;
+  overflow:hidden!important;
+  display:flex!important;align-items:center!important;
+  position:relative;
+}
+.activity-board .activity-feed{
+  flex:0 0 auto!important;
+  display:inline-flex!important;
+  width:max-content!important;
+  max-width:none!important;
+  min-width:0!important;
+  align-items:center!important;
+  white-space:nowrap!important;
+  gap:0!important;
+  padding:0!important;
+  margin:0!important;
+  animation:none!important;
+  transform:translate3d(0,0,0);
+  font-size:clamp(13px,3.45vw,18px)!important;
+  overflow:visible!important;
+}
+.activity-board .activity-feed.is-running{
+  animation:unoPayoutSeamless var(--uno-ticker-duration,24s) linear infinite!important;
+  will-change:transform;
+}
+.activity-board .activity-feed.is-empty{
+  animation:none!important;
+  padding:0!important;
+  will-change:auto!important;
+}
+.activity-board .activity-cycle{
+  flex:0 0 auto;
+  display:inline-flex;
+  width:max-content;
+  align-items:center;
+  white-space:nowrap;
+  gap:clamp(12px,3.4vw,22px);
+  padding-right:clamp(12px,3.4vw,22px);
+}
+.activity-board .activity-win{
+  display:inline-flex!important;
+  align-items:baseline!important;
+  flex:0 0 auto!important;
+  white-space:nowrap!important;
+  gap:5px!important;
+  line-height:1.15!important;
+}
+.activity-board .activity-win::after{
+  content:'✦';
+  color:#ef9d44;
+  font-size:.66em;
+  margin-left:clamp(5px,1.5vw,10px);
+}
+.activity-board .activity-cycle>.activity-win:last-child::after{
+  content:'✦';
+}
+@keyframes unoPayoutSeamless{
+  from{transform:translate3d(0,0,0)}
+  to{transform:translate3d(calc(-1 * var(--uno-ticker-distance,400px)),0,0)}
+}
+/* More vertical real estate for the wheel; keep ~21-26px below the
+   stationary artwork for the SPIN caption, even with Safari toolbar open. */
+.game-shell>.wheel-area{
+  grid-column:1;grid-row:7;
+  overflow:hidden!important;
+  container-type:size;
+}
+.wheel-area .wheel-stage{
+  top:5px!important;
+  width:min(calc(47dvh - 26px),calc(100% - 4px),495px)!important;
+  max-width:100%!important;
+}
+@supports(width:100cqh){
+  .wheel-area .wheel-stage{
+    width:min(calc(100cqh - 25px),calc(100cqw - 4px),495px)!important;
+  }
+}
+@media (orientation:portrait) and (max-width:350px){
+  .game-shell{
+    grid-template-rows:9% 9% 22.5% 5.5% 4% 3.5% minmax(0,46.5%)!important;
+  }
+  .game-shell>.result-bar{width:97%!important;max-width:97%!important;padding:0 3.5%!important}
+  .game-shell>.result-bar small{font-size:11px!important}
+  .game-shell>.result-bar strong{font-size:17px!important}
+  .game-shell>.result-bar strong.metric-long{font-size:12px!important}
+  .game-shell>.result-bar strong.metric-very-long{font-size:10px!important}
+  .activity-board .activity-head{font-size:10px!important}
+  .activity-board .activity-feed{font-size:12px!important}
+}
+@media (orientation:portrait) and (max-height:659px){
+  .game-shell{
+    grid-template-rows:9% 9% 22.5% 5.5% 4% 3.5% minmax(0,46.5%)!important;
+  }
+  .wheel-area .wheel-stage{top:5px!important}
+}
+@media (orientation:portrait) and (max-width:350px) and (max-height:659px){
+  .game-shell{
+    grid-template-rows:9% 9% 22.5% 6% 4% 3.5% minmax(0,46%)!important;
+  }
+}
+@media (orientation:landscape) and (max-height:470px){
+  .game-shell{
+    grid-template-columns:22% minmax(0,37%) minmax(0,41%)!important;
+    grid-template-rows:41px minmax(0,1fr) 31px 19px 30px!important;
+  }
+  .game-shell>.result-bar{
+    grid-column:1/3;grid-row:3;
+    height:90%!important;width:96%!important;max-width:96%!important;
+    margin:0 auto!important;
+  }
+  .game-shell>.total-bet-row{grid-column:1/3;grid-row:4}
+  .game-shell>#activity-board.activity-board{
+    grid-column:1/-1;grid-row:5;
+    height:100%!important;
+    width:calc(100% - 12px)!important;
+    max-width:calc(100% - 12px)!important;
+  }
+  .game-shell>.wheel-area{
+    grid-column:3;grid-row:2/5;
+  }
+  .wheel-area .wheel-stage{
+    top:50%!important;
+    transform:translate3d(-50%,-50%,0)!important;
+    width:min(100%,calc(100dvh - 92px))!important;
+  }
+  @supports(width:100cqh){
+    .wheel-area .wheel-stage{
+      width:min(calc(100cqh - 7px),calc(100cqw - 7px))!important;
+    }
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .activity-board .activity-feed.is-running{
+    animation:none!important;
+    will-change:auto!important;
+  }
+}
