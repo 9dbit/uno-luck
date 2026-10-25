@@ -17,9 +17,11 @@ with sync_playwright() as pw:
         page.goto(URL,wait_until='domcontentloaded')
         page.locator('#boot-play').click(timeout=17000)
         page.locator('#game-shell').wait_for(state='visible',timeout=26000)
-        assert page.locator('.balance-readout small').inner_text()=='Coin'
+        assert not page.locator('.balance-readout small').is_visible()
+        assert not page.locator('#wallet-rupiah').is_visible()
+        assert page.locator('#wallet-balance').is_visible()
         page.locator('#profile-btn').click()
-        assert page.locator('.menu-tile').evaluate_all('(nodes)=>nodes.map(n=>n.getAttribute("aria-label"))') == ['Turnamen','Game Rules','Bet Setting','Profile','Sound On']
+        assert page.locator('.menu-tile').evaluate_all('(nodes)=>nodes.map(n=>n.getAttribute("aria-label"))') == ['Turnamen','Game Rules','Bet Setting','Profile','Sound On','Rank Info']
         page.get_by_role('button',name='Sound On',exact=True).click()
         assert page.evaluate("localStorage.getItem('uno_orbit_music')")=='off'
         assert page.evaluate("localStorage.getItem('uno_orbit_sfx')")=='off'
