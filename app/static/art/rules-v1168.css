@@ -1,0 +1,83 @@
+/* DEV-02. Scoped guide styles leave gameplay, sound panels and old QA intact. */
+#modal[data-view="rules-guide"]{max-width:780px;color:#ffefd8}
+#modal[data-view="rules-guide"] .modal-card{background:radial-gradient(ellipse at top right,#66301f35,transparent 55%),#170a11;border-color:#f0bc6660}
+#modal[data-view="rules-guide"] .modal-header{background:#210c15;border-bottom:1px solid #efc78f25}
+#modal[data-view="rules-guide"] .modal-content{padding:20px;scroll-behavior:auto;overscroll-behavior:contain}
+#modal[data-view="rules-guide"] [hidden]{display:none!important}
+#modal[data-view="rules-guide"] .rg-hero{padding:8px 0 18px;position:relative}
+#modal[data-view="rules-guide"] .rg-kicker{font-size:10px;letter-spacing:.14em;font-weight:800;color:#edbe71}
+#modal[data-view="rules-guide"] .rg-hero h3{font-size:clamp(23px,6.1vw,33px);font-weight:850;line-height:1.12;letter-spacing:-.02em;margin:10px 0;color:#fff0d1;max-width:450px}
+#modal[data-view="rules-guide"] .rg-hero p{font-size:13px;line-height:1.6;color:#dec6b6;margin:0;max-width:490px}
+#modal[data-view="rules-guide"] .rg-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px;padding:14px 0;border-block:1px solid #eac59325}
+#modal[data-view="rules-guide"] .rg-stats>div{display:grid;gap:5px;text-align:center;border-right:1px solid #eac59325;min-width:0}
+#modal[data-view="rules-guide"] .rg-stats>div:last-child{border:0}
+#modal[data-view="rules-guide"] .rg-stats strong{color:#ffdd8f;font-size:24px;line-height:1;font-variant-numeric:tabular-nums}
+#modal[data-view="rules-guide"] .rg-stats span{font-size:10px;line-height:1.4;color:#cfb5a4}
+#modal[data-view="rules-guide"] .rg-nav{position:sticky;top:-20px;z-index:4;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:10px 0;background:#170a11;border-bottom:1px solid #eac59325}
+#modal[data-view="rules-guide"] .rg-button{display:block;min-height:44px;min-width:0;margin:0;padding:9px 8px;border:1px solid #dfbb7c35;border-radius:12px;color:#e4ceba;background:#ffffff05;font-size:12px;font-weight:700;line-height:1.2;white-space:normal;box-shadow:none}
+#modal[data-view="rules-guide"] .rg-nav [aria-selected="true"],
+#modal[data-view="rules-guide"] .rg-filters [aria-pressed="true"]{color:#291005;background:linear-gradient(120deg,#f9d799,#d9a654);border-color:#f5cd83;box-shadow:0 2px 12px #e6ad2112}
+#modal[data-view="rules-guide"] .rg-panel{min-width:0;padding-top:16px}
+#modal[data-view="rules-guide"] .rg-order-note{font-size:12px;line-height:1.6;margin:0 0 14px;color:#d6bfad}
+#modal[data-view="rules-guide"] .rg-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between}
+#modal[data-view="rules-guide"] .rg-filters{display:flex;gap:5px;flex:1 1 auto}
+#modal[data-view="rules-guide"] .rg-filters .rg-button{flex:1;border-radius:99px;font-size:11px;padding-inline:10px}
+#modal[data-view="rules-guide"] .rg-stake-label{display:flex;align-items:center;gap:8px;color:#d6bfad;font-size:11px;font-weight:700}
+#modal[data-view="rules-guide"] .rg-select{min-height:44px;padding:9px 28px 9px 10px;max-width:130px;border:1px solid #c7954f80;background:#2b141d;color:#ffe6a4;border-radius:10px;font-size:13px;font-weight:800}
+#modal[data-view="rules-guide"] .rg-select:focus-visible{outline:2px solid #ffe6a4;outline-offset:2px}
+#modal[data-view="rules-guide"] .rg-simulation{margin:10px 0 3px;font-size:10px;letter-spacing:.01em;line-height:1.5;color:#d9b477}
+#modal[data-view="rules-guide"] .rg-count{font-size:11px;color:#bfa593;margin:6px 0 14px}
+#modal[data-view="rules-guide"] .rg-list{display:grid;gap:14px;margin:0}
+#modal[data-view="rules-guide"] .rg-entry{display:block;margin:0;padding:14px;border:1px solid #d8ab6b38;border-radius:16px;min-width:0;background:linear-gradient(145deg,#3c172655,#24101a30);overflow:hidden}
+#modal[data-view="rules-guide"] .rg-entry[data-group="rank"]{border-color:#e5bc6b65;background:linear-gradient(140deg,#71382933,#24101a30)}
+#modal[data-view="rules-guide"] .rg-entry[data-order="1"]{border-color:#ffd47a99;background:radial-gradient(ellipse at 100% 0,#a36a192a,transparent 60%),linear-gradient(145deg,#58223477,#1e1018)}
+#modal[data-view="rules-guide"] .rg-entry[data-active="false"]{border-style:dashed}
+#modal[data-view="rules-guide"] .rg-entry-heading{display:grid;grid-template-columns:32px minmax(0,1fr);gap:5px 10px;align-items:center;padding-bottom:12px;border-bottom:1px solid #eac59320}
+#modal[data-view="rules-guide"] .rg-index{grid-row:1/3;display:grid;place-items:center;width:32px;min-height:40px;border-radius:9px;color:#ffdf9c;font-size:17px;font-weight:900;background:#d2a34a18;border:1px solid #efbc5a3d;font-variant-numeric:tabular-nums}
+#modal[data-view="rules-guide"] .rg-title{min-width:0}
+#modal[data-view="rules-guide"] .rg-family{display:block;font-size:9px;letter-spacing:.09em;color:#dcba83;font-weight:800;margin-bottom:4px}
+#modal[data-view="rules-guide"] .rg-title h4{font-size:17px;line-height:1.2;margin:0;color:#fff0d1;font-weight:800;overflow-wrap:anywhere}
+#modal[data-view="rules-guide"] .rg-multiplier{grid-column:2;display:block;font-size:16px;line-height:1.25;color:#ffdc88;max-width:100%;text-align:left;font-variant-numeric:tabular-nums;white-space:normal;margin:2px 0 0}
+#modal[data-view="rules-guide"] .rg-entry-body{display:grid;grid-template-columns:1fr;gap:10px;padding-top:14px}
+#modal[data-view="rules-guide"] .rg-visual{display:grid;justify-content:center;align-content:center;gap:8px;min-width:0}
+#modal[data-view="rules-guide"] .rg-hand{display:flex;align-items:center;justify-content:center;height:94px;gap:9px;margin:0}
+#modal[data-view="rules-guide"] .rg-hand .card3d{width:60px!important;height:90px!important;max-width:none!important;flex:0 0 60px!important;margin:0!important;transform:none!important;filter:none!important;opacity:1!important;box-shadow:0 4px 10px #0007!important}
+#modal[data-view="rules-guide"] .rg-hand .card-back{display:none!important}
+#modal[data-view="rules-guide"] .rg-hand .card-front{opacity:1!important;backface-visibility:visible!important;transform:translateZ(1px)!important}
+#modal[data-view="rules-guide"] .rg-hand .number{font-size:31px!important;line-height:1!important;-webkit-text-stroke:.7px #152043}
+#modal[data-view="rules-guide"] .rg-hand .small-num{font-size:8px!important;line-height:1!important}
+#modal[data-view="rules-guide"] .rg-illustration{font-size:8px;letter-spacing:.12em;text-align:center;color:#c9aa82}
+#modal[data-view="rules-guide"] .rg-info{min-width:0}
+#modal[data-view="rules-guide"] .rg-rule{font-size:13px;color:#efdbcb;line-height:1.55;margin:0 0 10px}
+#modal[data-view="rules-guide"] .rg-state{display:inline-flex;align-items:center;gap:6px;font-size:10px;color:#e9d2a9;line-height:1.5}
+#modal[data-view="rules-guide"] .rg-state::before{content:'';width:5px;height:5px;border-radius:50%;background:#f0c97b;flex:none}
+#modal[data-view="rules-guide"] [data-active="false"] .rg-state{color:#cfb29a}
+#modal[data-view="rules-guide"] [data-active="false"] .rg-state::before{background:transparent;border:1px solid #cfb29a}
+#modal[data-view="rules-guide"] .rg-inactive-note{font-size:11px;line-height:1.55;margin:6px 0;color:#c7ae9d}
+#modal[data-view="rules-guide"] .rg-example{font-size:12px;line-height:1.6;color:#ffe2a1;padding:10px 0;margin:8px 0 0;border-top:1px solid #eac59322;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#modal[data-view="rules-guide"] .rg-detail{border-top:1px solid #eac59325;margin-top:6px}
+#modal[data-view="rules-guide"] .rg-detail summary{cursor:pointer;padding:12px 0;min-height:44px;box-sizing:border-box;font-size:12px;line-height:1.6;font-weight:750;color:#ffe1a7}
+#modal[data-view="rules-guide"] .rg-detail p{font-size:12px;line-height:1.65;margin:0 0 12px;color:#d9c0af}
+#modal[data-view="rules-guide"] .rg-section-title{font-size:21px;color:#ffe6b7;margin:0 0 18px;line-height:1.25}
+#modal[data-view="rules-guide"] .rg-steps{padding-left:25px;margin:0 0 22px}
+#modal[data-view="rules-guide"] .rg-steps li{padding:0 0 16px 5px;color:#efc885;line-height:1.5}
+#modal[data-view="rules-guide"] .rg-steps strong{font-size:14px;color:#fff0d1}
+#modal[data-view="rules-guide"] .rg-steps p{font-size:13px;line-height:1.6;color:#dcc3b2;margin:5px 0 0}
+#modal[data-view="rules-guide"] .rg-metrics{display:grid;grid-template-columns:42px 1fr;gap:12px;padding:16px 0;border-block:1px solid #eac59325;font-size:12px;line-height:1.6;margin-bottom:22px}
+#modal[data-view="rules-guide"] .rg-metrics dt{font-weight:900;color:#ffe1a7}
+#modal[data-view="rules-guide"] .rg-metrics dd{margin:0;color:#dcc3b2}
+#modal[data-view="rules-guide"] .rg-footer{font-size:10px;text-align:center;line-height:1.6;color:#c1a38d;margin:22px 0 0;padding-top:15px;border-top:1px solid #eac59320}
+@media(min-width:600px){
+ #modal[data-view="rules-guide"] .rg-entry-body{grid-template-columns:206px minmax(0,1fr);gap:20px}
+ #modal[data-view="rules-guide"] .rg-entry-heading{grid-template-columns:38px minmax(0,1fr) max-content}
+ #modal[data-view="rules-guide"] .rg-index{grid-row:auto}
+ #modal[data-view="rules-guide"] .rg-multiplier{grid-column:3;margin:0;text-align:right}
+}
+@media(max-width:359px){
+ #modal[data-view="rules-guide"] .modal-content{padding:14px}
+ #modal[data-view="rules-guide"] .rg-nav{top:-14px}
+ #modal[data-view="rules-guide"] .rg-entry{padding:12px}
+ #modal[data-view="rules-guide"] .rg-title h4{font-size:16px}
+ #modal[data-view="rules-guide"] .rg-hand{gap:7px}
+ #modal[data-view="rules-guide"] .rg-nav .rg-button{padding-inline:5px;font-size:11px}
+}

@@ -8,6 +8,7 @@ from __future__ import annotations
 import collections
 import secrets
 from . import economy, spin
+from .rules_guide import enrich_catalog
 
 
 def color_indices(cards):
@@ -105,7 +106,7 @@ def catalog(config, tiers):
                     payout_text=f"{t['multiplier']}× BET", cards=hand(examples[t['rank']]))
                for t in tiers]
     if config is None:
-        return entries
+        return enrich_catalog(entries, config, tiers)
     for combo, label, cap in (
             ('PAIR_PRODUCT', 'Gold', config.product_cap),
             ('PAIR_SUM', 'Mixed', config.sum_cap)):
@@ -136,4 +137,4 @@ def catalog(config, tiers):
              rule='Minimal dua kartu berwarna sama. Rank, bonus angka, atau sequence yang berlaku didahulukan; satu hadiah saja.',
              enabled=True, payout_text=f'{config.color_pair_multiplier}× BET',
              cards=hand([('yellow', '1'), ('blue', '7'), ('yellow', '9')]))])
-    return entries
+    return enrich_catalog(entries, config, tiers)
