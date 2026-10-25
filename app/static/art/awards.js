@@ -71,9 +71,8 @@
   const previousSay = say;
   say = function(message) {
     let text = String(message || '');
-    if (/\bzon[k g]\b|tidak ada kemenangan|payout permainan 0/i.test(text)) text = '';
+    if (/\bzon[kg]\b|tidak ada kemenangan|payout permainan 0/i.test(text)) text = '';
     previousSay(text);
-    // Regular hints reserve no screen space. Actionable errors remain visible.
     $('spin-caption')?.classList.toggle('is-actionable',
       !!text && /koneksi|timeout|gagal|tidak cukup|tidak valid|sinkron|coba lagi|belum terkonfirmasi/i.test(text));
   };
@@ -107,7 +106,6 @@
       if (!entry.enabled) description.append(panelNode('small','award-status','Belum aktif pada konfigurasi ini'));
       row.append(top,hand,description);list.append(row);
     }
-    // The detailed catalog replaces the former abbreviated color-only copy.
     for (const p of [...area.children]) {
       if (p.tagName === 'P' && /^(COLOR PAIR|COLOR SEQUENCE)/.test(p.textContent)) p.remove();
     }
@@ -122,6 +120,14 @@
     const grid = $('modal-content').querySelector('.menu-grid');
     if (grid) menuTile(grid,'Rank Info',catalog().length + ' pola kemenangan','cards',showRules);
   };
+  // orbit.js registered the original function object before this module ran.
+  // Rebind both entry points, not just the global, without duplicating handlers.
+  for (const id of ['profile-btn','modal-back']) {
+    const button = $(id);
+    if (!button) continue;
+    button.removeEventListener('click',previousMenu);
+    button.addEventListener('click',showMenu);
+  }
 
   function updateLabel() {
     const node = $('combination-label');
@@ -134,7 +140,7 @@
   if (label) new MutationObserver(updateLabel).observe(label,{childList:true,characterData:true,subtree:true});
   updateLabel();
   if (typeof last !== 'undefined' && last) decorate(last);
-  if (/zon[k g]|tidak ada kemenangan/i.test($('spin-caption')?.textContent || '')) say('');
+  if (/zon[kg]|tidak ada kemenangan/i.test($('spin-caption')?.textContent || '')) say('');
   document.addEventListener('visibilitychange',() => {
     document.documentElement.classList.toggle('award-paused',document.hidden);
   });

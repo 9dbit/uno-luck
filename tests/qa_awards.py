@@ -30,8 +30,6 @@ with sync_playwright() as p:
                 paintRound(window.__awardRound);
                 say('ZONK · Tidak ada kemenangan permainan.');
             }""")
-            # Decode actual card and dragon art before screenshots. A loaded DOM
-            # can otherwise pass geometry while WebKit still paints card backs.
             page.wait_for_function("""() => [...document.querySelectorAll('.wheel-stage img,.result-area img')]
                 .every(img=>img.complete&&img.naturalWidth>0)""",timeout=15000)
             page.wait_for_timeout(900)
@@ -57,7 +55,10 @@ with sync_playwright() as p:
             if width<height:
                 assert metrics['stage']['width']>=min(metrics['area']['height']-11,metrics['area']['width']-6),metrics
             page.screenshot(path=str(OUT/f'{engine}-{label}-gold.png'),full_page=True)
-            page.evaluate('() => showRules()')
+            # Exercise actual user clicks, not just calling the global menu
+            # function: the profile/back buttons must use the enhanced handler.
+            page.locator('#profile-btn').click()
+            page.get_by_role('button',name='Rank Info',exact=True).click()
             assert page.locator('.rules-paytable [data-award]').count()==15
             assert page.locator('.award-tier[data-award="COLOR_PAIR"]').count()==1
             page.locator('.modal-card').wait_for(state='visible')
@@ -69,7 +70,10 @@ with sync_playwright() as p:
             page.locator('.award-tier[data-award="COLOR_PAIR"]').scroll_into_view_if_needed()
             page.wait_for_timeout(200)
             page.screenshot(path=str(OUT/f'{engine}-{label}-twin-color.png'),full_page=True)
-            page.evaluate("""() => {closeModal();paintRound({...window.__awardRound,
+            page.locator('#modal-back').click()
+            assert page.get_by_role('button',name='Rank Info',exact=True).count()==1
+            page.locator('#modal-close').click()
+            page.evaluate("""() => {paintRound({...window.__awardRound,
                 combo:'NO_MATCH',payout:0,promo_coin:100,regular_payout:0,award:null});}""")
             assert page.locator('.result-area .award-edge').count()==0
             page.evaluate('() => paintRound(window.__awardRound)')
@@ -81,6 +85,6 @@ with sync_playwright() as p:
             assert page.locator('.result-area .award-edge').count()==0
             assert not errors,errors
             assert context.request.get(URL+'/api/sounds/manifest').json()==baseline
-            print(engine,label,'PASS: number-only balance, no loss caption, larger intact SPIN, 15 catalog entries, front-only gold edges, no false promo win',flush=True)
+            print(engine,label,'PASS: number-only balance, no loss caption, larger intact SPIN, actual Rank Info clicks, 15 catalog entries, front-only gold edges, no false promo win',flush=True)
             context.close()
         browser.close()
