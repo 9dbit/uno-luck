@@ -131,7 +131,6 @@ def test_zero_product_rank_five_new_version_and_legacy_snapshot(client,monkeypat
     assert economy.classify(cards,economy.PRESET)==('COLOR_MATCH',25,5)
     assert economy.classify(cards,economy.PRESET,zero_product_fallback=False)==(
         'PAIR_PRODUCT',0,None)
-
     monkeypatch.setattr(economy,'draw',lambda cfg:cards)
     first=pick(client,1,25).json()
     assert first['round']['payout'] is None
@@ -139,16 +138,14 @@ def test_zero_product_rank_five_new_version_and_legacy_snapshot(client,monkeypat
     assert first['account']['balance']==975
     assert pick(client,2,25).status_code==200
     corrected=pick(client,3,25).json()
-    assert client.get('/api/orbit/state').json()['rules']['rules_version']==5
+    assert client.get('/api/orbit/state').json()['rules']['rules_version']==6
     assert corrected['round']['combo']=='COLOR_MATCH'
     assert corrected['round']['tier']['rank']==5
     assert corrected['round']['payout']==625
     assert corrected['round']['delta']==600
     assert corrected['account']['balance']==1600
     assert pick(client,3,25).json()['replayed']
-
-    # A previously issued rules-v4 card contract has an immutable payout
-    # snapshot. Preserve replay/history, never edit an already-booked win.
+    # Previously issued v4 snapshots stay immutable under v6.
     first=pick(client,4,25).json()
     db=orbit.open_db()
     row=db.execute('SELECT id,economy_json FROM orbit_rounds WHERE picked=1').fetchone()
@@ -186,13 +183,11 @@ def test_legacy_paid_round_survives_publish(client,monkeypatch):
 def test_generator_boundaries_match_categories(monkeypatch):
     cfg=economy.PRESET;roll=0
     original=orbit.cards_for_tier
-    # Exercise exact interval boundaries rather than a noisy statistical test.
     for key in economy.KEYS:
         size=int(cfg.percentages[key]*10000)
         if not size:
-            continue  # Newly added categories remain disabled in the historical preset.
+            continue
         for value in (roll,roll+size-1):
-            # Patch only selection randbelow; tier-4 also uses it for a face start.
             calls=iter([value])
             monkeypatch.setattr(economy.secrets,'randbelow',lambda n:next(calls) if n==economy.SCALE else 0)
             cards=economy.draw(cfg);combo,_,rank=economy.classify(cards,cfg)
@@ -278,7 +273,6 @@ def test_target_outside_publish_guardrail_is_rejected(client):
 def test_target_handles_changed_caps_and_payouts(client):
     c=config();c['multipliers']=[23,22,21,20,19];c['sum_cap']=5;c['product_cap']=18
     c['percentages']={**c['percentages'],'NO_MATCH':'20','PAIR_SUM':'79.4','PAIR_PRODUCT':'0.6','RANK_1':'0','RANK_2':'0','RANK_3':'0','RANK_4':'0','RANK_5':'0'}
-    # This is feasible: lowering RTP scales down paying probabilities and increases NO MATCH.
     response=client.post('/api/admin/economy/target',headers=HEAD,json={'config':c,'margin_percent':10})
     assert response.status_code==200
     assert response.json()['actual_margin_percent']==pytest.approx(10,abs=.05)

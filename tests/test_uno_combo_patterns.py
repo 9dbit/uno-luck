@@ -1,14 +1,8 @@
-"""UNO LUCK v1.2: real UNO-inspired card pattern determines rank, not the animation.
-
-Odds and payout are intentionally unchanged. These are weighted virtual combos,
-not the natural odds of shuffling a physical UNO deck.
-"""
+"""Five established ranks stay stable under the versioned v6 bonus rules."""
 import collections
-
 import pytest
 from fastapi.testclient import TestClient
-
-from app import orbit, spin
+from app import orbit, spin, economy
 from app.main import app
 
 
@@ -33,14 +27,14 @@ def test_rank_is_visible_card_combination(rank, cards):
 @pytest.mark.parametrize('cards', [
     hand('wild', '+4', 'WILD', '+4'),
     hand('wild', 'WILD', 'WILD', '+4'),
-    hand('red', '0', '0', '0'),  # no special rank; also impossible from one classic deck
+    hand('red', '0', '0', '0'),
     [{'color':'red','face':'SKIP'},
      {'color':'red','face':'REVERSE'},
      {'color':'blue','face':'+2'}],
     hand('blue','0','4','8'),
     [{'color':'red','face':'WILD'},
      {'color':'red','face':'WILD'},
-     {'color':'red','face':'WILD'}],  # counterfeit: Wild must be uncolored
+     {'color':'red','face':'WILD'}],
 ])
 def test_no_false_premium_rank(cards):
     assert orbit.classify_rank(cards) not in (1,2,3,4)
@@ -62,14 +56,16 @@ def test_generated_pattern_matches_classified_rank(monkeypatch,rank):
 
 
 def test_constant_probabilities_and_no_undocumented_bonus():
-    assert orbit.RULES_VERSION==5
+    assert orbit.RULES_VERSION==6
+    assert orbit.public_rules(economy.PRESET)['rules_version']==6
+    assert len(orbit.public_rules(economy.PRESET)['win_catalog'])==15
     assert orbit.WIN_PERCENT==80
     assert [orbit.CELEBRATIONS[i]['weight'] for i in range(1,6)]==[
         100,900,4000,30000,965000]
     assert [orbit.CELEBRATIONS[i]['multiplier'] for i in range(1,6)]==[
         200,80,30,10,2]
     rules=orbit.public_rules()
-    assert rules['rules_version']==5
+    assert rules['rules_version']==5  # Unconfigured legacy prototype is unchanged.
     assert sum(t['weight'] for t in orbit.CELEBRATIONS.values()) / 10000==100
     assert all('conditional_win_probability_percent' not in t for t in rules['celebrations'])
 
