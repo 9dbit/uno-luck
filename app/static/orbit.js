@@ -229,10 +229,9 @@ async function pickOne(){
     window.UNOLuckMotion?.pick(phase-1);
     syncAccount(confirmed.account);
     if(confirmed.round.complete){
-      if(isAuto&&activeAutoSession){
+      if(isAuto&&activeAutoSession&&!confirmed.replayed){
         activeAutoSession.completed_rounds++;
-        // The server does not grant any extra game-RNG prize here: the
-        // three illustrated JACKPOT cards are a separate promotional reveal.
+        // Promo never changes the server-picked card or ordinary payout.
         if(activeAutoSession.completed_rounds>=1 && !activeAutoSession.gift_acknowledged)
           activeAutoSession.gift_ready=true;
       }
@@ -262,6 +261,15 @@ async function pickOne(){
         if(!ack){cancelAuto=true;return false;}
       }
     }else say(`Kartu ${['kiri','tengah','kanan'][phase-1]} terpilih. SPIN ${phase+1}/3 berikutnya.`);
+    if(confirmed.replayed){
+      // An idempotent replay can refer to an old, already completed round.
+      // Never count it twice or let the next pick use a stale local phase.
+      if(!(await loadState(true)))throw Error('Hasil SPIN belum dapat disinkronisasi');
+      if(isAuto){
+        activeAutoSession=(await autoApi('/state')).session;
+        if(!activeAutoSession)cancelAuto=true;
+      }
+    }
     navigator.vibrate?.(18);
     return true;
   }catch(error){
@@ -454,21 +462,44 @@ function autoBudget(rounds){
   }
   return rounds*stake;
 }
+// One-tap transition from a previously paid manual round to a NEW AUTO batch.
+// We never retrofit an old/manual round into the promotional session or debit
+// its BET again. A persistent pending pick always reuses its original ID.
+async function prepareAutoHandoff(){
+  if(!(await loadState(true)))throw Error('Sinkronisasi SPIN gagal. Periksa koneksi lalu coba lagi.');
+  activeAutoSession=(await autoApi('/state')).session;
+  if(activeAutoSession){
+    if(currentRound&&currentRound.auto_session_id!==activeAutoSession.id)
+      throw Error('Ronde aktif tidak cocok dengan sesi AUTO. Selesaikan secara manual dahulu.');
+    return;
+  }
+  let steps=0;
+  while((currentRound||pendingInfo())&&steps<4){
+    if(document.hidden)throw Error('Tab tidak aktif. AUTO belum dimulai.');
+    if(currentRound?.auto_session_id)
+      throw Error('Ronde AUTO lama perlu disinkronisasi sebelum membuat sesi baru.');
+    const next=(currentRound?.picked||0)+1;
+    say(`Menyelesaikan ronde manual terlebih dahulu · SPIN ${next}/3`);
+    if(!(await pickOne()))throw Error('SPIN lama belum selesai. AUTO belum dimulai; tidak ada BET AUTO baru.');
+    // An earlier request may have settled server-side before its response was
+    // lost. Re-read the canonical phase before ever choosing the next card.
+    if(!(await loadState(true)))throw Error('Gagal memverifikasi SPIN lama. Coba sinkronkan lagi.');
+    steps++;
+  }
+  if(currentRound||pendingInfo())throw Error('Masih ada SPIN yang perlu disinkronisasi sebelum AUTO.');
+}
 async function autoLoop(roundLimit){
-  if(isAuto||autoStarting||isSpinning||!account||pendingInfo()||document.hidden||!AUTO_ROUNDS.includes(roundLimit))return;
-  if(currentRound&&currentRound.auto_session_id!==activeAutoSession?.id){
-    say('Selesaikan ronde yang sedang berjalan sebelum melanjutkan AUTO.');
-    return;
-  }
-  const requestedStake=activeAutoSession?.stake ?? STAKES[stakeIndex];
-  if(account.balance<autoBudget(roundLimit)){
-    say('Saldo belum cukup untuk seluruh ronde AUTO berbayar.');
-    return;
-  }
+  if(isAuto||autoStarting||isSpinning||!account||document.hidden||!AUTO_ROUNDS.includes(roundLimit))return;
   autoStarting=true;updateButtons();
   try{
     void unlockAudio();
-    window.UNOLuckPromoAudio?.prime?.(); // direct AUTO click gesture, no edits to Sound Cloud
+    window.UNOLuckPromoAudio?.prime?.(); // user click gesture, never changes audio settings
+    await prepareAutoHandoff();
+    const requestedStake=activeAutoSession?.stake ?? STAKES[stakeIndex];
+    if(account.balance<autoBudget(roundLimit))
+      throw Error('Saldo tidak cukup untuk ronde AUTO berbayar setelah ronde manual selesai.');
+    if(currentRound&&currentRound.auto_session_id!==activeAutoSession?.id)
+      throw Error('Selesaikan SPIN manual sebelum AUTO.');
     const opened=await autoApi('/start','POST',
       {request_id:newRequestId(),paid_rounds:roundLimit,stake:requestedStake});
     activeAutoSession=opened.session;
@@ -476,34 +507,39 @@ async function autoLoop(roundLimit){
     const idx=STAKES.indexOf(activeAutoSession.stake);
     if(idx<0)throw Error('BET dari sesi AUTO sebelumnya tidak tersedia lagi.');
     stakeIndex=idx;
-    // The server handshake is done. Restore the STOP button for a running AUTO.
     autoStarting=false;
     isAuto=true;cancelAuto=false;updateButtons();
-    if(opened.resumed)say('Melanjutkan Free Spins dari sesi sebelumnya.');
+    if(opened.resumed)say('Melanjutkan sesi AUTO yang tersimpan.');
     if(activeAutoSession.gift_ready&&!activeAutoSession.gift_acknowledged){
       if(!(await showAutoGift()))cancelAuto=true;
     }
-    const remaining=activeAutoSession.rounds_remaining;
-    for(let rounds=0;rounds<remaining&&!cancelAuto&&!document.hidden;rounds++){
-      for(let k=(currentRound?.picked||0);k<3&&!cancelAuto&&!document.hidden;k++){
-        const done=await pickOne();
-        if(!done){cancelAuto=true;break;}
-        if(cancelAuto)break;
-        await wait(isTurbo?130:230);
-      }
-      if(!cancelAuto)await wait(isTurbo?270:510);
+    // Use the server-accounted round count, not a fixed stale loop counter.
+    // This prevents extra paid rounds when a lost response is idempotently
+    // replayed after a reconnect, and correctly resumes at SPIN 2/3 or 3/3.
+    let picks=0;
+    while(activeAutoSession&&!cancelAuto&&!document.hidden &&
+          activeAutoSession.completed_rounds <
+            activeAutoSession.paid_rounds+activeAutoSession.free_rounds){
+      if(++picks>3*(activeAutoSession.paid_rounds+activeAutoSession.free_rounds)+9)
+        throw Error('AUTO dihentikan: SPIN tidak mencapai progres server yang diharapkan.');
+      const completed=activeAutoSession.completed_rounds;
+      const done=await pickOne();
+      if(!done){cancelAuto=true;break;}
+      if(cancelAuto||document.hidden)break;
+      await wait(activeAutoSession?.completed_rounds>completed ?
+        (isTurbo?270:510):(isTurbo?130:230));
     }
     if(activeAutoSession && activeAutoSession.completed_rounds >=
-       activeAutoSession.paid_rounds+activeAutoSession.free_rounds){
+       activeAutoSession.paid_rounds+activeAutoSession.free_rounds)
       activeAutoSession=null;
-    }
   }catch(error){
-    say(error.message||'Gagal memulai AUTO. Tidak ada saldo yang dipotong oleh tombol AUTO.');
+    say(error.message||'Gagal memulai AUTO. Sesi dan request SPIN aman untuk dilanjutkan.');
   }finally{
     isAuto=false;autoStarting=false;announceAutoGift=false;
     applyNextBet();updateButtons();
   }
 }
+
 function modal(title){delete $('modal').dataset.view;$('modal-back').hidden=title==='Menu';$('modal').classList.remove('coin-modal','player-panel');$('modal').querySelector('.panel-actions')?.remove();$('modal-title').textContent=title;$('modal-content').replaceChildren();$('modal-content').scrollTop=0;if(!$('modal').open)$('modal').showModal();return $('modal-content');}
 function paragraph(parent,text){const p=document.createElement('p');p.textContent=text;parent.append(p);return p;}
 function modalButton(parent,text,fn){const b=document.createElement('button');b.textContent=text;b.type='button';b.addEventListener('click',fn);parent.append(b);return b;}
@@ -682,16 +718,24 @@ function showAutoSettings(){
   if(activeAutoSession)paragraph(area,'Sesi sebelumnya masih aktif. Lanjutkan untuk menggunakan sisa ronde gratis dan bonus yang belum diklaim.');
   else paragraph(area,'Jumlah ronde pilihan adalah ronde berbayar. Setelahnya AUTO menambahkan 10 free spins. Bonus promosi terpisah dari kemenangan kartu; ZONK tetap payout permainan 0.');
   const start=panelAction(activeAutoSession?'LANJUTKAN AUTO':'MULAI AUTO',()=>{
-    if(isAuto||isSpinning||pendingInfo()||!account||account.balance<autoBudget(selected)){refresh();return;}
+    if(isAuto||isSpinning||autoStarting||!account||account.balance<autoBudget(selected)){
+      refresh();return;
+    }
     autoRounds=selected;closeModal();void autoLoop(selected);
   });start.id='auto-start';
   function refresh(){
     for(const btn of grid.children)btn.setAttribute('aria-pressed',String(Number(btn.dataset.rounds)===selected));
     const required=autoBudget(selected);virtualBudget.textContent='Kebutuhan '+virtualRp(required)+' · 1 Coin = Rp40 virtual';total.querySelector('.coin-value-text').textContent=idMoney(required)+' Coin';balance.querySelector('.coin-value-text').textContent=idMoney(account?.balance??0)+' Coin';
-    const blocked=!!pendingInfo()||isSpinning||isAuto||autoStarting||!account||
-      (!!currentRound&&currentRound.auto_session_id!==activeAutoSession?.id);
-    start.disabled=blocked||account.balance<required;
-    message.textContent=blocked?'Selesaikan ronde atau sinkronisasi SPIN terlebih dahulu.':account.balance<required?'Coin belum cukup untuk BET berbayar.':`${selected} ronde berbayar + 10 free spins · 5 hadiah PROMO · ${isTurbo?'TURBO':'NORMAL'}`;
+    const handoff=!!pendingInfo()||!!(currentRound&&!activeAutoSession);
+    const busy=isSpinning||isAuto||autoStarting||!account;
+    start.disabled=busy||account.balance<required;
+    start.textContent=handoff?'SELESAIKAN & MULAI AUTO':activeAutoSession?'LANJUTKAN AUTO':'MULAI AUTO';
+    message.textContent=busy?'SPIN sedang berjalan. Coba lagi setelah animasi selesai.':
+      account.balance<required?'Coin belum cukup untuk BET berbayar.':
+      activeAutoSession?'Sesi AUTO yang ada akan dilanjutkan dari progres tersimpan. BET yang sudah dibayar tidak ditagih ulang.':
+      currentRound?`Ronde manual masih SPIN ${(currentRound.picked||0)+1}/3. Tombol ini menuntaskan sisanya tanpa BET manual kedua, lalu memulai ${selected} ronde AUTO baru.`:
+      pendingInfo()?'Ada request SPIN belum terkonfirmasi. Tombol ini menyinkronkan dengan ID yang sama sebelum AUTO, tanpa menggandakan BET.':
+      `${selected} ronde berbayar + 10 free spins · 5 hadiah PROMO · ${isTurbo?'TURBO':'NORMAL'}`;
   }
   refresh();
 }
@@ -792,7 +836,7 @@ async function showTournament(){
 function showProfile(){const area=playerPanel('Profil Pemain');panelHero(area,'profile','YOUR PLAYER ID','Panggungmu, gayamu','Nama ini tampil di papan peringkat saat kamu bergabung.');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 let stateLoading=false;
 async function loadState(quiet=false){
-  if(stateLoading)return;
+  if(stateLoading)return false;
   stateLoading=true;
   try{const data=await api('/state');ruleset=data.rules||ruleset;
     const payouts=ruleset?.celebrations?.map(t=>t.multiplier).filter(Number.isFinite);
@@ -818,7 +862,8 @@ async function loadState(quiet=false){
     applyNextBet();updateButtons();
     $('connection-status').textContent='ONLINE';
     if(!quiet)say(data.round?`Lanjutkan ronde: SPIN ${data.round.picked+1}/3`:'Sentuh SPIN untuk memilih kartu pertama');
-  }catch(e){$('connection-status').textContent='OFFLINE';say(e.message);}
+    return true;
+  }catch(e){$('connection-status').textContent='OFFLINE';say(e.message);return false;}
   finally{stateLoading=false;}
 }
 function recoverInitialConnection(){
