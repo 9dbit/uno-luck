@@ -1,0 +1,40 @@
+name: UNO DEV02 Readonly Audio Snapshot
+on:
+  pull_request:
+    paths:
+      - 'app/dev02_sound_snapshot.py'
+      - 'tests/test_dev02_sound_snapshot.py'
+      - 'deploy/Dockerfile.dev02'
+      - 'deploy/start-dev02.sh'
+      - '.github/workflows/qa-dev02-snapshot.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test snapshot pinning without network
+        run: |
+          pip install pytest
+          python -m pytest -q tests/test_dev02_sound_snapshot.py
+      - name: Capture published baseline audio with read-only GET requests
+        env:
+          UNO_DEV02_SOUND_SOURCE: https://uno-luck-pr23-qa.onrender.com
+          UNO_DEV02_CAPTURE_ONLY: '1'
+          UNO_SOUND_STORAGE_DIR: artifacts/uno-dev02-audio
+        run: |
+          python -m app.dev02_sound_snapshot
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-dev02-published-audio-snapshot
+          path: artifacts/uno-dev02-audio/*
+          if-no-files-found: error
