@@ -1,10 +1,8 @@
-"""Three-click UNO LUCK circular card spin. Koin are virtual and non-redeemable.
+"""Three-click UNO LUCK circular card spin. Credits are virtual and non-redeemable.
 
-The three selected cards are chosen server-side at round creation and revealed
-one by one. Exactly 80% of the outcome generator's base gate qualifies for one
-of five UNO-inspired card patterns (20% NO_MATCH). Rank is derived from the
-actual three-card hand, never drawn independently after the cards exist.
-One round costs one stake; all coins remain non-redeemable virtual credits.
+All cards are chosen server-side at round creation. Published economy categories
+are fixed and independent; the 80% gate below belongs to the legacy prototype.
+Rules v6 adds truthful color-pair matching without rewriting earlier snapshots.
 """
 from __future__ import annotations
 
@@ -16,18 +14,17 @@ import sqlite3
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from . import spin, economy, autoplay
+from . import spin, economy, autoplay, award_engine
 
 router = APIRouter(prefix="/api/orbit", tags=["UNO LUCK Orbit"])
 WIN_PERCENT = 80
-RULES_VERSION = 5
+RULES_VERSION = 6
 FACES = spin.FACES
 COLORS = spin.COLORS
 ACTION_TRIO = frozenset(('SKIP', 'REVERSE', '+2'))
 
-# Unchanged per-winning-round weights (millionths) and payout table.
-# Each weight now controls which card-pattern template gets generated.
-# The authoritative payout rank is independently CLASSIFIED FROM THE CARDS.
+# Legacy rank weights and art IDs remain stable. Published multipliers are read
+# from each round's immutable economy snapshot, not from these defaults.
 CELEBRATIONS = {
     1: {'title': 'DRAGON KING JACKPOT', 'theme': 'dragon', 'multiplier': 200,
         'weight': 100, 'pattern': 'TRIPLE_DRAW_FOUR',
@@ -50,11 +47,7 @@ assert sum(t['weight'] for t in CELEBRATIONS.values()) == WEIGHT_SCALE
 
 
 def choose_tier() -> int:
-    """Draw a winning HAND TEMPLATE with unchanged cryptographic weights.
-
-    The payout rank is still classified from real card faces, not this draw.
-    No daily quota, pity timer, user-linked adjustment, or client RNG.
-    """
+    """Legacy winning-hand template. Never adjusted for individual players."""
     roll = secrets.randbelow(WEIGHT_SCALE)
     for rank in sorted(CELEBRATIONS):
         roll -= CELEBRATIONS[rank]['weight']
@@ -110,17 +103,13 @@ def create_schema(db: sqlite3.Connection) -> None:
             PRIMARY KEY(account_id,request_id)
         );
     """)
-    # Existing guest rounds survive the upgrade; legacy matching rounds default
-    # to the previous 2x when they are eventually completed.
     economy.schema(db)
     autoplay.schema(db)
     existing = {r['name'] for r in db.execute('PRAGMA table_info(orbit_rounds)').fetchall()}
     if 'tier' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN tier INTEGER CHECK(tier BETWEEN 1 AND 5)')
-    # Old/unfinished rounds keep their original pre-pattern rank and payout.
     if 'rules_version' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN rules_version INTEGER NOT NULL DEFAULT 1')
-
     if 'economy_json' not in existing:
         db.execute('ALTER TABLE orbit_rounds ADD COLUMN economy_json TEXT')
     if 'charged_stake' not in existing:
@@ -145,12 +134,7 @@ _initialized: set[str] = set()
 
 
 def classify_rank(cards: list[dict]) -> int | None:
-    """Classify EXACTLY the displayed three UNO-inspired cards.
-
-    Ordered from most specific pattern to broad Color Match. Wild cards have
-    NO color; only triple Wild or triple +4 are winning wild combinations.
-    This is UNO LUCK's custom reward system, not a rule of Mattel UNO.
-    """
+    """Five established primary ranks. Numeric/color bonuses are separate."""
     if len(cards) != 3 or not all(isinstance(card, dict) for card in cards):
         return None
     colors = [card.get('color') for card in cards]
@@ -160,7 +144,7 @@ def classify_rank(cards: list[dict]) -> int | None:
             return 1
         if faces == ['WILD'] * 3:
             return 2
-        return None  # mixed Wild/+4 is not a paid pattern
+        return None
     if len(set(colors)) != 1 or colors[0] not in COLORS:
         return None
     if frozenset(faces) == ACTION_TRIO and len(set(faces)) == 3:
@@ -175,12 +159,7 @@ def classify_rank(cards: list[dict]) -> int | None:
 
 
 def cards_for_tier(rank: int) -> list[dict]:
-    """Generate a recognizable 3-card pattern using a CSPRNG.
-
-    Patterns are consistent with quantities in one classic 108-card UNO deck:
-    four Wild +4, four Wild, each colored 0 once and 1-9/action twice.
-    Each round is a weighted virtual outcome, NOT an unweighted deck shuffle.
-    """
+    """Generate a three-card pattern using a CSPRNG, not a deck shuffle."""
     if rank == 1:
         return [{'color': 'wild', 'face': '+4'} for _ in range(3)]
     if rank == 2:
@@ -191,13 +170,13 @@ def cards_for_tier(rank: int) -> list[dict]:
     if rank == 3:
         faces = ['SKIP', 'REVERSE', '+2']
     elif rank == 4:
-        start = secrets.randbelow(8)  # 0-1-2 through 7-8-9
+        start = secrets.randbelow(8)
         faces = [str(start + offset) for offset in range(3)]
     else:
         for _ in range(100):
             faces = [secrets.choice(FACES) for _ in range(3)]
             if faces.count('0') > 1 or len(set(faces)) == 1:
-                continue  # avoid combinations impossible in a single deck
+                continue
             sample = [{'color': color, 'face': face} for face in faces]
             if classify_rank(sample) == 5:
                 break
@@ -208,12 +187,11 @@ def cards_for_tier(rank: int) -> list[dict]:
 
 
 def choose_cards() -> list[dict]:
-    """80% winning pattern vs 20% non-winning, unchanged odds."""
+    """Legacy 80% winning-template gate, retained for unconfigured games."""
     winner = secrets.randbelow(100) < WIN_PERCENT
     if winner:
         sampled_template = choose_tier()
         cards = cards_for_tier(sampled_template)
-        # Server must pay what the actual cards represent, never a separate roll.
         if classify_rank(cards) != sampled_template:
             raise RuntimeError('Card combination and payout rank disagree')
         return cards
@@ -260,6 +238,7 @@ def view_round(round_row, phase: int | None = None) -> dict | None:
         'combo': round_row['combo'] if complete else None,
         'tier': tier_view,
         'bonus': {'kind':round_row['combo'],'multiplier':snap['multiplier']} if complete and snap and round_row['combo'] in ('PAIR_SUM','PAIR_PRODUCT','COLOR_PAIR','COLOR_SEQUENCE') else None,
+        'award': award_engine.describe(dealt, round_row['combo'], tier_view, round_row['payout']) if complete else None,
         'pattern': pattern, 'rules_version': version,
         'payout': round_row['payout'] if complete else None,
         'promo_coin': round_row['promo_coin'] if complete else None,
@@ -274,17 +253,20 @@ def public_rules(config=None) -> dict:
             tier['multiplier'] = config.multipliers[tier['rank']-1]
         tiers[-1]['rule'] += ', selain bonus pasangan angka / Draw Two'
     return {
-        'mode': 'three-pick-orbit', 'virtual_only': True, 'rules_version': RULES_VERSION,
+        'mode': 'three-pick-orbit', 'virtual_only': True, 'rules_version': RULES_VERSION if config else 5,
         'stake_options': config.stake_options if config else spin.COSTS,
         'virtual_rp_per_coin': economy.VIRTUAL_RP_PER_COIN,
         'numeric_bonus': {'sum_cap':config.sum_cap,'product_cap':config.product_cap,
                           'draw_two_match':True} if config else None,
         'color_bonus': {
-            'enabled': bool(config.percentages['COLOR_PAIR'] or config.percentages['COLOR_SEQUENCE']),
+            'enabled': True,
+            'pair_enabled': True,
+            'sequence_enabled': bool(config.percentages['COLOR_SEQUENCE']),
             'pair_multiplier': config.color_pair_multiplier,
             'sequence_multiplier': config.color_sequence_multiplier,
-            'rule': 'Dua warna sama = Color Pair; dua kartu berdampingan sewarna dan berangka berurutan = Color Sequence. Tiga angka sewarna berurutan tetap Golden Match.'
+            'rule': 'Minimal dua kartu sewarna membayar Color Pair, kecuali sudah mendapat hadiah rank/angka/sequence. Tiga angka sewarna berurutan tetap Golden Match.'
         } if config else None,
+        'win_catalog': award_engine.catalog(config, tiers),
         'auto_promotion': {
             'free_spins': autoplay.FREE_ROUNDS,
             'guaranteed_bonus_count': autoplay.PROMO_REWARDS,
@@ -317,8 +299,6 @@ def state(request: Request, response: Response):
             item['stake'] = item['charged_stake']
             item['created_at'] = completed_round['created_at']
             hist.append(item)
-        # Preserve older Classic/legacy SPIN entries that predate Orbit.
-        # Normal Orbit-paid rows already mirrored in spins must not appear twice.
         seen = {item['id'] for item in hist}
         for legacy in spin.spin_history(db, account['id'], 24):
             if legacy['id'] in seen:
@@ -380,9 +360,9 @@ def pick(request: Request, response: Response, payload: PickRequest):
                 charged_stake, _ = autoplay.round_terms(promotion)
             if acct['balance'] < charged_stake:
                 raise HTTPException(409,'Koin tidak cukup. Klaim hadiah atau refill gratis.')
-            cards=economy.draw(config) if config else choose_cards()
+            cards=award_engine.draw(config) if config else choose_cards()
             if config:
-                combo, multiplier, tier = economy.classify(cards, config)
+                combo, multiplier, tier = award_engine.classify(cards, config)
             else:
                 tier=classify_rank(cards)
                 combo='COLOR_MATCH' if tier is not None else 'NO_MATCH'
@@ -396,7 +376,7 @@ def pick(request: Request, response: Response, payload: PickRequest):
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (rid,aid,payload.request_id,payload.stake,charged_stake,
                  promotion['id'] if promotion else None,
-                 json.dumps(cards,separators=(',',':')),1,combo,tier,RULES_VERSION,stamp))
+                 json.dumps(cards,separators=(',',':')),1,combo,tier,RULES_VERSION if config else 5,stamp))
             db.execute('UPDATE orbit_rounds SET economy_json=? WHERE id=?',(snapshot,rid))
             new_balance=acct['balance']-charged_stake
             db.execute('UPDATE accounts SET balance=? WHERE id=?',(new_balance,aid))
@@ -405,7 +385,6 @@ def pick(request: Request, response: Response, payload: PickRequest):
                         -charged_stake,new_balance,stamp))
             picked=1
         else:
-            # The stake is fixed on spin #1. Subsequent requests cannot change it.
             if (payload.auto_session_id is not None
                     and payload.auto_session_id != row['auto_session_id']):
                 raise HTTPException(409, 'Ronde sedang berjalan milik sesi lain')
@@ -416,14 +395,15 @@ def pick(request: Request, response: Response, payload: PickRequest):
             if picked > 3:
                 raise HTTPException(409,'Ronde ini sudah selesai')
             if picked == 3:
-                rank=row['tier'] or 5  # Existing v1 unfinished Color Match keeps its original award.
+                rank=row['tier'] or 5
                 if row['combo']=='COLOR_MATCH' and int(row['rules_version'])>=3:
                     if classify_rank(json.loads(row['cards_json'])) != rank:
                         raise RuntimeError('Invalid stored card/payout combination; settlement blocked')
                 multiplier=CELEBRATIONS[rank]['multiplier'] if row['combo']=='COLOR_MATCH' else 0
                 if row['economy_json']:
                     snap=json.loads(row['economy_json'])
-                    classified=economy.classify(
+                    classifier=award_engine.classify if int(row['rules_version']) >= 6 else economy.classify
+                    classified=classifier(
                         json.loads(row['cards_json']), economy.Config.model_validate(snap['config']),
                         draw_two_match=int(row['rules_version']) >= 3,
                         zero_product_fallback=int(row['rules_version']) >= 5,

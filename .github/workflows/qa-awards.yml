@@ -1,0 +1,47 @@
+name: UNO Awards Engine and Mobile QA
+on:
+  pull_request:
+    paths:
+      - 'app/award_engine.py'
+      - 'app/orbit.py'
+      - 'app/static/orbit-index.html'
+      - 'app/static/art/awards.*'
+      - 'tests/test_award_engine.py'
+      - 'tests/qa_awards.py'
+      - '.github/workflows/qa-awards.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  awards-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: |
+          pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium webkit
+      - name: Verify new rules and immutable snapshots
+        run: |
+          node --check app/static/art/awards.js
+          python -m pytest -q tests/test_award_engine.py tests/test_economy.py tests/test_orbit.py tests/test_autoplay_promo.py
+      - name: Verify mobile awards with isolated data
+        run: |
+          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_ACTIVITY_DEMO=1 UNO_SPIN_DB_PATH=/tmp/uno-awards-qa.sqlite3 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-awards.log 2>&1 &
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health >/dev/null
+          timeout 240s python tests/qa_awards.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-v1167-awards
+          path: artifacts/uno-v1167-awards/*.png
+          if-no-files-found: ignore
