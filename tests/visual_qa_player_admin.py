@@ -40,7 +40,11 @@ with sync_playwright() as pw:
         for rank,multiplier in enumerate([200,80,30,10,2],1):
             assert f'RANK {rank}' in rules_text
             assert f'{multiplier}× BET' in rules_text
-        assert 'NO MATCH' in rules_text
+        # The redesigned Rules guide puts the NO MATCH explanation in
+        # Cara Main, not in the initial Rank & Bonus catalog.
+        page.get_by_role('tab',name='Cara Main',exact=True).click()
+        page.locator('#rg-panel-play summary').filter(has_text='Bagaimana jika tidak ada kombinasi?').click()
+        assert 'NO MATCH' in page.locator('#rg-panel-play').inner_text()
         page.screenshot(path=str(OUT/f'{engine}-player-rules.png'))
         page.locator('#modal-close').click()
         page.locator('#turbo-btn').click()
