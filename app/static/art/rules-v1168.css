@@ -81,3 +81,20 @@
  #modal[data-view="rules-guide"] .rg-hand{gap:7px}
  #modal[data-view="rules-guide"] .rg-nav .rg-button{padding-inline:5px;font-size:11px}
 }
+/* Screenshot-reviewed compact opening; tab content must not hide below a hero. */
+#modal[data-view="rules-guide"] .rg-hero{padding:0 0 10px}
+#modal[data-view="rules-guide"] .rg-hero h3{font-size:clamp(21px,5.5vw,27px);line-height:1.12;margin:6px 0}
+#modal[data-view="rules-guide"] .rg-hero p{font-size:12px;line-height:1.5}
+#modal[data-view="rules-guide"] .rg-stats{padding:9px 0;margin-top:11px}
+#modal[data-view="rules-guide"] .rg-stats strong{font-size:21px}
+#modal[data-view="rules-guide"] .rg-stats span{font-size:9px}
+#modal[data-view="rules-guide"] .rg-controls{display:grid;grid-template-columns:minmax(0,1fr) 100px;gap:10px;align-items:end}
+#modal[data-view="rules-guide"] .rg-filters .rg-button{padding-inline:6px}
+#modal[data-view="rules-guide"] .rg-stake-label{display:grid;gap:4px;font-size:10px}
+#modal[data-view="rules-guide"] .rg-select{max-width:none;width:100%;padding-right:20px}
+#modal[data-view="rules-guide"]:has(#rg-tab-play[aria-selected="true"]) .rg-hero,
+#modal[data-view="rules-guide"]:has(#rg-tab-terms[aria-selected="true"]) .rg-hero{display:none}
+@media(max-width:359px){
+ #modal[data-view="rules-guide"] .rg-controls{grid-template-columns:minmax(0,1fr) 86px;gap:8px}
+ #modal[data-view="rules-guide"] .rg-filters .rg-button{font-size:10px;padding-inline:4px}
+}
