@@ -30,6 +30,11 @@ with sync_playwright() as p:
                 paintRound(window.__awardRound);
                 say('ZONK · Tidak ada kemenangan permainan.');
             }""")
+            # Decode actual card and dragon art before screenshots. A loaded DOM
+            # can otherwise pass geometry while WebKit still paints card backs.
+            page.wait_for_function("""() => [...document.querySelectorAll('.wheel-stage img,.result-area img')]
+                .every(img=>img.complete&&img.naturalWidth>0)""",timeout=15000)
+            page.wait_for_timeout(900)
             assert page.locator('#spin-caption').text_content()==''
             assert not page.locator('.balance-readout>small').is_visible()
             assert not page.locator('#wallet-rupiah').is_visible()
@@ -37,6 +42,9 @@ with sync_playwright() as p:
             assert page.locator('.result-area .award-winning').count()==2
             assert page.locator('.result-area .award-edge-runner').count()==2
             assert page.locator('.result-area .award-muted').count()==1
+            assert page.locator('.result-area .card-back:visible').count()==0
+            assert page.locator('.result-area .card-front .number').all_text_contents()==['1','7','9']
+            assert page.locator('.result-area .card-front .number:visible').count()==3
             metrics=page.evaluate("""() => {
                 const rect=q=>{const r=document.querySelector(q).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};};
                 return {area:rect('.wheel-area'),stage:rect('.wheel-stage'),
@@ -52,7 +60,15 @@ with sync_playwright() as p:
             page.evaluate('() => showRules()')
             assert page.locator('.rules-paytable [data-award]').count()==15
             assert page.locator('.award-tier[data-award="COLOR_PAIR"]').count()==1
+            page.locator('.modal-card').wait_for(state='visible')
+            page.wait_for_timeout(500)
+            page.wait_for_function("""() => [...document.querySelectorAll('#modal img')]
+                .every(img=>img.complete&&img.naturalWidth>0)""",timeout=15000)
+            assert page.locator('#modal-title').is_visible()
             page.screenshot(path=str(OUT/f'{engine}-{label}-catalog.png'),full_page=True)
+            page.locator('.award-tier[data-award="COLOR_PAIR"]').scroll_into_view_if_needed()
+            page.wait_for_timeout(200)
+            page.screenshot(path=str(OUT/f'{engine}-{label}-twin-color.png'),full_page=True)
             page.evaluate("""() => {closeModal();paintRound({...window.__awardRound,
                 combo:'NO_MATCH',payout:0,promo_coin:100,regular_payout:0,award:null});}""")
             assert page.locator('.result-area .award-edge').count()==0
@@ -65,6 +81,6 @@ with sync_playwright() as p:
             assert page.locator('.result-area .award-edge').count()==0
             assert not errors,errors
             assert context.request.get(URL+'/api/sounds/manifest').json()==baseline
-            print(engine,label,'PASS: number-only balance, no loss caption, larger intact SPIN, 15 catalog entries, gold edges, no false promo win',flush=True)
+            print(engine,label,'PASS: number-only balance, no loss caption, larger intact SPIN, 15 catalog entries, front-only gold edges, no false promo win',flush=True)
             context.close()
         browser.close()

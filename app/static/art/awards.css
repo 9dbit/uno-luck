@@ -33,8 +33,12 @@
     .wheel-area .wheel-stage{width:min(calc(100cqh - 9px),calc(100cqw - 4px),495px)!important}
   }
 }
-/* The original physical card remains unchanged. The SVG follows the actual
-   card face in 3D, so its gold runner traces the edge rather than spinning art. */
+/* Filters flatten 3D descendants in WebKit. Settled award cards and static
+   catalog examples never flip: remove their back face from painting so it
+   cannot cover the authoritative numbers/colors when a glow is composited. */
+.result-area .card3d.award-winning .card-back,
+.result-area .card3d.award-muted .card-back,
+.rules-paytable .card3d .card-back{display:none!important}
 .result-area .card3d.award-winning{filter:drop-shadow(0 0 6px #ffd229b0)!important}
 .result-area .card3d.award-muted{filter:brightness(.72)!important}
 .result-area .award-edge{
