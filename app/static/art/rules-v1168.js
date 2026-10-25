@@ -144,7 +144,7 @@
       else{
         const operation=item.guide_formula==='product'?' \u00d7 ':' + ';
         equation=item.cards.map(c=>String(c.face)==='+2'?'2':c.face).join(operation)+' = '+num(item.guide_raw)+
-          '. Batas '+num(item.guide_cap)+'\u00d7 BET; contoh memakai '+num(item.guide_example)+'\u00d7 BET. +2 bernilai 2.';
+          '. Batas '+num(item.guide_cap)+'\u00d7 BET; contoh memakai '+num(item.guide_example)+'\u00d7 BET.'+(item.id.includes('_DRAW_')?' +2 bernilai 2.':'');
       }
       detail(info,'Cara hitung',equation);
       content.append(visual,info);row.append(content);list.append(row);rows.push(row);
