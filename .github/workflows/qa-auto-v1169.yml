@@ -1,0 +1,56 @@
+name: UNO DEV03 Auto Play Recovery QA
+on:
+  pull_request:
+    paths:
+      - 'app/static/orbit.js'
+      - 'app/static/orbit-index.html'
+      - 'tests/qa_auto_handoff_v1169.py'
+      - '.github/workflows/qa-auto-v1169.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auto-handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated QA
+        run: |
+          pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium webkit
+      - name: Validate virtual-only server and no RNG changes
+        run: |
+          node --check app/static/orbit.js
+          python -m pytest -q tests/test_autoplay_promo.py tests/test_award_engine.py tests/test_orbit.py tests/test_rules_guide.py
+      - name: Exercise Auto after manual and pending SPIN
+        run: |
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-dev03-${GITHUB_RUN_ID}"
+          python tests/seed_ci_published_sounds.py
+          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_QA_ACTIVITY_DEMO=1 \
+            UNO_SPIN_DB_PATH=/tmp/uno-dev03-auto-ci.sqlite3 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-dev03-auto.log 2>&1 &
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health >/dev/null
+          timeout 480s python tests/qa_auto_handoff_v1169.py
+      - name: Archive exact-source QA evidence
+        if: always()
+        run: |
+          mkdir -p artifacts/uno-dev03-auto
+          git rev-parse HEAD > artifacts/uno-dev03-auto/commit.txt
+          git archive HEAD app tests scripts requirements.txt deploy | gzip > artifacts/uno-dev03-auto/source.tar.gz
+          if [ -f /tmp/uno-dev03-auto.log ]; then cp /tmp/uno-dev03-auto.log artifacts/uno-dev03-auto/server.log; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-dev03-auto-handoff
+          path: artifacts/uno-dev03-auto/*
+          if-no-files-found: error
