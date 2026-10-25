@@ -140,7 +140,10 @@ with sync_playwright() as pw:
                 assert page.evaluate('() => !pendingInfo() && !currentRound')
             else:
                 # STOP must preserve a single resumable session without a double debit.
-                page.locator('#auto-btn').click()
+                if page.locator('#auto-gift-banner').is_visible():
+                    page.locator('.auto-gift-stop').click()
+                else:
+                    page.locator('#auto-btn').click()
                 page.wait_for_function('() => !isAuto && !isSpinning',timeout=26000)
                 assert all(r['auto_session_id'] is None for r in requests[:3])
                 assert requests[0]['request_id']=='pending-safe-retry-v1169'
