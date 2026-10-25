@@ -1,0 +1,16 @@
+# New DEV-02 QA only. The baseline Dockerfile and service are unchanged.
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends util-linux espeak && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app/ ./app/
+COPY scripts/build_social_assets.py ./scripts/build_social_assets.py
+COPY scripts/build_promo_audio.py ./scripts/build_promo_audio.py
+RUN python scripts/build_promo_audio.py --root /app/app/static
+RUN pip install --no-cache-dir Pillow && python scripts/build_social_assets.py --root /app/app/static && pip uninstall -y Pillow
+RUN groupadd --gid 10001 runner && useradd --create-home --uid 10001 --gid runner runner
+COPY --chmod=755 deploy/start-dev02.sh /usr/local/bin/uno-dev02-start
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/uno-dev02-start"]

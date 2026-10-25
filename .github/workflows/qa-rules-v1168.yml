@@ -1,0 +1,58 @@
+name: UNO DEV02 Rules Guide QA
+on:
+  pull_request:
+    paths:
+      - 'app/rules_guide.py'
+      - 'app/award_engine.py'
+      - 'app/static/orbit-index.html'
+      - 'app/static/art/rules-v1168.*'
+      - 'tests/*rules*v1168*'
+      - 'tests/test_rules_guide.py'
+      - '.github/workflows/qa-rules-v1168.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rules-guide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated QA dependencies
+        run: |
+          pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium webkit
+      - name: Check metadata and unchanged settlement
+        run: |
+          node --check app/static/art/rules-v1168.js
+          python -m pytest -q tests/test_rules_guide.py tests/test_award_engine.py tests/test_economy.py tests/test_orbit.py
+      - name: Exercise actual menu and examples in Chromium and WebKit
+        run: |
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-rules-${GITHUB_RUN_ID}"
+          python tests/seed_ci_published_sounds.py
+          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_ACTIVITY_DEMO=1 UNO_SPIN_DB_PATH=/tmp/uno-dev02-rules.sqlite3 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-dev02-rules.log 2>&1 &
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health >/dev/null
+          timeout 360s python tests/qa_rules_v1168.py
+      - name: Archive exact-source evidence
+        if: always()
+        run: |
+          mkdir -p artifacts/uno-dev02-rules
+          git rev-parse HEAD > artifacts/uno-dev02-rules/commit.txt
+          git archive HEAD app tests scripts requirements.txt Dockerfile deploy/start-web.sh | gzip > artifacts/uno-dev02-rules/source.tar.gz
+          if [ -f /tmp/uno-dev02-rules.log ]; then cp /tmp/uno-dev02-rules.log artifacts/uno-dev02-rules/server.log; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-dev02-rules-guide
+          path: artifacts/uno-dev02-rules/*
+          if-no-files-found: error
