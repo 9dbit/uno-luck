@@ -1,0 +1,87 @@
+/* UNO LUCK DEV-06 v1.1.72 - iPhone Gold Title hotfix.
+   The approved artwork is the same user-reviewed DRAGON SPIN X1000.
+   DEV-05 squeezed a 3.33:1 image into a short fixed-height box using
+   object-fit:contain, shrinking the actual letter width on iPhone.
+   DEV-06 renders the Retina asset at nearly full width, then fits only
+   its vertical presentation to the reserved title row. No game logic.
+*/
+@media (orientation:portrait) and (max-width:600px){
+  .game-shell>.title-area{
+    overflow:visible!important;
+    isolation:isolate;
+    z-index:8!important;
+  }
+  .title-area>.title-art-dev05{
+    top:-7%!important;
+    left:50%!important;
+    width:98%!important;
+    height:auto!important;
+    max-width:none!important;
+    aspect-ratio:1600/480!important;
+    object-fit:contain!important;
+    object-position:center!important;
+    transform:translate3d(-50%,0,0) scaleY(.65)!important;
+    transform-origin:center top!important;
+    filter:brightness(1.17) contrast(1.13) saturate(1.2)
+           drop-shadow(0 0 1px #fff7cf)
+           drop-shadow(0 0 5px #ffc341dd)
+           drop-shadow(0 0 9px #ff87088c)
+           drop-shadow(0 4px 5px #140403d9)!important;
+    animation:none!important; /* no GPU-heavy animated full-image filter */
+    will-change:auto!important;
+    z-index:5!important;
+  }
+  .title-area>.title-glint-dev05{
+    top:-7%!important;
+    left:50%!important;
+    width:98%!important;
+    height:auto!important;
+    aspect-ratio:1600/480!important;
+    transform:translate3d(-50%,0,0) scaleY(.65)!important;
+    transform-origin:center top!important;
+    -webkit-mask-image:url('/assets/art/dev06/dragon-spin-x1000-gold-1600.webp?v=1172')!important;
+    mask-image:url('/assets/art/dev06/dragon-spin-x1000-gold-1600.webp?v=1172')!important;
+    -webkit-mask-size:100% 100%!important;
+    mask-size:100% 100%!important;
+    background:linear-gradient(105deg,transparent 0 29%,#ffdf5000 33%,
+        #fffbdc78 42%,#fff6bfc8 46%,#ffdf5544 49%,transparent 61%)!important;
+    background-size:100% 100%!important;
+    background-position:center!important;
+    mix-blend-mode:screen!important;
+    z-index:6!important;
+    pointer-events:none!important;
+    will-change:opacity;
+  }
+  .title-area.is-art-ready>.title-glint-dev05{
+    opacity:.70!important;
+    animation:dev06NeonGlow 5.6s ease-in-out infinite!important;
+  }
+}
+@keyframes dev06NeonGlow{
+  0%,100%{opacity:.24}
+  48%{opacity:.7}
+}
+@media (orientation:portrait) and (max-width:600px) and (max-height:659px){
+  .title-area>.title-art-dev05,
+  .title-area>.title-glint-dev05{
+    width:96%!important;
+    top:-5%!important;
+    transform:translate3d(-50%,0,0) scaleY(.57)!important;
+  }
+}
+@media (orientation:portrait) and (max-width:350px){
+  .title-area>.title-art-dev05,
+  .title-area>.title-glint-dev05{
+    width:96%!important;
+    top:-4%!important;
+    transform:translate3d(-50%,0,0) scaleY(.53)!important;
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .title-area.is-art-ready>.title-art-dev05,
+  .title-area.is-art-ready>.title-glint-dev05{
+    animation:none!important;
+    transition:none!important;
+  }
+  .title-area.is-art-ready>.title-glint-dev05{opacity:.4!important}
+}

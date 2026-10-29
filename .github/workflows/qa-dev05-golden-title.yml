@@ -1,9 +1,11 @@
-name: UNO DEV05 Approved Golden Title QA
+name: UNO DEV06 Retina iPhone Gold Title QA
 on:
   pull_request:
     paths:
       - 'app/static/orbit-index.html'
       - 'app/static/art/dev05/**'
+      - 'app/static/art/dev06/**'
+      - 'app/static/art/dev06-iphone-title.css'
       - 'app/static/art/dev05-golden-title.css'
       - 'app/static/art/title-dev05.js'
       - 'tests/qa_title_dev05.cjs'
@@ -26,29 +28,33 @@ jobs:
         run: |
           pip install -r requirements.txt pytest httpx playwright
           python -m playwright install --with-deps chromium webkit
-          npm install --no-save --package-lock=false playwright
+          npm install --no-save --package-lock=false playwright pngjs
       - name: Check title asset and engine purity
         run: |
           node --check app/static/art/title-dev05.js
           node --check app/static/orbit.js
           python - <<'PY'
           from pathlib import Path
-          source=Path('app/static/art/dev05/dragon-spin-x1000-rustic-gold.avif')
-          assert source.is_file() and 10000 < source.stat().st_size < 45000
-          assert source.read_bytes()[4:12] == b'ftypavif'
+          source=Path('app/static/art/dev06/dragon-spin-x1000-gold-1600.webp')
+          assert source.is_file() and 150000 < source.stat().st_size < 600000
+          b=source.read_bytes()
+          assert b[:4]==b'RIFF' and b[8:12]==b'WEBP'
           html=Path('app/static/orbit-index.html').read_text()
           assert html.count('id="dragon-title-art"')==1
+          assert 'data-title-art-version="1172"' in html
+          assert 'dev06-iphone-title.css?v=1172' in html
+          assert 'dev06/dragon-spin-x1000-gold-1600.webp?v=1172' in html
           assert 'DRAGON SPIN</h1>' in html and '>X1000</p>' in html
           assert 'id="activity-total"' in html and 'id="metric-drawer"' in html
           assert 'id="spin-btn"' in html and 'id="auto-btn"' in html
-          print('PASS: approved image with alpha, semantic title and live game controls')
+          print('PASS: Retina gold logo, cache-busted assets, semantic title and controls')
           PY
       - name: Run title browser QA and existing responsive/ticker gates
         run: |
-          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-dev05-${GITHUB_RUN_ID}"
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-dev06-${GITHUB_RUN_ID}"
           python tests/seed_ci_published_sounds.py
           UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_QA_ACTIVITY_DEMO=1 \
-            UNO_SPIN_DB_PATH=/tmp/uno-dev05-title-ci.sqlite3 \
+            UNO_SPIN_DB_PATH=/tmp/uno-dev06-title-ci.sqlite3 \
             python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-dev05-title.log 2>&1 &
           for i in $(seq 1 40); do
             if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
@@ -61,15 +67,16 @@ jobs:
       - name: Preserve screenshots, source SHA, and logs
         if: always()
         run: |
-          mkdir -p artifacts/uno-dev05-title
-          git rev-parse HEAD > artifacts/uno-dev05-title/commit.txt
-          git archive HEAD app tests scripts requirements.txt deploy | gzip > artifacts/uno-dev05-title/source.tar.gz
-          if [ -f /tmp/uno-dev05-title.log ]; then cp /tmp/uno-dev05-title.log artifacts/uno-dev05-title/server.log; fi
+          mkdir -p artifacts/uno-dev06-title
+          git rev-parse HEAD > artifacts/uno-dev06-title/commit.txt
+          git archive HEAD app tests scripts requirements.txt deploy | gzip > artifacts/uno-dev06-title/source.tar.gz
+          if [ -f /tmp/uno-dev05-title.log ]; then cp /tmp/uno-dev05-title.log artifacts/uno-dev06-title/server.log; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: uno-dev05-golden-wordmark-qa
+          name: uno-dev06-retina-title-qa
           path: |
-            artifacts/uno-dev05-title/*
+            artifacts/uno-dev06-title/*
+            artifacts/uno-dev05-title/*.png
             artifacts/uno-v1164-responsive/*.png
           if-no-files-found: error
