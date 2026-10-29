@@ -10,6 +10,7 @@ import re
 import secrets
 import time
 from collections import deque
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -27,7 +28,18 @@ from .tournament import router as tournament_router
 from .sound_cloud import router as sound_cloud_router, sound_health
 
 APP_ROOT = Path(__file__).resolve().parent
-app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
+
+@asynccontextmanager
+async def qa_pinned_audio_lifespan(_app: FastAPI):
+    # Fail closed for explicitly pinned QA services only. Docker's launcher
+    # should import first; this also covers other supported startup paths.
+    if os.getenv("UNO_DEV02_SOUND_SHA256"):
+        from .dev02_sound_snapshot import ensure_pinned_qa_snapshot
+        ensure_pinned_qa_snapshot()
+    yield
+
+app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0",
+              docs_url=None, redoc_url=None, lifespan=qa_pinned_audio_lifespan)
 from .economy import router as economy_router
 app.include_router(economy_router)
 app.include_router(spin_router)

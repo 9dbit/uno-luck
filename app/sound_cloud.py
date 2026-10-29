@@ -243,6 +243,14 @@ def sound_health():
                 log.error("Sound volume is not writable (%s, errno=%s) folder=%s",
                           type(exc).__name__, getattr(exc, "errno", None), folder)
                 raise HTTPException(503, "Sound storage belum dapat ditulis")
+    if os.environ.get("UNO_DEV02_SOUND_SHA256"):
+        # Writability alone cannot certify playback. Require pinned custom
+        # Splash and Background Music plus every exact file hash in QA.
+        from .dev02_sound_snapshot import validate_pinned_local
+        try:
+            validate_pinned_local(root, os.environ["UNO_DEV02_SOUND_SHA256"])
+        except ValueError as error:
+            raise HTTPException(503, "Pinned QA Sound Cloud not ready") from error
     return Response(
         content=json.dumps({
             "ready": True,
