@@ -42,7 +42,7 @@ jobs:
           PY
       - name: Start QA-only app with ephemeral wallet/audio data
         run: |
-          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sounds-dev08-ci-${GITHUB_RUN_ID}"
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-dev08-${GITHUB_RUN_ID}"
           python tests/seed_ci_published_sounds.py
           UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_QA_ACTIVITY_DEMO=1 \
             UNO_SPIN_DB_PATH=/tmp/uno-dev08-qa-ci.sqlite3 \
