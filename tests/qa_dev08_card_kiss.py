@@ -98,8 +98,15 @@ with sync_playwright() as pw:
                       document.querySelector('link[href*="dev08-card-spin-layout"]').disabled = true;
                     }""")
                     baseline = page.evaluate(MEASURE)
-                    assert center["width"] >= baseline["cards"][1]["width"] - 1, (
-                        browser_name, name, "card-size-regression", center, baseline
+                    # An old oversized card could protrude through the BET rim.
+                    # Compare against the baseline size that could actually fit
+                    # above that rim, not its overlapping/hidden area.
+                    prior = baseline["cards"][1]
+                    prior_overshoot = max(0.0, prior["bottom"] - baseline["betFrameTop"])
+                    safe_prior_width = prior["width"] - prior_overshoot * (2 / 3)
+                    assert center["width"] >= safe_prior_width - 1, (
+                        browser_name, name, "fitted-card-size-regression",
+                        center["width"], safe_prior_width, prior_overshoot
                     )
                     page.evaluate("""() => {
                       document.querySelector('link[href*="dev08-card-spin-layout"]').disabled = false;
@@ -108,7 +115,7 @@ with sync_playwright() as pw:
                     assert not errors, (browser_name, name, errors)
                     print("PASS", browser_name, name,
                           "centerWidth", round(center["width"], 1),
-                          "baselineWidth", round(baseline["cards"][1]["width"], 1),
+                          "baselineFitWidth", round(safe_prior_width, 1),
                           "cardToBetFrameGap", round(gap, 1),
                           "titleEmissive", True, flush=True)
                 finally:
