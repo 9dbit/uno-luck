@@ -57,7 +57,7 @@ jobs:
           curl -fsS http://127.0.0.1:8080/health >/dev/null
           timeout 300s node tests/qa_title_dev05.cjs
           timeout 280s node tests/qa_responsive_mobile.cjs
-          timeout 100s node tests/qa_activity_ticker.cjs
+          UNO_QA_URL=http://127.0.0.1:8080 timeout 100s node tests/qa_activity_ticker.cjs
       - name: Preserve screenshots, source SHA, and logs
         if: always()
         run: |
