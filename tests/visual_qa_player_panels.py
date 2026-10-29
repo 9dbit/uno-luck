@@ -114,7 +114,7 @@ with sync_playwright() as pw:
             top=page.locator('#modal-close').bounding_box()['y']
             page.locator('#modal-content').evaluate('(e)=>e.scrollTop=e.scrollHeight')
             assert abs(page.locator('#modal-close').bounding_box()['y']-top)<1
-            page.locator('summary').click();bounds()
+            page.locator('#modal-content details summary').first.click();bounds()
             page.locator('#modal-content').evaluate('(e)=>e.scrollTop=0')
             page.screenshot(path=str(OUT/f'{engine}-rules-{width}x{height}.png'));close()
             menu('Bet Setting');bounds()

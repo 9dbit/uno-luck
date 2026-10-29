@@ -1,0 +1,125 @@
+/* UNO LUCK DEV-05 v1.1.71
+   Approved Golden Storm 3D wordmark from the user-reviewed title artwork.
+   No layout changes below the title, no engine/coin/rank/sound mutations.
+   Fallback: DEV-04 accessible CSS text remains until the AVIF really loads.
+*/
+.game-shell{
+  grid-template-rows:8.6% 11% 19.1% 4.8% 8.1% minmax(0,48.4%)!important;
+}
+.game-shell>.title-area{
+  position:relative;
+  isolation:isolate;
+  overflow:visible!important;
+}
+.title-area>.title-art-dev05{
+  position:absolute;
+  top:-5%;left:50%;
+  display:block;
+  width:98%;height:112%;
+  max-width:none;
+  object-fit:contain;
+  object-position:center;
+  opacity:0;
+  z-index:5;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-drag:none;
+  transform:translate3d(-50%,0,0);
+  transform-origin:center top;
+  filter:drop-shadow(0 1px 4px #fff1a659)
+         drop-shadow(0 1px 7px #ffad2288)
+         drop-shadow(0 4px 7px #100103dd);
+  transition:opacity .15s ease-out;
+}
+.title-area>.title-glint-dev05{
+  position:absolute;
+  top:-5%;left:50%;
+  display:block;
+  width:98%;height:112%;
+  aspect-ratio:860 / 257;
+  z-index:6;
+  pointer-events:none;
+  opacity:0;
+  background:linear-gradient(110deg,transparent 0 38%,#fff8b800 43%,#fff4b9a8 49%,#fff5b82a 51%,transparent 59%);
+  background-size:250% 100%;
+  background-position:140% center;
+  -webkit-mask-image:url('/assets/art/dev05/dragon-spin-x1000-rustic-gold.avif');
+  mask-image:url('/assets/art/dev05/dragon-spin-x1000-rustic-gold.avif');
+  -webkit-mask-position:center;
+  mask-position:center;
+  -webkit-mask-repeat:no-repeat;
+  mask-repeat:no-repeat;
+  -webkit-mask-size:contain;
+  mask-size:contain;
+  mix-blend-mode:screen;
+  transform:translate3d(-50%,0,0);
+  transform-origin:center top;
+}
+.title-area.is-art-ready>.title-art-dev05{
+  opacity:1;
+  animation:unoDev05NeonBreathe 6.2s ease-in-out infinite;
+}
+.title-area.is-art-ready>.title-glint-dev05{
+  opacity:.62;
+  animation:unoDev05Shine 7s linear infinite;
+}
+.title-area.is-art-ready>.motion-title,
+.title-area.is-art-ready>.title-max-visual{
+  opacity:0!important;
+  pointer-events:none!important;
+}
+/* Image is a visual-only decoration. Keep the actual h1 and X1000 in
+   the accessibility tree, including the tooltip that X1000 is not RTP. */
+@keyframes unoDev05NeonBreathe{
+  0%,100%{filter:drop-shadow(0 1px 3px #fff0a658)
+          drop-shadow(0 0 5px #ffad2288) drop-shadow(0 4px 7px #100103dd)}
+  45%{filter:drop-shadow(0 0 5px #fff6ad92)
+          drop-shadow(0 0 9px #ffc127b5) drop-shadow(0 4px 8px #100103dd)}
+}
+@keyframes unoDev05Shine{
+  0%,18%{background-position:140% center;opacity:.2}
+  36%{opacity:.68}
+  58%{background-position:-45% center;opacity:.66}
+  67%,100%{background-position:-45% center;opacity:.22}
+}
+@media(orientation:portrait) and (max-height:659px){
+  .game-shell{
+    grid-template-rows:9% 11% 19% 5.2% 8.6% minmax(0,47.2%)!important;
+  }
+  .title-area>.title-art-dev05,
+  .title-area>.title-glint-dev05{
+    width:91%;height:110%;top:-4%;
+    transform:translate3d(-50%,0,0);
+  }
+}
+@media(orientation:portrait) and (max-width:350px){
+  .game-shell{
+    grid-template-rows:9% 11% 18.9% 5.3% 8.8% minmax(0,47%)!important;
+  }
+  .title-area>.title-art-dev05,
+  .title-area>.title-glint-dev05{
+    width:88%;height:110%;top:-4%;
+    transform:translate3d(-50%,0,0);
+  }
+}
+@media(orientation:landscape) and (max-height:470px){
+  .game-shell{
+    grid-template-columns:22% minmax(0,37%) minmax(0,41%)!important;
+    grid-template-rows:41px minmax(0,1fr) 31px 19px 30px!important;
+  }
+  .game-shell>.title-area{grid-column:1!important;grid-row:2!important}
+  .title-area>.title-art-dev05,
+  .title-area>.title-glint-dev05{
+    top:12%;
+    width:99%;height:82%;
+    transform:translate3d(-50%,0,0);
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .title-area>.title-art-dev05{transition:none!important}
+  .title-area.is-art-ready>.title-art-dev05,
+  .title-area.is-art-ready>.title-glint-dev05{
+    animation:none!important;
+  }
+  .title-area.is-art-ready>.title-glint-dev05{opacity:.32!important}
+}
