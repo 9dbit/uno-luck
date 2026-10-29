@@ -80,7 +80,7 @@ with sync_playwright() as pw:
                         timeout=15000,
                     )
                     now = page.evaluate(MEASURE)
-                    assert now["version"] == "DEV-08 v1.1.74r2", now
+                    assert now["version"] == "DEV-08 v1.1.74r3", now
                     assert now["titleLoaded"] and "brightness(1.34)" in now["titleFilter"], now
                     assert "drop-shadow" in now["titleFilter"], now
                     assert len(now["cards"]) == 3, now
