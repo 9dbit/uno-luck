@@ -42,7 +42,12 @@ const views=[
     s.classList.remove('is-booting');s.removeAttribute('aria-hidden');
     document.getElementById('boot-overlay').hidden=true;
    },Boolean(v.safe));
-   await page.waitForTimeout(180);
+   await page.waitForFunction(()=>{
+     const im=document.getElementById('dragon-title-art');
+     const h1=document.querySelector('.motion-title');
+     return Number(getComputedStyle(im).opacity)>.98 &&
+       Number(getComputedStyle(h1).opacity)<.02;
+   },null,{timeout:5000});
    const m=await page.evaluate(()=>{
     const r=sel=>{const a=document.querySelector(sel).getBoundingClientRect();
       return {top:a.top,bottom:a.bottom,left:a.left,right:a.right,width:a.width,height:a.height}};
