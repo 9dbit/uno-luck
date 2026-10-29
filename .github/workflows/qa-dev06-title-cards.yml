@@ -1,0 +1,77 @@
+name: UNO DEV06 Title & Cards Visual QA
+on:
+  pull_request:
+    paths:
+      - 'app/static/orbit-index.html'
+      - 'app/static/art/dev06-title-cards.css'
+      - 'app/static/art/dev06/**'
+      - 'tests/qa_dev06_title_cards.py'
+      - '.github/workflows/qa-dev06-title-cards.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser/test dependencies
+        run: |
+          pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium webkit
+          npm install --no-save --package-lock=false playwright
+      - name: Source safety and unchanged engine smoke
+        run: |
+          node --check app/static/orbit.js
+          python -m pytest -q tests/test_award_engine.py tests/test_rules_guide.py tests/test_autoplay_promo.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/static/art/dev06/dragon-spin-x1000-rustic-shadow.avif')
+          assert p.is_file() and 20000 < p.stat().st_size < 45000
+          assert p.read_bytes()[4:12] == b'ftypavif'
+          s=Path('app/static/orbit-index.html').read_text()
+          assert s.count('id="dragon-title-art"')==1
+          assert s.count('id="metric-drawer"')==1
+          assert 'dev06-title-cards.css?v=1172' in s
+          assert 'id="spin-btn"' in s and 'id="auto-btn"' in s
+          print('DEV06 asset, layout anchors and gameplay controls PASS')
+          PY
+      - name: Run exact HEAD browser geometry and existing ticker/responsive gates
+        run: |
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-dev06-${GITHUB_RUN_ID}"
+          python tests/seed_ci_published_sounds.py
+          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_QA_ACTIVITY_DEMO=1 \
+            UNO_SPIN_DB_PATH=/tmp/uno-dev06-qa-ci.sqlite3 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-dev06-qa.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health >/dev/null
+          UNO_QA_URL=http://127.0.0.1:8080 UNO_QA_OUTPUT=artifacts/uno-dev06-visual timeout 320s python tests/qa_dev06_title_cards.py
+          UNO_QA_URL=http://127.0.0.1:8080 timeout 280s node tests/qa_responsive_mobile.cjs
+          UNO_QA_URL=http://127.0.0.1:8080 timeout 120s node tests/qa_activity_ticker.cjs
+      - name: Preserve exact source and mobile screenshots
+        if: always()
+        run: |
+          mkdir -p artifacts/uno-dev06-visual
+          git rev-parse HEAD > artifacts/uno-dev06-visual/commit.txt
+          git archive HEAD app tests scripts requirements.txt deploy | gzip > artifacts/uno-dev06-visual/source.tar.gz
+          if [ -f /tmp/uno-dev06-qa.log ]; then cp /tmp/uno-dev06-qa.log artifacts/uno-dev06-visual/server.log; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-dev06-visual-qa
+          path: |
+            artifacts/uno-dev06-visual/*
+            artifacts/uno-v1164-responsive/*.png
+          if-no-files-found: error
