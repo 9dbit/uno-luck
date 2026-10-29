@@ -140,10 +140,18 @@ with sync_playwright() as pw:
                 assert page.evaluate('() => !pendingInfo() && !currentRound')
             else:
                 # STOP must preserve a single resumable session without a double debit.
+                # Overlay can appear after the visible check while Safari
+                # is waiting to click AUTO. Retry STOP via its own overlay
+                # control instead of timing out under the backdrop.
                 if page.locator('#auto-gift-banner').is_visible():
                     page.locator('.auto-gift-stop').click()
                 else:
-                    page.locator('#auto-btn').click()
+                    try:
+                        page.locator('#auto-btn').click(timeout=3500)
+                    except Exception:
+                        if not page.locator('#auto-gift-banner').is_visible():
+                            raise
+                        page.locator('.auto-gift-stop').click()
                 page.wait_for_function('() => !isAuto && !isSpinning',timeout=26000)
                 assert all(r['auto_session_id'] is None for r in requests[:3])
                 assert requests[0]['request_id']=='pending-safe-retry-v1169'
