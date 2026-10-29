@@ -374,6 +374,11 @@
     grid-template-columns:22% minmax(0,37%) minmax(0,41%)!important;
     grid-template-rows:41px minmax(0,1fr) 31px 19px 30px!important;
   }
+  /* Restore the 3-column landscape areas. Earlier portrait declarations
+     must not compress header/balance into column 1 or put cards in the BET row. */
+  .game-shell>.game-header{grid-column:1/-1!important;grid-row:1!important}
+  .game-shell>.title-area{grid-column:1!important;grid-row:2!important}
+  .game-shell>.result-area{grid-column:2!important;grid-row:2!important}
   .game-shell>.title-area .motion-title{
     font-size:clamp(22px,4.2vw,42px)!important;
     height:73%!important;
