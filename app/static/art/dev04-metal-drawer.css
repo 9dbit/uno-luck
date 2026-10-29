@@ -1,0 +1,419 @@
+/* UNO LUCK DEV-04 v1.1.70 | scoped, visual-only gold title & metrics drawer.
+   Draw/Rank/RNG, wallet settlement, Sound Cloud and the live ticker API stay unchanged.
+   "X1000" is an artistic title marker, NOT a published payout multiplier. */
+
+/* Compact, legible 6-row stack: HEADER / TITLE / CARDS / BET / DRAWER / WHEEL.
+   The drawer is a single child that hangs from BET without an independent ticker row. */
+.game-shell{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-rows:9% 8.8% 21.3% 4.8% 8.1% minmax(0,48%)!important;
+}
+.game-shell>.game-header{grid-column:1;grid-row:1}
+.game-shell>.title-area{
+  grid-column:1;grid-row:2;
+  isolation:isolate;
+  justify-content:center!important;
+  min-width:0;
+  overflow:visible!important;
+}
+
+/* Deep bronze extrusion, hammered/rustic gold, glossy raised bevel, and
+   travelling specular edge. Everything is actual DOM text, not an image. */
+.game-shell>.title-area .motion-title{
+  position:absolute!important;
+  top:0!important;left:0!important;
+  width:100%!important;height:75%!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  margin:0!important;
+  padding:0 1%!important;
+  font-family:Impact,'Arial Narrow','Arial Black',system-ui,sans-serif!important;
+  font-style:italic!important;
+  font-weight:1000!important;
+  font-stretch:condensed!important;
+  font-size:clamp(35px,12vw,63px)!important;
+  letter-spacing:-.07em!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+  text-transform:uppercase!important;
+  color:transparent!important;
+  background:
+    repeating-linear-gradient(174deg,transparent 0 3px,#3b17092c 4px 5px,#fff0b61f 6px 7px,transparent 8px 13px),
+    linear-gradient(177deg,#fff8d0 0%,#ffeab2 9%,#cd9742 18%,#75400e 30%,#f5c877 39%,#fff7c2 47%,#b57828 53%,#563015 64%,#d8a04c 77%,#ffda89 88%,#9a541a 100%)!important;
+  background-blend-mode:multiply!important;
+  background-clip:text!important;
+  -webkit-background-clip:text!important;
+  -webkit-text-stroke:clamp(.85px,.19vw,1.3px) #fce5ad!important;
+  text-shadow:0 1px 0 #fff4c16e,2px 3px 0 #6f2c0d,3px 5px 0 #411008,5px 7px 0 #210807,6px 10px 12px #080002c4!important;
+  filter:drop-shadow(0 1px 2px #ffcc6385) drop-shadow(0 6px 7px #180000b0)!important;
+  transform:scaleX(.94) skewX(-2deg) translateZ(0)!important;
+  overflow:visible!important;
+  z-index:2;
+  isolation:isolate;
+}
+.game-shell>.title-area .motion-title::before,
+.game-shell>.title-area .motion-title::after{
+  content:attr(data-metal-text);
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  white-space:nowrap;
+  font:inherit;
+  letter-spacing:inherit;
+  line-height:inherit;
+}
+.game-shell>.title-area .motion-title::before{
+  z-index:-1;
+  color:#653014;
+  -webkit-text-stroke:1.8px #351005;
+  transform:translate3d(3px,5px,0);
+  text-shadow:2px 2px 0 #210405,4px 5px 2px #080001;
+}
+.game-shell>.title-area .motion-title::after{
+  z-index:1;
+  color:transparent;
+  -webkit-text-stroke:.5px #fff5c4;
+  background:linear-gradient(109deg,transparent 0 38%,#fff1ab22 42%,#fffbd9e6 48%,#fff9d6 50%,#fffad633 53%,transparent 58% 100%);
+  background-size:280% 100%;
+  background-position:155% center;
+  background-clip:text;
+  -webkit-background-clip:text;
+  animation:unoRustEdgeGlint 6.5s ease-in-out infinite;
+  filter:drop-shadow(0 0 1px #ffe6a190);
+}
+@keyframes unoRustEdgeGlint{
+  0%,22%{background-position:155% 50%;opacity:.22}
+  40%{opacity:.95}
+  58%{background-position:-40% 50%;opacity:.75}
+  65%,100%{background-position:-45% 50%;opacity:.25}
+}
+
+/* Only the requested X1000 appears below DRAGON SPIN.
+   No old "3 kartu / 15 pola / 300x" promotional claim. */
+.game-shell>.title-area .title-max-visual{
+  position:absolute!important;
+  left:50%!important;
+  right:auto!important;
+  top:auto!important;
+  bottom:0!important;
+  transform:translateX(-50%)!important;
+  display:block!important;
+  width:max-content!important;
+  max-width:95%!important;
+  height:auto!important;
+  min-height:0!important;
+  padding:0 5px!important;
+  margin:0!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:none!important;
+  color:#ffe8a0!important;
+  font-family:Impact,'Arial Narrow','Arial Black',system-ui,sans-serif!important;
+  font-style:italic!important;
+  font-weight:1000!important;
+  font-size:clamp(17px,5.1vw,28px)!important;
+  letter-spacing:.17em!important;
+  line-height:1.06!important;
+  text-align:center!important;
+  -webkit-text-stroke:.5px #a25d21;
+  text-shadow:0 1px 0 #fff2c2,1px 2px 0 #7e360e,2px 4px 0 #37110a,0 0 11px #ffd16d83!important;
+  filter:drop-shadow(0 2px 4px #140002b0);
+  overflow:visible!important;
+}
+.game-shell>.title-area [hidden]{display:none!important}
+
+/* Cards and original interactive HUD remain independent. */
+.game-shell>.result-area{grid-column:1;grid-row:3}
+.game-shell>.result-bar{
+  grid-column:1;grid-row:4;
+  height:94%!important;
+  z-index:8!important;
+}
+
+/* Bronze-gold vertical DROP DRAWER: visually anchored to the BET frame,
+   with no standalone pillshape surrounding PAYOUT and TOTAL BET. */
+.game-shell>.metric-drawer{
+  grid-column:1;
+  grid-row:5;
+  position:relative;
+  z-index:7;
+  display:grid;
+  grid-template-rows:minmax(0,54%) minmax(0,46%);
+  align-self:start;
+  justify-self:center;
+  width:min(86%,448px);
+  max-width:calc(100% - 18px);
+  height:calc(100% + 4px);
+  min-height:0;
+  min-width:0;
+  box-sizing:border-box;
+  margin:-4px auto 0;
+  padding:5px clamp(7px,2vw,14px) 3px;
+  border:1px solid #f1be7369;
+  border-top:0;
+  border-radius:0 0 clamp(12px,3.3vw,19px) clamp(12px,3.3vw,19px);
+  background:linear-gradient(180deg,#742720f2 0%,#360c17f2 24%,#160811f7 71%,#27131af5 100%);
+  box-shadow:inset 1px 0 #fff1bf29,inset -1px 0 #eebd7933,
+    inset 0 -2px 2px #efb65e50,0 4px 11px #140002b8,0 10px 15px #0008;
+  overflow:hidden;
+  isolation:isolate;
+  transform-origin:50% 0;
+  animation:unoDrawerDescend .6s cubic-bezier(.18,.9,.29,1.05) both;
+}
+.game-shell>.metric-drawer::before{
+  content:'';
+  position:absolute;
+  inset:0 3px 3px;
+  z-index:-1;
+  border:1px solid #f7d99b18;
+  border-top:0;
+  border-radius:0 0 13px 13px;
+  background:
+    linear-gradient(90deg,#f9d59119 0 1px,transparent 8% 92%,#f9d59119 99%),
+    radial-gradient(ellipse 60% 30% at 50% 0,#ffb04a27,transparent);
+  pointer-events:none;
+}
+.game-shell>.metric-drawer::after{
+  content:'';
+  position:absolute;
+  bottom:0;left:25%;right:25%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,#fff7cfb9 48%,transparent);
+  pointer-events:none;
+}
+.metric-drawer-hinge{
+  position:absolute;top:0;left:35%;right:35%;height:3px;
+  border-radius:0 0 12px 12px;
+  background:linear-gradient(90deg,transparent,#ffeaaf 30%,#fffbd4 50%,#f6bc56 72%,transparent);
+  box-shadow:0 1px 5px #ffbd6670;
+  pointer-events:none;
+}
+@keyframes unoDrawerDescend{
+  0%{opacity:.1;transform:translate3d(0,-10px,0) scaleY(.84)}
+  100%{opacity:1;transform:translate3d(0,0,0) scaleY(1)}
+}
+
+/* The two information lines are CENTERED INSIDE the metal drawer; neither
+   line has a separate frame, background or pill. */
+.game-shell>.metric-drawer #total-bet-row.total-bet-row{
+  grid-column:1;grid-row:1;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:clamp(5px,1.75vw,10px)!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  height:100%!important;
+  padding:0 2px!important;
+  margin:0!important;
+  position:relative;
+  z-index:2;
+  white-space:nowrap!important;
+  text-align:center!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+  outline:0!important;
+}
+.metric-drawer #total-bet-row::before,
+.metric-drawer #total-bet-row::after{content:none!important;display:none!important}
+.metric-drawer .activity-total-label{
+  flex:0 0 auto;
+  color:#f2d5a9!important;
+  font-weight:900!important;
+  font-size:clamp(10px,2.85vw,15px)!important;
+  line-height:1.1!important;
+  letter-spacing:.045em!important;
+  text-shadow:0 2px 3px #110006!important;
+}
+.metric-drawer #activity-total.activity-total{
+  flex:0 1 auto;
+  display:block!important;
+  justify-self:auto!important;
+  min-width:0!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  color:#ffe18b!important;
+  font-size:clamp(13px,3.95vw,23px)!important;
+  line-height:1.08!important;
+  letter-spacing:-.012em!important;
+  font-weight:1000!important;
+  font-variant-numeric:tabular-nums;
+  padding:0!important;
+  margin:0!important;
+  border:0!important;
+  box-shadow:none!important;
+  text-shadow:0 0 8px #f8b3494a,0 2px 3px #080001!important;
+}
+.game-shell>.metric-drawer #activity-board.activity-board{
+  grid-column:1;grid-row:2;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  height:100%!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0 2px!important;
+  position:relative;
+  z-index:2;
+  background:transparent!important;
+  background-image:none!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  outline:0!important;
+  overflow:hidden!important;
+  contain:layout paint;
+}
+.game-shell>.metric-drawer #activity-board .activity-topline{
+  display:flex!important;
+  flex:0 0 auto!important;
+  align-items:center!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:45%!important;
+  height:100%!important;
+  margin:0!important;
+  padding:0 clamp(4px,1.1vw,9px) 0 0!important;
+  gap:clamp(3px,.8vw,6px)!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  white-space:nowrap!important;
+}
+.metric-drawer #activity-board .activity-head{
+  font-size:clamp(10px,2.7vw,14px)!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  color:#ffdfac!important;
+  text-shadow:0 1px 3px #0009;
+}
+.metric-drawer #activity-mode.activity-mode{
+  display:inline-block!important;
+  flex:0 0 auto!important;
+  color:#d8b788!important;
+  font-size:clamp(6.5px,1.65vw,9px)!important;
+  line-height:1!important;
+  font-weight:900!important;
+  letter-spacing:0!important;
+  white-space:nowrap!important;
+  padding:0!important;
+  margin:0!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+/* The tiny simulation marker moved exclusively to PAYOUT, NOT TOTAL BET.
+   The API still distinguishes illustrative vs recorded figures. */
+.metric-drawer #activity-board .activity-viewport{
+  display:flex!important;
+  flex:1 1 0!important;
+  align-items:center!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:100%!important;
+  overflow:hidden!important;
+}
+.metric-drawer #activity-board .activity-feed{
+  font-size:clamp(12px,3.1vw,16px)!important;
+  line-height:1.1!important;
+  gap:0!important;
+}
+.metric-drawer #activity-board .activity-cycle{gap:clamp(9px,2.5vw,18px)}
+
+/* Keep the large dragon ring intact; give the drawer a clean lower edge. */
+.game-shell>.wheel-area{
+  grid-column:1;grid-row:6;
+  min-height:0!important;
+  overflow:hidden!important;
+  container-type:size;
+}
+.game-shell>.wheel-area .wheel-stage{
+  top:5px!important;
+  width:min(calc(48dvh - 23px),calc(100% - 4px),500px)!important;
+  max-width:100%!important;
+}
+@supports(width:100cqh){
+  .game-shell>.wheel-area .wheel-stage{
+    width:min(calc(100cqh - 25px),calc(100cqw - 4px),500px)!important;
+  }
+}
+@media (orientation:portrait) and (max-height:659px){
+  .game-shell{grid-template-rows:9% 8.8% 21.2% 5.2% 8.6% minmax(0,47.2%)!important}
+  .game-shell>.title-area .motion-title{font-size:clamp(30px,11.5vw,55px)!important}
+  .game-shell>.metric-drawer{padding-block:3px 2px!important}
+  .metric-drawer #activity-mode.activity-mode{font-size:6.5px!important}
+}
+@media (orientation:portrait) and (max-width:350px){
+  .game-shell{grid-template-rows:9% 8.8% 21% 5.3% 8.8% minmax(0,47.1%)!important}
+  .game-shell>.metric-drawer{width:88%!important;padding-inline:6px!important}
+  .metric-drawer .activity-total-label{font-size:10px!important}
+  .metric-drawer #activity-total.activity-total{font-size:13px!important}
+  .metric-drawer #activity-board .activity-head{font-size:10px!important}
+  .metric-drawer #activity-board .activity-feed{font-size:12px!important}
+  .metric-drawer #activity-mode.activity-mode{font-size:6.5px!important}
+}
+@media (orientation:landscape) and (max-height:470px){
+  .game-shell{
+    grid-template-columns:22% minmax(0,37%) minmax(0,41%)!important;
+    grid-template-rows:41px minmax(0,1fr) 31px 19px 30px!important;
+  }
+  .game-shell>.title-area .motion-title{
+    font-size:clamp(22px,4.2vw,42px)!important;
+    height:73%!important;
+    transform:scaleX(.9) skewX(-2deg)!important;
+  }
+  .game-shell>.title-area .title-max-visual{font-size:clamp(13px,2.6vw,19px)!important}
+  .game-shell>.result-bar{
+    grid-column:1/3;
+    grid-row:3;
+    width:96%!important;max-width:96%!important;
+  }
+  .game-shell>.metric-drawer{
+    grid-column:1/3;grid-row:4/6;
+    width:92%!important;max-width:92%!important;
+    height:calc(100% + 2px)!important;
+    margin-top:-2px!important;
+    grid-template-rows:50% 50%!important;
+    padding:2px 8px!important;
+  }
+  .metric-drawer .activity-total-label{font-size:10px!important}
+  .metric-drawer #activity-total.activity-total{font-size:13px!important}
+  .metric-drawer #activity-mode.activity-mode{font-size:7px!important}
+  .metric-drawer #activity-board .activity-feed{font-size:12px!important}
+  .game-shell>.wheel-area{grid-column:3;grid-row:2/5}
+  .game-shell>.wheel-area .wheel-stage{
+    top:50%!important;
+    transform:translate3d(-50%,-50%,0)!important;
+    width:min(100%,calc(100dvh - 92px))!important;
+  }
+  @supports(width:100cqh){
+    .game-shell>.wheel-area .wheel-stage{
+      width:min(calc(100cqh - 7px),calc(100cqw - 7px))!important;
+    }
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .game-shell>.title-area .motion-title::after,
+  .game-shell>.metric-drawer{
+    animation:none!important;
+  }
+  .game-shell>.metric-drawer{opacity:1!important;transform:none!important}
+  .game-shell>.title-area .motion-title::after{opacity:.4!important}
+}
