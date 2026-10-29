@@ -87,6 +87,8 @@ const layouts=[
          minX:c.getBoundingClientRect().left,maxX:c.getBoundingClientRect().right}));
      return {
        header:rect('.game-header'),title:rect('.title-area'),
+       walletBalance:rect('#wallet-balance'),
+       walletVisibility:getComputedStyle(get('#wallet-balance')).visibility,
        cards:rect('.result-area'),bet:rect('.game-shell>.result-bar'),
        wheel:rect('.wheel-area'),stage:rect('.wheel-stage'),
        ticker:rect('#activity-board'),totalBet:rect('#total-bet-row'),
@@ -156,6 +158,9 @@ const layouts=[
      measured.modeInPayout &&
      measured.mode==='SIMULASI QA',
      [engine,layout.name,'QA marker must be with PAYOUT not TOTAL BET',measured]);
+   assert(measured.walletBalance.width>=5 &&
+     measured.walletBalance.height>=5 && measured.walletVisibility==='visible',
+     [engine,layout.name,'Coin balance hidden by layout',measured]);
    assert(measured.headline.includes('PAYOUT'),
      [engine,layout.name,measured.headline]);
    assert(!measured.tickerText.includes('PAYOUT DEMO') &&
@@ -201,6 +206,10 @@ const layouts=[
      measured.totalBet.top>=measured.drawer.top-3,
      [engine,layout.name,'PAYOUT/TOTAL BET outside single drawer',measured]);
    if(shortLandscape){
+     assert(measured.cards.left>=measured.title.right-3 &&
+       measured.cards.bottom<=measured.bet.top+3 &&
+       measured.header.right>=measured.shell.right-3,
+       [engine,layout.name,'landscape header/cards not in dedicated columns',measured]);
      assert(measured.ticker.top>=measured.wheel.bottom-3,
        [engine,layout.name,'landscape ticker overlaps wheel',measured]);
    }else{
