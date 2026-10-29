@@ -1,0 +1,78 @@
+name: UNO DEV05 Approved Golden Title QA
+on:
+  pull_request:
+    paths:
+      - 'app/static/orbit-index.html'
+      - 'app/static/art/dev05/**'
+      - 'app/static/art/dev05-golden-title.css'
+      - 'app/static/art/title-dev05.js'
+      - 'tests/qa_title_dev05.cjs'
+      - '.github/workflows/qa-dev05-golden-title.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  title-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated dependencies and browsers
+        run: |
+          pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium webkit
+          npm install --no-save --package-lock=false playwright
+      - name: Check title asset and engine purity
+        run: |
+          node --check app/static/art/title-dev05.js
+          node --check app/static/orbit.js
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          source=Path('app/static/art/dev05/dragon-spin-x1000-rustic-gold.avif')
+          assert source.is_file() and 10000 < source.stat().st_size < 45000
+          with Image.open(source) as asset:
+              assert asset.size==(860,257)
+              assert 'A' in asset.getbands(), asset.getbands()
+          html=Path('app/static/orbit-index.html').read_text()
+          assert html.count('id="dragon-title-art"')==1
+          assert 'DRAGON SPIN</h1>' in html and '>X1000</p>' in html
+          assert 'id="activity-total"' in html and 'id="metric-drawer"' in html
+          assert 'id="spin-btn"' in html and 'id="auto-btn"' in html
+          print('PASS: approved image with alpha, semantic title and live game controls')
+          PY
+      - name: Run title browser QA and existing responsive/ticker gates
+        run: |
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-dev05-${GITHUB_RUN_ID}"
+          python tests/seed_ci_published_sounds.py
+          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_QA_ACTIVITY_DEMO=1 \
+            UNO_SPIN_DB_PATH=/tmp/uno-dev05-title-ci.sqlite3 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-dev05-title.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health >/dev/null
+          timeout 300s node tests/qa_title_dev05.cjs
+          timeout 280s node tests/qa_responsive_mobile.cjs
+          timeout 100s node tests/qa_activity_ticker.cjs
+      - name: Preserve screenshots, source SHA, and logs
+        if: always()
+        run: |
+          mkdir -p artifacts/uno-dev05-title
+          git rev-parse HEAD > artifacts/uno-dev05-title/commit.txt
+          git archive HEAD app tests scripts requirements.txt deploy | gzip > artifacts/uno-dev05-title/source.tar.gz
+          if [ -f /tmp/uno-dev05-title.log ]; then cp /tmp/uno-dev05-title.log artifacts/uno-dev05-title/server.log; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-dev05-golden-wordmark-qa
+          path: |
+            artifacts/uno-dev05-title/*
+            artifacts/uno-v1164-responsive/*.png
+          if-no-files-found: error
