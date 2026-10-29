@@ -9,6 +9,7 @@ on:
       - deploy/start-dev02.sh
       - railway.json
       - tests/test_dev07_sound_bootstrap.py
+      - tests/qa_dev07_live_sound.py
       - .github/workflows/qa-dev07-pinned-audio.yml
   workflow_dispatch:
 permissions:
@@ -104,6 +105,11 @@ jobs:
                   context.close()
                   browser.close()
           PY
+      - name: Verify deployed Railway audio and physical-like PLAY flow
+        env:
+          UNO_DEV07_LIVE_URL: https://uno-luck-dev07-audio-qa-staging.up.railway.app
+        run: |
+          python tests/qa_dev07_live_sound.py
       - name: Save logs and commit
         if: always()
         run: |
