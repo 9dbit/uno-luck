@@ -87,6 +87,72 @@ def capture(origin,root,expected=None,fetch=get):
     return evidence
 
 
+
+# DEV-07 QA-only Sound Cloud readiness: verify a local copy of the *same*
+# previously approved manifest and each custom audio file before a green health.
+def validate_pinned_local(root, expected):
+    import re
+    root = Path(root)
+    if not expected or not re.fullmatch(r"[a-f0-9]{64}", expected):
+        raise ValueError('Pinned Sound Cloud SHA-256 is required')
+    if not (root.is_absolute() and str(root) == '/tmp/uno-dev02/sound'):
+        raise ValueError('Refusing non-isolated QA sound destination')
+    try:
+        evidence = json.loads((root/'snapshot-evidence.json').read_text(encoding='utf-8'))
+        snapshot = json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+    except (OSError, UnicodeError, ValueError) as error:
+        raise ValueError('Pinned QA Sound Cloud snapshot missing') from error
+    if evidence.get('manifest_sha256') != expected or evidence.get('source') not in ORIGINS:
+        raise ValueError('QA Sound Cloud source/hash does not match the approved snapshot')
+    local = {'ready': True, 'revision': snapshot.get('revision'),
+             'cues': snapshot.get('cues'), 'mixer': snapshot.get('mixer')}
+    if digest(normalized(local)) != expected:
+        raise ValueError('QA Sound Cloud manifest content differs from pinned original')
+    for cue, cfg in snapshot['cues'].items():
+        if cfg.get('source') != 'custom':
+            continue
+        filename = cfg.get('storageName', '')
+        if (cue not in CUES or not isinstance(filename, str)
+                or not re.fullmatch(re.escape(cue)+r'-[a-f0-9]{24}\.(mp3|wav|m4a|aac|ogg|webm)', filename)):
+            raise ValueError('Pinned QA sound file name is invalid')
+        target = root/'audio'/filename
+        if not target.is_file():
+            raise ValueError('Pinned QA sound file missing: '+cue)
+        checksum = hashlib.sha256(target.read_bytes()).hexdigest()
+        if checksum != evidence.get('cue_sha256', {}).get(cue):
+            raise ValueError('Pinned QA sound file SHA-256 mismatch: '+cue)
+    return {'ready': True, 'revision': snapshot['revision'],
+            'cues': len(snapshot['cues']), 'source': evidence['source'],
+            'manifest_sha256': expected}
+
+
+def ensure_pinned_qa_snapshot():
+    """Read-only approved-source GET; writes only isolated QA /tmp storage."""
+    expected = os.getenv('UNO_DEV02_SOUND_SHA256', '').strip()
+    if not expected:
+        return None   # never execute on any unpinned service
+    root = os.getenv('UNO_SOUND_STORAGE_DIR', '')
+    if root != '/tmp/uno-dev02/sound':
+        raise RuntimeError('Refusing to capture Sound Cloud outside isolated QA /tmp')
+    try:
+        return validate_pinned_local(root, expected)
+    except ValueError:
+        pass
+    preferred = os.getenv('UNO_DEV02_SOUND_SOURCE', '').strip().rstrip('/')
+    candidates = [preferred, 'https://uno-luck-render-staging.onrender.com',
+                  'https://uno-luck-pr23-qa.onrender.com']
+    errors = []
+    for origin in dict.fromkeys(candidates):
+        if origin not in ORIGINS:
+            continue
+        try:
+            capture(origin, root, expected=expected)
+            return validate_pinned_local(root, expected)
+        except (ValueError, OSError, TimeoutError, UnicodeError, urllib.error.URLError) as error:
+            errors.append(origin+': '+type(error).__name__)
+    raise RuntimeError('Pinned QA Sound Cloud unavailable; aborting startup, '+', '.join(errors))
+
+
 if __name__=='__main__':
     origin=os.environ.get('UNO_DEV02_SOUND_SOURCE','')
     target=os.environ.get('UNO_SOUND_STORAGE_DIR','')
