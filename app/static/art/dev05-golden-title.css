@@ -13,9 +13,9 @@
 }
 .title-area>.title-art-dev05{
   position:absolute;
-  top:1%;left:50%;
+  top:-5%;left:50%;
   display:block;
-  width:98%;height:auto;
+  width:98%;height:112%;
   max-width:none;
   object-fit:contain;
   object-position:center;
@@ -24,7 +24,7 @@
   pointer-events:none;
   user-select:none;
   -webkit-user-drag:none;
-  transform:translate3d(-50%,0,0) scaleY(.82);
+  transform:translate3d(-50%,0,0);
   transform-origin:center top;
   filter:drop-shadow(0 1px 4px #fff1a659)
          drop-shadow(0 1px 7px #ffad2288)
@@ -33,9 +33,9 @@
 }
 .title-area>.title-glint-dev05{
   position:absolute;
-  top:1%;left:50%;
+  top:-5%;left:50%;
   display:block;
-  width:98%;
+  width:98%;height:112%;
   aspect-ratio:860 / 257;
   z-index:6;
   pointer-events:none;
@@ -52,7 +52,7 @@
   -webkit-mask-size:contain;
   mask-size:contain;
   mix-blend-mode:screen;
-  transform:translate3d(-50%,0,0) scaleY(.82);
+  transform:translate3d(-50%,0,0);
   transform-origin:center top;
 }
 .title-area.is-art-ready>.title-art-dev05{
@@ -88,8 +88,8 @@
   }
   .title-area>.title-art-dev05,
   .title-area>.title-glint-dev05{
-    width:91%;
-    transform:translate3d(-50%,0,0) scaleY(.76);
+    width:91%;height:110%;top:-4%;
+    transform:translate3d(-50%,0,0);
   }
 }
 @media(orientation:portrait) and (max-width:350px){
@@ -98,8 +98,8 @@
   }
   .title-area>.title-art-dev05,
   .title-area>.title-glint-dev05{
-    width:88%;
-    transform:translate3d(-50%,0,0) scaleY(.74);
+    width:88%;height:110%;top:-4%;
+    transform:translate3d(-50%,0,0);
   }
 }
 @media(orientation:landscape) and (max-height:470px){
@@ -110,9 +110,9 @@
   .game-shell>.title-area{grid-column:1!important;grid-row:2!important}
   .title-area>.title-art-dev05,
   .title-area>.title-glint-dev05{
-    top:19%;
-    width:99%;
-    transform:translate3d(-50%,0,0) scaleY(.96);
+    top:12%;
+    width:99%;height:82%;
+    transform:translate3d(-50%,0,0);
   }
 }
 @media(prefers-reduced-motion:reduce){
