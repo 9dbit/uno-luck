@@ -22,6 +22,9 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
     document.querySelector('#boot-overlay').hidden=true;
   });
   assert.equal(await page.locator('#activity-mode').innerText(),'SIMULASI QA');
+  assert(await page.locator('#activity-board #activity-mode').count()===1);
+  assert(!(await page.locator('#total-bet-row').innerText()).includes('SIMULASI QA'));
+  assert.equal(await page.locator('.title-max-visual').innerText(),'X1000');
   assert.equal(await page.locator('.activity-head').innerText(),'✦ PAYOUT');
   assert(!(await page.locator('#activity-board').innerText()).includes('COIN VIRTUAL'));
   assert(!(await page.locator('#activity-board').innerText()).includes('PAYOUT SIMULASI'));
@@ -67,10 +70,16 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
     const a=box('#activity-board'),h=box('.title-area'),
       cards=box('.result-area'),bar=box('.result-bar'),total=box('#total-bet-row'),
       wheel=box('.wheel-area'),
-      shell=box('.game-shell');
+      shell=box('.game-shell'),drawer=box('#metric-drawer');
     const style=getComputedStyle(document.querySelector('#total-bet-row'));
+    const drawerStyle=getComputedStyle(document.querySelector('#metric-drawer'));
     return {
       totalBelowBet:total.top>=bar.bottom-3,
+      drawerAtBet:Math.abs((drawer.left+drawer.right-bar.left-bar.right)/2)<3 &&
+        drawer.top>=bar.bottom-9&&drawer.top<=bar.bottom+8,
+      withinDrawer:total.top>=drawer.top-3&&a.bottom<=drawer.bottom+3,
+      drawerHasMetal:drawerStyle.backgroundImage.includes('linear-gradient') &&
+        parseFloat(drawerStyle.borderLeftWidth)>0,
       totalAboveWheel:total.bottom<=wheel.top+3,
       transparentTotal:style.backgroundColor==='rgba(0, 0, 0, 0)' &&
         style.backgroundImage==='none' &&
@@ -85,12 +94,13 @@ const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8083';
       width:a.width,screen:window.innerWidth
     };
   });
-  assert(layout.totalBelowBet&&layout.totalAboveWheel&&layout.transparentTotal,
-    ['unboxed TOTAL BET placement/background',layout]);
+  assert(layout.totalBelowBet&&layout.totalAboveWheel&&layout.transparentTotal &&
+    layout.drawerAtBet&&layout.withinDrawer&&layout.drawerHasMetal,
+    ['centered gold drawer / transparent inner rows',layout]);
   assert(layout.betweenTotalAndWheel&&layout.afterBet&&layout.awayFromTitle&&
     layout.awayFromCards&&layout.inViewport,layout);
   assert(layout.font>=12,layout);
   assert(layout.width<=layout.screen,layout);
-  console.log('PASS: transparent TOTAL BET/PAYOUT, continuous nonblank marquee above wheel, mobile bounds');
+  console.log('PASS: integrated gold drawer below BET, centered TOTAL BET, simulated PAYOUT ticker and X1000 title');
   await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});
