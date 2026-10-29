@@ -28,7 +28,7 @@ jobs:
         run: |
           pip install -r requirements.txt pytest httpx playwright
           python -m playwright install --with-deps chromium webkit
-          npm install --no-save --package-lock=false playwright
+          npm install --no-save --package-lock=false playwright pngjs
       - name: Check title asset and engine purity
         run: |
           node --check app/static/art/title-dev05.js
