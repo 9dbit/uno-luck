@@ -37,3 +37,18 @@
 - Deploy hanya ke `uno-luck-dev08-layout-qa` dan URL yang sama; service produksi `uno-luck-web` tidak disentuh.
 - Saat checkpoint ini dibuat, commit r2 sebelumnya sudah mencapai Railway SUCCESS dan health 200; commit r3 masih perlu di-pin/deploy dan di-read-back sebelum dianggap live.
 - Jangan merge PR #31 ke production sebelum QA lengkap dan pemeriksaan fisik iPhone.
+
+## Final QA result: PASS
+
+- GitHub Actions run `40946628702` completed **SUCCESS** after correcting CI fixture path, stale version assertion, and the unfair oversized-baseline comparison.
+- Browser suite: **8/8 PASS** (Chromium + WebKit × four portrait viewports). All 3 cards intact, no horizontal overflow, center card touches the decorative BET rim, emissive filter confirmed.
+- Chromium + WebKit consistent measured card width and fitted-baseline width:
+  - iPhone 15 Pro 393x852: **129.2px** vs baseline-fit **117.3px**; frame gap **-1.9px**.
+  - Narrow 320x568: **96.8px** vs baseline-fit **77.1px**; frame gap **-1.3px**.
+  - Portrait short 393x659: **101.9px** vs baseline-fit **89.9px**; frame gap **-1.7px**.
+  - Large 430x932: **141.5px** vs baseline-fit **128.5px**; frame gap **-2.1px**.
+- `baseline-fit` excludes the area of legacy cards that protruded through BET. Comparing to their previous full bounding boxes wrongly treated the overlap as usable size.
+- Evidence: https://github.com/9dbit/uno-luck/actions/runs/40946628702 ; attached artifact `uno-dev08-card-kiss-visual-qa` contains browser screenshots.
+- Railway QA service `uno-luck-dev08-layout-qa`: deployment **SUCCESS** at UI code commit `b0d297c9cc6bb0297bbd9c1f02175c6a1a19218f`, verified `GET /health HTTP/1.1` **200 OK**.
+- Live URL: https://uno-luck-dev08-layout-qa-staging.up.railway.app/ (QA only). Changes following the deployed source SHA are CI and checkpoint documentation, not gameplay CSS/HTML.
+- No production promotion or physical iPhone test performed. PR #31 remains draft.
