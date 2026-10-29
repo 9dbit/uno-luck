@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="uno-release" content="__UNO_RELEASE__">
-  <meta name="uno-development" content="DEV-04 v1.1.70">
+  <meta name="uno-development" content="DEV-05 v1.1.71">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
   <meta name="theme-color" content="#160002">
   <meta name="description" content="UNO LUCK Dragon Spin. Kumpulkan tiga kartu berwarna sama untuk Color Match dan celebration berjenjang. Bermain dengan koin virtual.">
@@ -47,7 +47,8 @@
   <link rel="stylesheet" href="/assets/art/awards.css?v=1167">
   <link rel="stylesheet" href="/assets/art/rules-v1168.css?v=1168">
   <link rel="stylesheet" href="/assets/art/dev04-metal-drawer.css?v=1170">
-  <title>UNO LUCK | Dragon Spin v1.1.70</title>
+  <link rel="stylesheet" href="/assets/art/dev05-golden-title.css?v=1171">
+  <title>UNO LUCK | Dragon Spin v1.1.71</title>
 </head>
 <body>
   <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
@@ -87,6 +88,11 @@
       <img id="color-match-burst" class="color-match-burst" src="/assets/art/v4/color-match.webp" alt="" aria-hidden="true" hidden>
       <span id="match-live" class="match-sr-only" role="status" aria-live="assertive"></span>
       <p class="title-max-visual" title="X1000 adalah tema visual; hadiah aktual mengikuti aturan Rank Info." aria-label="X1000 adalah tema visual, bukan pengali payout aktif">X1000</p>
+      <!-- Approved source artwork; never rasterize the gameplay or replace the h1. -->
+      <img id="dragon-title-art" class="title-art-dev05"
+           src="/assets/art/dev05/dragon-spin-x1000-rustic-gold.avif?v=1171"
+           alt="" aria-hidden="true" draggable="false" decoding="async" fetchpriority="high">
+      <span class="title-glint-dev05" aria-hidden="true"></span>
       <!-- Retained for read-only server rules synchronization. Never advertise a
            maximum payout greater than the published actual multiplier. -->
       <span id="combination-label" hidden aria-hidden="true"></span>
@@ -164,6 +170,7 @@
   <dialog id="modal" class="modal" aria-labelledby="modal-title">
     <div class="modal-card"><div class="modal-header"><button id="modal-back" type="button" aria-label="Kembali ke menu" hidden>‹</button><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" aria-label="Tutup">×</button></div><div class="modal-content" id="modal-content"></div></div>
   </dialog>
+  <script src="/assets/art/title-dev05.js?v=1171" defer></script>
   <script src="/assets/art/motion.js?v=8" defer></script>
   <script src="/assets/art/ledwheel.js?v=1163" defer></script>
   <script src="/assets/art/sound.js?v=1161" defer></script>
