@@ -1,0 +1,65 @@
+name: UNO DEV04 Metal Title and Drawer QA
+on:
+  pull_request:
+    paths:
+      - 'app/static/orbit-index.html'
+      - 'app/static/art/dev04-metal-drawer.css'
+      - 'tests/qa_responsive_mobile.cjs'
+      - 'tests/qa_activity_ticker.cjs'
+      - '.github/workflows/qa-dev04-metal-drawer.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  metal-drawer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated QA browsers and app
+        run: |
+          pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium webkit
+          npm install --no-save --package-lock=false playwright
+      - name: Confirm unrelated engine contracts and UI assets
+        run: |
+          node --check app/static/orbit.js
+          node --check app/static/art/activity-ticker.js
+          python -m pytest -q tests/test_award_engine.py tests/test_orbit.py tests/test_rules_guide.py
+      - name: Run exact-HEAD 16-layout QA and full-bleed Safari checks
+        run: |
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-dev04-${GITHUB_RUN_ID}"
+          python tests/seed_ci_published_sounds.py
+          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_QA_ACTIVITY_DEMO=1 \
+            UNO_SPIN_DB_PATH=/tmp/uno-dev04-drawer-ci.sqlite3 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-dev04-drawer.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health >/dev/null
+          timeout 280s node tests/qa_responsive_mobile.cjs
+          UNO_QA_URL=http://127.0.0.1:8080 timeout 90s node tests/qa_activity_ticker.cjs
+          UNO_QA_ENGINE=webkit UNO_QA_URL=http://127.0.0.1:8080 timeout 160s python tests/visual_qa_iphone15pro_fullbleed.py
+          UNO_QA_ENGINE=chromium UNO_QA_URL=http://127.0.0.1:8080 timeout 160s python tests/visual_qa_iphone15pro_fullbleed.py
+      - name: Save mobile and desktop screenshots and source SHA
+        if: always()
+        run: |
+          mkdir -p artifacts/uno-dev04-drawer
+          git rev-parse HEAD > artifacts/uno-dev04-drawer/commit.txt
+          git archive HEAD app tests scripts requirements.txt deploy | gzip > artifacts/uno-dev04-drawer/source.tar.gz
+          if [ -f /tmp/uno-dev04-drawer.log ]; then cp /tmp/uno-dev04-drawer.log artifacts/uno-dev04-drawer/server.log; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-dev04-metal-drawer-qa
+          path: |
+            artifacts/uno-dev04-drawer/*
+            artifacts/uno-v1164-responsive/*.png
+            artifacts/uno-v12-iphone15pro-fullbleed/*.png
+          if-no-files-found: error

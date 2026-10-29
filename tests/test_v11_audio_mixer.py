@@ -40,7 +40,7 @@ def test_color_match_stays_server_authoritative():
     html = (ROOT / 'orbit-index.html').read_text()
     match = (ROOT / 'art/match-announce.js').read_text()
     celebrations = (ROOT / 'art/celebrations.js').read_text()
-    assert '<h1 class="motion-title">DRAGON SPIN</h1>' in html
+    assert '<h1 class="motion-title"' in html and '>DRAGON SPIN</h1>' in html
     assert 'id="color-match-burst"' in html
     assert 'aria-hidden="true" hidden' in html
     assert 'result.combo!==\'COLOR_MATCH\'' in match

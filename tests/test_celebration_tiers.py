@@ -96,7 +96,7 @@ def test_frontend_images_sounds_and_celebration_are_real_assets():
     root=Path(__file__).resolve().parents[1]
     html=(root/'app/static/orbit-index.html').read_text()
     js=(root/'app/static/orbit.js').read_text()
-    assert '<h1 class="motion-title">DRAGON SPIN</h1>' in html
+    assert '<h1 class="motion-title"' in html and '>DRAGON SPIN</h1>' in html
     assert 'celebration-overlay' in html
     assert "await window.UNOLuckCelebration?.present(last)" in js
     assert 'celebrations.js' in html and 'sound.js' in html

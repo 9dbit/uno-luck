@@ -53,7 +53,10 @@ with sync_playwright() as p:
             assert metrics['stage']['bottom']<=metrics['area']['bottom']+2,metrics
             assert metrics['stage']['left']>=-2 and metrics['stage']['right']<=width+2,metrics
             if width<height:
-                assert metrics['stage']['width']>=min(metrics['area']['height']-11,metrics['area']['width']-6),metrics
+                # The 25px lower margin protects the dragon tail and caption in
+                # short Safari viewports. Verify a large intact wheel, not an
+                # artwork size that necessarily clips the last 25px.
+                assert metrics['stage']['width']>=min(metrics['area']['height']-29,metrics['area']['width']-6),metrics
             page.screenshot(path=str(OUT/f'{engine}-{label}-gold.png'),full_page=True)
             # Exercise actual user clicks, not just calling the global menu
             # function: the profile/back buttons must use the enhanced handler.

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="uno-release" content="__UNO_RELEASE__">
-  <meta name="uno-development" content="DEV-03 v1.1.69">
+  <meta name="uno-development" content="DEV-04 v1.1.70">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
   <meta name="theme-color" content="#160002">
   <meta name="description" content="UNO LUCK Dragon Spin. Kumpulkan tiga kartu berwarna sama untuk Color Match dan celebration berjenjang. Bermain dengan koin virtual.">
@@ -46,7 +46,8 @@
   <link rel="stylesheet" href="/assets/art/responsive-gameplay.css?v=1166">
   <link rel="stylesheet" href="/assets/art/awards.css?v=1167">
   <link rel="stylesheet" href="/assets/art/rules-v1168.css?v=1168">
-  <title>UNO LUCK | Dragon Spin v1.1.69</title>
+  <link rel="stylesheet" href="/assets/art/dev04-metal-drawer.css?v=1170">
+  <title>UNO LUCK | Dragon Spin v1.1.70</title>
 </head>
 <body>
   <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
@@ -82,10 +83,14 @@
       <button class="avatar-btn" id="profile-btn" type="button" aria-label="Profil dan menu" aria-haspopup="dialog"><img src="/assets/art/v1/avatar.webp" alt=""></button>
     </header>
     <section class="title-area" aria-label="Mode permainan">
-      <h1 class="motion-title">DRAGON SPIN</h1>
+      <h1 class="motion-title" data-metal-text="DRAGON SPIN">DRAGON SPIN</h1>
       <img id="color-match-burst" class="color-match-burst" src="/assets/art/v4/color-match.webp" alt="" aria-hidden="true" hidden>
       <span id="match-live" class="match-sr-only" role="status" aria-live="assertive"></span>
-      <p>3 kartu <span>•</span> <span id="combination-label">5 kombinasi</span> <span>•</span> <strong id="reward-range">2×–200×</strong></p>
+      <p class="title-max-visual" title="X1000 adalah tema visual; hadiah aktual mengikuti aturan Rank Info." aria-label="X1000 adalah tema visual, bukan pengali payout aktif">X1000</p>
+      <!-- Retained for read-only server rules synchronization. Never advertise a
+           maximum payout greater than the published actual multiplier. -->
+      <span id="combination-label" hidden aria-hidden="true"></span>
+      <strong id="reward-range" hidden aria-hidden="true"></strong>
     </section>
     <section class="result-area" aria-label="Tiga kartu hasil SPIN">
       <div class="result-frame" id="result-frame">
@@ -102,16 +107,21 @@
       <div><small>WIN</small><strong id="last-payout">—</strong><button type="button" class="metric-open" id="payout-open" aria-label="Wallet WIN bruto" aria-haspopup="dialog"></button></div>
       <div><small>NET</small><strong id="last-delta">—</strong><button type="button" class="metric-open" id="win-open" aria-label="Wallet NET atau selisih setelah BET" aria-haspopup="dialog"></button></div>
     </div>
-    <section id="total-bet-row" class="total-bet-row" role="group" aria-label="Total BET dalam Rupiah virtual">
-      <span class="activity-total-label">TOTAL BET</span>
-      <strong id="activity-total" class="activity-total" aria-label="Total BET dalam ekuivalen Rupiah virtual">—</strong>
-      <span id="activity-mode" class="activity-mode">MEMUAT</span>
-    </section>
-    <section id="activity-board" class="activity-board" aria-label="Payout Coin virtual berjalan; status simulasi tercantum di TOTAL BET">
-      <div class="activity-topline"><strong class="activity-head">PAYOUT</strong></div>
-      <div class="activity-viewport" aria-label="Daftar payout terakhir">
-        <div id="activity-feed" class="activity-feed"><span>Menunggu aktivitas payout…</span></div>
-      </div>
+    <section id="metric-drawer" class="metric-drawer" role="group" aria-label="Drawer Total BET dan PAYOUT">
+      <span class="metric-drawer-hinge" aria-hidden="true"></span>
+      <section id="total-bet-row" class="total-bet-row" role="group" aria-label="Total BET dalam Rupiah virtual">
+        <span class="activity-total-label">TOTAL BET</span>
+        <strong id="activity-total" class="activity-total" aria-label="Total BET dalam ekuivalen Rupiah virtual">—</strong>
+      </section>
+      <section id="activity-board" class="activity-board" aria-label="Running PAYOUT virtual dengan indikator data contoh atau tercatat">
+        <div class="activity-topline">
+          <strong class="activity-head">PAYOUT</strong>
+          <span id="activity-mode" class="activity-mode">MEMUAT</span>
+        </div>
+        <div class="activity-viewport" aria-label="Daftar payout terakhir">
+          <div id="activity-feed" class="activity-feed"><span>Menunggu aktivitas payout…</span></div>
+        </div>
+      </section>
     </section>
     <section class="wheel-area" aria-label="Setengah lingkaran sembilan placeholder kartu LED">
       <div class="wheel-stage">

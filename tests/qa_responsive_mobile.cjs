@@ -70,6 +70,8 @@ const layouts=[
      };
      const totalStyle=getComputedStyle(get('#total-bet-row'));
      const payoutStyle=getComputedStyle(get('#activity-board'));
+     const drawerStyle=getComputedStyle(get('#metric-drawer'));
+     const titleStyle=getComputedStyle(get('.title-area .motion-title'));
      const rail=get('#activity-feed');
      const cycle=get('.activity-cycle');
      const tickerClip=get('.activity-viewport');
@@ -85,9 +87,26 @@ const layouts=[
          minX:c.getBoundingClientRect().left,maxX:c.getBoundingClientRect().right}));
      return {
        header:rect('.game-header'),title:rect('.title-area'),
+       walletBalance:rect('#wallet-balance'),
+       walletVisibility:getComputedStyle(get('#wallet-balance')).visibility,
        cards:rect('.result-area'),bet:rect('.game-shell>.result-bar'),
        wheel:rect('.wheel-area'),stage:rect('.wheel-stage'),
        ticker:rect('#activity-board'),totalBet:rect('#total-bet-row'),
+       drawer:rect('#metric-drawer'),maxTag:rect('.title-max-visual'),
+       titleText:get('.title-area .motion-title').textContent,
+       visibleTitle:get('.title-area').innerText,
+       maxTagText:get('.title-max-visual').textContent,
+       maxTagHint:get('.title-max-visual').getAttribute('title'),
+       titleMetal:{background:titleStyle.backgroundImage,
+         stroke:titleStyle.webkitTextStrokeWidth,
+         sheen:getComputedStyle(get('.title-area .motion-title'),'::after').animationName},
+       drawerStyle:{background:drawerStyle.backgroundImage,
+         radius:drawerStyle.borderBottomLeftRadius,
+         border:parseFloat(drawerStyle.borderLeftWidth)},
+       simulationLine:get('#total-bet-row').textContent,
+       modeInPayout:get('#activity-board').contains(get('#activity-mode')),
+       titleCenter:(get('.title-area .motion-title').getBoundingClientRect().left+
+         get('.title-area .motion-title').getBoundingClientRect().right)/2,
        totalVisual:{background:totalStyle.backgroundColor,image:totalStyle.backgroundImage,
          border:parseFloat(totalStyle.borderTopWidth),shadow:totalStyle.boxShadow},
        payoutVisual:{background:payoutStyle.backgroundColor,image:payoutStyle.backgroundImage,
@@ -117,6 +136,31 @@ const layouts=[
    });
    assert.deepEqual(measured.hud.map(x=>x.label),['BET','WIN','NET'],
      [engine,layout.name,measured.hud]);
+   assert(measured.titleText==='DRAGON SPIN' &&
+     measured.maxTagText==='X1000' &&
+     !/3 kartu|15 pola|300[×x]/i.test(measured.visibleTitle),
+     [engine,layout.name,'old title line still displayed',measured.visibleTitle]);
+   assert(measured.maxTagHint.includes('tema visual') &&
+     measured.titleMetal.background.includes('linear-gradient') &&
+     parseFloat(measured.titleMetal.stroke)>0,
+     [engine,layout.name,'3D gold title or explicit visual-only hint missing',measured.titleMetal]);
+   const centeredOffset=(measured.drawer.left+measured.drawer.right-
+     measured.bet.left-measured.bet.right)/2;
+   const drawerGap=measured.drawer.top-measured.bet.bottom;
+   assert(Math.abs(centeredOffset)<4 && drawerGap>=-9 && drawerGap<=8,
+     JSON.stringify({engine,layout:layout.name,message:'drawer not aligned',
+       centeredOffset,drawerGap,drawer:measured.drawer,bet:measured.bet,
+       shell:measured.shell}));
+   assert(measured.drawerStyle.background.includes('linear-gradient') &&
+     parseFloat(measured.drawerStyle.radius)>0 && measured.drawerStyle.border>0,
+     [engine,layout.name,'metal drawer skin missing',measured.drawerStyle]);
+   assert(!measured.simulationLine.includes('SIMULASI QA') &&
+     measured.modeInPayout &&
+     measured.mode==='SIMULASI QA',
+     [engine,layout.name,'QA marker must be with PAYOUT not TOTAL BET',measured]);
+   assert(measured.walletBalance.width>=5 &&
+     measured.walletBalance.height>=5 && measured.walletVisibility==='visible',
+     [engine,layout.name,'Coin balance hidden by layout',measured]);
    assert(measured.headline.includes('PAYOUT'),
      [engine,layout.name,measured.headline]);
    assert(!measured.tickerText.includes('PAYOUT DEMO') &&
@@ -152,14 +196,24 @@ const layouts=[
      [engine,layout.name,'horizontal overflow',measured]);
    assert(measured.scrollH<=measured.screenH+2,
      [engine,layout.name,'vertical overflow',measured]);
-   for(const key of ['header','title','cards','bet','totalBet','wheel','ticker']){
+   for(const key of ['header','title','cards','bet','drawer','totalBet','maxTag','wheel','ticker']){
      assert(measured[key].left>=-3&&measured[key].right<=measured.screenW+3,
        [engine,layout.name,key,'horizontal clip',measured]);
    }
    const shortLandscape=layout.width>layout.height && layout.height<=470;
-   assert(measured.ticker.top>=measured.totalBet.bottom-3,
-     [engine,layout.name,'PAYOUT should appear below TOTAL BET',measured]);
+   assert(measured.ticker.top>=measured.totalBet.bottom-3 &&
+     measured.ticker.bottom<=measured.drawer.bottom+3 &&
+     measured.totalBet.top>=measured.drawer.top-3,
+     [engine,layout.name,'PAYOUT/TOTAL BET outside single drawer',measured]);
    if(shortLandscape){
+     // The landscape game shell reserves a real 6px horizontal inset.
+     // The header spans the whole *content* grid, not the outer padding.
+     assert(measured.cards.left>=measured.title.right-3 &&
+       measured.cards.bottom<=measured.bet.top+3 &&
+       measured.header.right>=measured.shell.right-10,
+       JSON.stringify({engine,layout:layout.name,
+         title:measured.title,cards:measured.cards,bet:measured.bet,
+         header:measured.header,shell:measured.shell}));
      assert(measured.ticker.top>=measured.wheel.bottom-3,
        [engine,layout.name,'landscape ticker overlaps wheel',measured]);
    }else{
@@ -215,7 +269,7 @@ const layouts=[
    }
    await page.screenshot({path:path.join(OUT,engine+'-'+layout.name+'.png')});
    assert.deepEqual(errors,[],[engine,layout.name,errors]);
-   console.log(engine+' '+layout.name+': PASS slim inline HUD, unboxed TOTAL BET + PAYOUT, seamless rail, enlarged SPIN');
+   console.log(engine+' '+layout.name+': PASS gold 3D title, X1000-only label, centered hanging drawer, ticker and wheel');
    await context.close();
   }
   await browser.close();
