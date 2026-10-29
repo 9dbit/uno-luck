@@ -206,10 +206,14 @@ const layouts=[
      measured.totalBet.top>=measured.drawer.top-3,
      [engine,layout.name,'PAYOUT/TOTAL BET outside single drawer',measured]);
    if(shortLandscape){
+     // The landscape game shell reserves a real 6px horizontal inset.
+     // The header spans the whole *content* grid, not the outer padding.
      assert(measured.cards.left>=measured.title.right-3 &&
        measured.cards.bottom<=measured.bet.top+3 &&
-       measured.header.right>=measured.shell.right-3,
-       [engine,layout.name,'landscape header/cards not in dedicated columns',measured]);
+       measured.header.right>=measured.shell.right-10,
+       JSON.stringify({engine,layout:layout.name,
+         title:measured.title,cards:measured.cards,bet:measured.bet,
+         header:measured.header,shell:measured.shell}));
      assert(measured.ticker.top>=measured.wheel.bottom-3,
        [engine,layout.name,'landscape ticker overlaps wheel',measured]);
    }else{
