@@ -1,0 +1,138 @@
+/* UNO LUCK DEV-08 v1.1.74 | mobile card and wheel fit.
+ * Parent: DEV-07 sound recovery. Presentation only: never alter RNG,
+ * virtual credit accounting, published Sound Cloud, or game state.
+ * The BET row is moved by grid allocation, NOT an overlapping translate.
+ */
+@media (orientation:portrait){
+  /* Older rows: header 8.6, title 9, cards 21.1, BET 4.8, drawer 8.1,
+     wheel 48.4. New cards get 4% more space, BET starts 2% lower. */
+  .game-shell{
+    grid-template-rows:8.2% 7.4% 25.1% 4.8% 6.7% minmax(0,47.8%)!important;
+  }
+  /* Retain the approved DRAGON SPIN X1000 asset and dark metal shadow.
+     Limit its PAINTED size by the title row, not by stretching the bitmap. */
+  .game-shell>.title-area>.title-art-dev05{
+    top:-6%!important;
+    left:50%!important;
+    width:92%!important;
+    height:117%!important;
+    object-fit:contain!important;
+    object-position:center!important;
+    transform:translate3d(-50%,0,0)!important;
+  }
+  /* Three complete 2:3 cards sit just above the BET bar, with a small
+     clearance for the tilted outer cards and celebration effects. */
+  .game-shell>.result-area{
+    padding:0 2.5%!important;
+  }
+  .game-shell>.result-area .result-cards{
+    align-items:end!important;
+    padding:0 1% clamp(8px,1.15dvh,12px)!important;
+    box-sizing:border-box!important;
+  }
+  .game-shell>.result-area .result-cell{
+    align-self:end!important;
+    container-type:size;
+  }
+  .game-shell>.result-area .result-cell .card3d{
+    width:min(100%,24dvh,188px)!important;
+    height:auto!important;
+    max-height:calc(100% - 4px)!important;
+    aspect-ratio:2/3!important;
+  }
+  @supports (width:100cqh){
+    .game-shell>.result-area .result-cell .card3d{
+      width:min(calc(100cqw - 4px),calc(100cqh * .666667 - 6px),188px)!important;
+    }
+  }
+  /* Drop the METRICS row with the cards, without translating the drawer.
+     Preserve click overlay and prevent long amounts from escaping. */
+  .game-shell>.result-bar{
+    transform:none!important;
+    min-width:0!important;
+  }
+  /* Use more of the wheel row for the 9-card LED arc; keep the caption
+     in the remaining bottom clearance. No LED or animation timing changes. */
+  .game-shell>.wheel-area .wheel-stage{
+    top:2px!important;
+    width:min(calc(49dvh - 15px),calc(100% - 2px),525px)!important;
+    max-width:100%!important;
+  }
+  @supports (width:100cqh){
+    .game-shell>.wheel-area .wheel-stage{
+      width:min(calc(100cqh - 17px),calc(100cqw - 2px),525px)!important;
+    }
+  }
+  .wheel-stage #spin-btn{
+    width:39%!important;
+    min-width:44px!important;
+    aspect-ratio:1!important;
+    touch-action:manipulation;
+  }
+  /* Side controls grow taller, but keep a horizontal gap to the SPIN hub. */
+  .wheel-stage .side-action{
+    width:clamp(52px,26%,120px)!important;
+    height:clamp(42px,14%,57px)!important;
+    min-height:42px!important;
+    aspect-ratio:auto!important;
+    bottom:1.5%!important;
+    touch-action:manipulation;
+  }
+  .wheel-stage #turbo-btn{left:3.5%!important}
+  .wheel-stage #auto-btn{right:3.5%!important}
+}
+/* Extra-short Safari: trade a little card height for a usable wheel and
+   preserve the two lines of the metal TOTAL BET/PAYOUT drawer. */
+@media (orientation:portrait) and (max-height:659px){
+  .game-shell{
+    grid-template-rows:9% 7.5% 24% 5.3% 6.5% minmax(0,47.7%)!important;
+  }
+  .game-shell>.title-area>.title-art-dev05{
+    top:-5%!important;width:91%!important;height:115%!important;
+  }
+  .game-shell>.result-area .result-cards{
+    padding-bottom:clamp(6px,1dvh,9px)!important;
+  }
+  .wheel-stage .side-action{
+    height:clamp(39px,13.5%,52px)!important;
+    min-height:39px!important;
+  }
+}
+/* Narrow iPhone SE: avoid crop/overlap instead of squeezing card faces. */
+@media (orientation:portrait) and (max-width:350px){
+  .game-shell{
+    grid-template-rows:9% 7.2% 24% 5.3% 7% minmax(0,47.5%)!important;
+  }
+  .game-shell>.title-area>.title-art-dev05{
+    top:-4%!important;width:89%!important;height:115%!important;
+  }
+  .game-shell>.result-area{padding:0 2%!important}
+  .wheel-stage #spin-btn{width:38%!important}
+  .wheel-stage .side-action{
+    width:clamp(49px,25%,88px)!important;
+    min-height:38px!important;
+    height:clamp(38px,13.5%,48px)!important;
+  }
+}
+/* Landscape remains a three-column composition with an intact wheel. */
+@media (orientation:landscape) and (max-height:470px){
+  .game-shell>.title-area>.title-art-dev05{
+    width:73%!important;height:63%!important;
+  }
+  .game-shell>.result-area .result-cell .card3d{
+    width:min(100%,27dvh)!important;
+    height:auto!important;
+    max-height:100%!important;
+  }
+  .wheel-stage #spin-btn{width:39%!important;min-width:44px!important}
+  .wheel-stage .side-action{
+    width:clamp(48px,24%,104px)!important;
+    height:clamp(37px,13%,49px)!important;
+    bottom:2%!important;
+  }
+  .wheel-stage #turbo-btn{left:3.5%!important}
+  .wheel-stage #auto-btn{right:3.5%!important}
+}
+@media (prefers-reduced-motion:reduce){
+  .game-shell>.title-area>.title-art-dev05{animation:none!important}
+}
