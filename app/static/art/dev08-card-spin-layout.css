@@ -2,6 +2,8 @@
  * Parent: DEV-07 sound recovery. Presentation only: never alter RNG,
  * virtual credit accounting, published Sound Cloud, or game state.
  * The BET row is moved by grid allocation, NOT an overlapping translate.
+ * QA revision: bottom-align physical cards, broaden them, and restore
+ * luminous HDR gold to the existing DRAGON SPIN X1000 artwork.
  */
 @media (orientation:portrait){
   /* Older rows: header 8.6, title 9, cards 21.1, BET 4.8, drawer 8.1,
@@ -23,26 +25,30 @@
   /* Three complete 2:3 cards sit just above the BET bar, with a small
      clearance for the tilted outer cards and celebration effects. */
   .game-shell>.result-area{
-    padding:0 2.5%!important;
+    padding:0 .7%!important;
   }
   .game-shell>.result-area .result-cards{
+    gap:.6%!important;
     align-items:end!important;
-    padding:0 1% clamp(8px,1.15dvh,12px)!important;
+    padding:0 0 clamp(2px,.32dvh,3px)!important;
     box-sizing:border-box!important;
   }
   .game-shell>.result-area .result-cell{
     align-self:end!important;
+    align-items:end!important;
+    justify-items:center!important;
+    place-items:end center!important;
     container-type:size;
   }
   .game-shell>.result-area .result-cell .card3d{
-    width:min(100%,24dvh,188px)!important;
+    width:min(100%,25.4dvh,200px)!important;
     height:auto!important;
-    max-height:calc(100% - 4px)!important;
+    max-height:calc(100% - 2px)!important;
     aspect-ratio:2/3!important;
   }
   @supports (width:100cqh){
     .game-shell>.result-area .result-cell .card3d{
-      width:min(calc(100cqw - 4px),calc(100cqh * .666667 - 6px),188px)!important;
+      width:min(calc(100cqw - 1px),calc(100cqh * .666667 - 2px),200px)!important;
     }
   }
   /* Drop the METRICS row with the cards, without translating the drawer.
@@ -91,7 +97,7 @@
     top:-5%!important;width:91%!important;height:115%!important;
   }
   .game-shell>.result-area .result-cards{
-    padding-bottom:clamp(6px,1dvh,9px)!important;
+    padding-bottom:clamp(2px,.3dvh,3px)!important;
   }
   .wheel-stage .side-action{
     height:clamp(39px,13.5%,52px)!important;
@@ -106,7 +112,7 @@
   .game-shell>.title-area>.title-art-dev05{
     top:-4%!important;width:89%!important;height:115%!important;
   }
-  .game-shell>.result-area{padding:0 2%!important}
+  .game-shell>.result-area{padding:0 .6%!important}
   .wheel-stage #spin-btn{width:38%!important}
   .wheel-stage .side-action{
     width:clamp(49px,25%,88px)!important;
@@ -136,3 +142,26 @@
 @media (prefers-reduced-motion:reduce){
   .game-shell>.title-area>.title-art-dev05{animation:none!important}
 }
+
+/* DEV-08 visual refinement: unmasked metallic glow, preserving raster artwork.
+   Static filters avoid per-frame repaint/jank on WebKit during the LED spin. */
+.game-shell>.title-area>.title-art-dev05,
+.game-shell>.title-area.is-art-ready>.title-art-dev05{
+  filter:brightness(1.34) contrast(1.2) saturate(1.42)
+         drop-shadow(0 0 1.5px #fffbd6)
+         drop-shadow(0 0 5px #ffe576da)
+         drop-shadow(0 0 11px #ffc038ac)
+         drop-shadow(0 0 18px #ef702b83)
+         drop-shadow(1px 5px 3px #170409db)!important;
+  animation:none!important;
+  will-change:auto!important;
+}
+/* If the approved art cannot load, semantic text stays bright and legible. */
+.game-shell>.title-area:not(.is-art-ready) .motion-title,
+.game-shell>.title-area:not(.is-art-ready) .title-max-visual{
+  filter:brightness(1.23) saturate(1.2)
+         drop-shadow(0 0 3px #fff3ab)
+         drop-shadow(0 0 9px #ffb739bc)
+         drop-shadow(0 3px 5px #170409)!important;
+}
+/* Retain accessible BET/WIN/NET and the original side controls as-is. */
