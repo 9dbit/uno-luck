@@ -116,6 +116,7 @@
   }
 }
 @media(prefers-reduced-motion:reduce){
+  .title-area>.title-art-dev05{transition:none!important}
   .title-area.is-art-ready>.title-art-dev05,
   .title-area.is-art-ready>.title-glint-dev05{
     animation:none!important;
