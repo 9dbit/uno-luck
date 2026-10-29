@@ -1,0 +1,118 @@
+name: UNO DEV07 Pinned Splash and BGM QA
+on:
+  pull_request:
+    paths:
+      - app/main.py
+      - app/sound_cloud.py
+      - app/dev02_sound_snapshot.py
+      - deploy/Dockerfile.dev02
+      - deploy/start-dev02.sh
+      - railway.json
+      - tests/test_dev07_sound_bootstrap.py
+      - .github/workflows/qa-dev07-pinned-audio.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pinned-audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated dependencies and browser engines
+        run: |
+          pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium webkit
+      - name: Unit QA and compile
+        run: |
+          python -m compileall -q app
+          python -m pytest -q tests/test_dev07_sound_bootstrap.py tests/test_sound_cloud.py tests/test_dev02_sound_snapshot.py tests/test_v11_splash_sound_reload.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          cfg=json.loads(Path('railway.json').read_text())
+          assert cfg['build']['dockerfilePath']=='deploy/Dockerfile.dev02',cfg
+          assert 'start-dev02.sh' in Path('deploy/Dockerfile.dev02').read_text()
+          print('PASS QA Dockerfile and pinned snapshot launcher')
+          PY
+      - name: Verify and capture previously approved Sound Cloud read-only
+        run: |
+          mkdir -p artifacts/uno-dev07-audio
+          export UNO_SOUND_STORAGE_DIR=/tmp/uno-dev02/sound
+          export UNO_DEV02_SOUND_SHA256=308c674c7b29f4231f2ef40f95a1965b4e525619913d0e5fc4c9607046338499
+          for src in https://uno-luck-pr23-qa.onrender.com https://uno-luck-render-staging.onrender.com; do
+            if UNO_DEV02_SOUND_SOURCE="$src" python -m app.dev02_sound_snapshot > artifacts/uno-dev07-audio/read-only-evidence.json; then break; fi
+          done
+          python - <<'PY'
+          import os,json
+          from pathlib import Path
+          from app.dev02_sound_snapshot import validate_pinned_local
+          e=validate_pinned_local('/tmp/uno-dev02/sound',os.environ['UNO_DEV02_SOUND_SHA256'])
+          print('PASS pinned source '+e['source']+' SHA='+e['manifest_sha256']+' cues='+str(e['cues']))
+          m=json.loads(Path('/tmp/uno-dev02/sound/manifest.json').read_text())
+          for key in ('soft-tech-splash-screen','background-music'):
+              assert m['cues'][key]['source']=='custom',key
+          PY
+      - name: Start isolated audio-pinned game and verify endpoints/playback
+        run: |
+          export UNO_SOUND_STORAGE_DIR=/tmp/uno-dev02/sound
+          export UNO_DEV02_SOUND_SHA256=308c674c7b29f4231f2ef40f95a1965b4e525619913d0e5fc4c9607046338499
+          export UNO_SPIN_DB_PATH=/tmp/uno-dev02/database/uno_luck.sqlite3
+          mkdir -p /tmp/uno-dev02/database
+          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/dev07-qa-server.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health
+          python - <<'PY'
+          import json,urllib.request
+          from playwright.sync_api import sync_playwright
+          base='http://127.0.0.1:8080'
+          manifest=json.load(urllib.request.urlopen(base+'/api/sounds/manifest'))
+          assert manifest['ready']
+          for cue in ('soft-tech-splash-screen','background-music'):
+              cfg=manifest['cues'][cue]
+              assert cfg['source']=='custom' and cfg['url']
+              resp=urllib.request.urlopen(base+cfg['url'])
+              assert resp.status==200 and len(resp.read())>128,cue
+          print('PASS real published splash and BGM HTTP audio files, retained mixer')
+          with sync_playwright() as pw:
+              for name in ('chromium','webkit'):
+                  browser=getattr(pw,name).launch(headless=True)
+                  context=browser.new_context(viewport={'width':393,'height':852},
+                           is_mobile=True,has_touch=True)
+                  page=context.new_page()
+                  errors=[]
+                  page.on('pageerror',lambda e:errors.append(str(e)))
+                  page.goto(base+'/',wait_until='domcontentloaded')
+                  page.locator('#boot-play').wait_for(state='visible',timeout=25000)
+                  page.locator('#boot-play').click(timeout=18000)
+                  page.wait_for_function(
+                    "() => !document.querySelector('#game-shell').classList.contains('is-booting')",
+                    timeout=45000)
+                  assert page.locator('#boot-overlay').is_hidden()
+                  assert not errors,(name,errors)
+                  page.screenshot(path=f'artifacts/uno-dev07-audio/{name}-splash-enter-game.png',full_page=True)
+                  print(name+' PASS PLAY WITH SOUND -> gameplay')
+                  context.close()
+                  browser.close()
+          PY
+      - name: Save logs and commit
+        if: always()
+        run: |
+          mkdir -p artifacts/uno-dev07-audio
+          git rev-parse HEAD > artifacts/uno-dev07-audio/commit.txt
+          if [ -f /tmp/dev07-qa-server.log ]; then cp /tmp/dev07-qa-server.log artifacts/uno-dev07-audio/server.log; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-dev07-pinned-audio-qa
+          path: artifacts/uno-dev07-audio/*
+          if-no-files-found: error
