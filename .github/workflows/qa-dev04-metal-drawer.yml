@@ -33,7 +33,7 @@ jobs:
           python -m pytest -q tests/test_award_engine.py tests/test_orbit.py tests/test_rules_guide.py
       - name: Run exact-HEAD 16-layout QA and full-bleed Safari checks
         run: |
-          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-dev04-${GITHUB_RUN_ID}"
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sound-ci-dev04-${GITHUB_RUN_ID}"
           python tests/seed_ci_published_sounds.py
           UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_QA_ACTIVITY_DEMO=1 \
             UNO_SPIN_DB_PATH=/tmp/uno-dev04-drawer-ci.sqlite3 \
