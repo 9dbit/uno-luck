@@ -142,11 +142,13 @@ const layouts=[
      measured.titleMetal.background.includes('linear-gradient') &&
      parseFloat(measured.titleMetal.stroke)>0,
      [engine,layout.name,'3D gold title or explicit visual-only hint missing',measured.titleMetal]);
-   assert(Math.abs((measured.drawer.left+measured.drawer.right)/2 -
-     (measured.bet.left+measured.bet.right)/2)<4 &&
-     measured.drawer.top>=measured.bet.bottom-9 &&
-     measured.drawer.top<=measured.bet.bottom+8,
-     [engine,layout.name,'drawer not centered and hanging from BET',measured]);
+   const centeredOffset=(measured.drawer.left+measured.drawer.right-
+     measured.bet.left-measured.bet.right)/2;
+   const drawerGap=measured.drawer.top-measured.bet.bottom;
+   assert(Math.abs(centeredOffset)<4 && drawerGap>=-9 && drawerGap<=8,
+     JSON.stringify({engine,layout:layout.name,message:'drawer not aligned',
+       centeredOffset,drawerGap,drawer:measured.drawer,bet:measured.bet,
+       shell:measured.shell}));
    assert(measured.drawerStyle.background.includes('linear-gradient') &&
      parseFloat(measured.drawerStyle.radius)>0 && measured.drawerStyle.border>0,
      [engine,layout.name,'metal drawer skin missing',measured.drawerStyle]);
