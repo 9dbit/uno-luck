@@ -33,7 +33,7 @@ jobs:
           html=Path('app/static/orbit-index.html').read_text()
           css=Path('app/static/art/dev08-card-spin-layout.css').read_text()
           assert 'dev08-card-spin-layout.css?v=1174r3' in html
-          assert 'DEV-08 v1.1.74r2' in html
+          assert 'DEV-08 v1.1.74r3' in html
           for invariant in ('place-items:end center', 'brightness(1.34)', 'clamp(2px,.32dvh,3px)'):
               assert invariant in css,invariant
           assert html.count('id="spin-btn"')==1
