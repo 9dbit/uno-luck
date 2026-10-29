@@ -22,6 +22,8 @@
      anchor the cards toward BET, leaving the BET frame undisturbed. */
   .game-shell>.result-area .result-cards{
     align-items:end!important;
+    box-sizing:border-box!important;
+    padding-bottom:8px!important;
   }
   .game-shell>.result-area .result-cell{
     align-self:end!important;
