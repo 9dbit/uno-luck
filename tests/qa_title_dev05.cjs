@@ -57,7 +57,11 @@ const views=[
       loaded:wrapper.classList.contains('is-art-ready'),
       asset:im.getAttribute('src'),
       image:{naturalWidth:im.naturalWidth,naturalHeight:im.naturalHeight,
-        opacity:Number(getComputedStyle(im).opacity)},
+        opacity:Number(getComputedStyle(im).opacity),
+        src:im.currentSrc,
+        version:im.dataset.titleArtVersion,
+        imageFit:getComputedStyle(im).objectFit,
+        filter:getComputedStyle(im).filter},
       semanticTitle:document.querySelector('.motion-title').textContent.trim(),
       semanticPromo:document.querySelector('.title-max-visual').textContent.trim(),
       promoTooltip:document.querySelector('.title-max-visual').getAttribute('title'),
@@ -75,20 +79,29 @@ const views=[
     };
    });
    assert.equal(m.loaded,true,m);
-   assert.equal(m.image.naturalWidth,860,m);
-   assert.equal(m.image.naturalHeight,257,m);
+   assert.equal(m.image.naturalWidth,1600,m);
+   assert.equal(m.image.naturalHeight,480,m);
+   assert.equal(m.image.version,'1172',m);
+   assert(m.image.src.includes('dev06/dragon-spin-x1000-gold-1600.webp'),m);
    assert.equal(m.semanticTitle,'DRAGON SPIN',m);
    assert.equal(m.semanticPromo,'X1000',m);
    assert.match(m.promoTooltip,/tema visual/,m);
    assert(m.image.opacity>.98,m);
    assert(m.oldOpacity<.02,m);
    assert(m.mask!=='none',m);
+   if(v.w<v.h)assert(m.image.filter.includes('brightness'),m);
    assert(m.goldImage.width>=Math.min(v.w*.74,130),m);
    const titleMid=(m.title.left+m.title.right)/2;
    const imageMid=(m.goldImage.left+m.goldImage.right)/2;
    assert(Math.abs(titleMid-imageMid)<5,m);
    // Preserve room for glowing bevel without covering the result cards.
    if(v.w<v.h){
+     assert(m.goldImage.width>=m.title.width*.94,
+       JSON.stringify({engine,viewport:v,issue:'title still too narrow on iPhone',
+         image:m.goldImage,title:m.title}));
+     assert(m.goldImage.left>=m.title.left-10 && m.goldImage.right<=m.title.right+10,
+       JSON.stringify({engine,viewport:v,issue:'title exceeds horizontal bounds',
+         image:m.goldImage,title:m.title}));
      assert(m.goldImage.bottom<=m.cards.top+12,
        JSON.stringify({engine,viewport:v,issue:'title overlaps cards',image:m.goldImage,cards:m.cards,title:m.title}));
      assert(m.goldImage.top>=m.gameHeader.bottom-22,
@@ -98,7 +111,7 @@ const views=[
    assert(m.controls.every(x=>x.present&&x.width>=22),m);
    assert(!errors.length,{engine,viewport:v,errors});
    await page.screenshot({path:OUT+'/'+engine+'-'+v.name+'.png',fullPage:true});
-   console.log(engine+' '+v.name+' PASS: approved 3D title rendered, semantic fallback and controls preserved');
+   console.log(engine+' '+v.name+' PASS: 1600px neon title fills iPhone width, no overlap, controls preserved');
    await context.close();
   }
   await browser.close();
