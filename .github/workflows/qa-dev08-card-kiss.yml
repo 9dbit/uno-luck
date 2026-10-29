@@ -1,0 +1,68 @@
+name: UNO DEV08 Cards Kiss BET and Gold Emissive QA
+on:
+  pull_request:
+    paths:
+      - 'app/static/orbit-index.html'
+      - 'app/static/art/dev08-card-spin-layout.css'
+      - 'tests/qa_dev08_card_kiss.py'
+      - '.github/workflows/qa-dev08-card-kiss.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install browser and isolated app dependencies
+        run: |
+          pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium webkit
+      - name: Verify UI-only patch and Python syntax
+        run: |
+          python -m compileall -q app
+          python -m py_compile tests/qa_dev08_card_kiss.py
+          python - <<'PY'
+          from pathlib import Path
+          html=Path('app/static/orbit-index.html').read_text()
+          css=Path('app/static/art/dev08-card-spin-layout.css').read_text()
+          assert 'dev08-card-spin-layout.css?v=1174r2' in html
+          assert 'DEV-08 v1.1.74r2' in html
+          for invariant in ('place-items:end center', 'brightness(1.34)', 'clamp(2px,.32dvh,3px)'):
+              assert invariant in css,invariant
+          assert html.count('id="spin-btn"')==1
+          assert html.count('id="metric-drawer"')==1
+          print('PASS only latest layout and title CSS intended')
+          PY
+      - name: Start QA-only app with ephemeral wallet/audio data
+        run: |
+          export UNO_SOUND_STORAGE_DIR="/tmp/uno-sounds-dev08-ci-${GITHUB_RUN_ID}"
+          python tests/seed_ci_published_sounds.py
+          UNO_QA_BOOTSTRAP_ECONOMY=1 UNO_QA_BOOTSTRAP_PROMO=1 UNO_QA_ACTIVITY_DEMO=1 \
+            UNO_SPIN_DB_PATH=/tmp/uno-dev08-qa-ci.sqlite3 \
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 > /tmp/uno-dev08-app.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health >/dev/null
+          UNO_QA_URL=http://127.0.0.1:8080 UNO_QA_OUTPUT=artifacts/uno-dev08-card-kiss \
+            timeout 260s python tests/qa_dev08_card_kiss.py
+      - name: Preserve exact commit and screenshots
+        if: always()
+        run: |
+          mkdir -p artifacts/uno-dev08-card-kiss
+          git rev-parse HEAD > artifacts/uno-dev08-card-kiss/commit.txt
+          if [ -f /tmp/uno-dev08-app.log ]; then cp /tmp/uno-dev08-app.log artifacts/uno-dev08-card-kiss/server.log; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-dev08-card-kiss-visual-qa
+          path: artifacts/uno-dev08-card-kiss/*
+          if-no-files-found: error
