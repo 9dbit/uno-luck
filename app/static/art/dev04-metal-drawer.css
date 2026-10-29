@@ -381,8 +381,11 @@
   }
   .game-shell>.title-area .title-max-visual{font-size:clamp(13px,2.6vw,19px)!important}
   .game-shell>.result-bar{
-    grid-column:1/3;
-    grid-row:3;
+    /* Fidelity v0.9 had an !important row-2 landscape rule. Its 250px
+       BET HUD caused a 37px gap above the new drawer. Force the real
+       slim HUD into its 31px row, then anchor the drawer immediately below. */
+    grid-column:1/3!important;
+    grid-row:3!important;
     width:96%!important;max-width:96%!important;
   }
   .game-shell>.metric-drawer{
