@@ -104,10 +104,11 @@
     min-height:39px!important;
   }
 }
-/* Narrow iPhone SE: avoid crop/overlap instead of squeezing card faces. */
+/* Narrow iPhone SE: reserve more vertical height for complete cards;
+   retain the BET kiss and a still-tappable wheel on 320px screens. */
 @media (orientation:portrait) and (max-width:350px){
   .game-shell{
-    grid-template-rows:9% 7.2% 24% 5.3% 7% minmax(0,47.5%)!important;
+    grid-template-rows:9% 7.2% 26.5% 5.3% 7% minmax(0,45%)!important;
   }
   .game-shell>.title-area>.title-art-dev05{
     top:-4%!important;width:89%!important;height:115%!important;
