@@ -1,0 +1,85 @@
+/* UNO LUCK DEV-06 v1.1.72 | APPROVED VISUAL DELTA ONLY.
+ * Reduce the combined DRAGON SPIN / X1000 art by ~20%, replace neon with a
+ * dark physical drop shadow, and grow the complete result-card group downward.
+ * The BET/WIN/NET, PAYOUT drawer, dragon wheel, audio, payout and spin engine
+ * remain untouched. Only the title/result rows are reallocated.
+ */
+@media (orientation:portrait){
+  /* Exact sum of header+title+cards is unchanged (38.7%). All UI below the
+     cards keeps the same grid position. The saved 2% goes to the cards. */
+  .game-shell{
+    grid-template-rows:8.6% 9% 21.1% 4.8% 8.1% minmax(0,48.4%)!important;
+  }
+  /* Original title artwork rendered height-limited inside its 11% grid row.
+     Reducing that row to 9% yields 9/11 = 81.8% actual artwork size. */
+  .game-shell>.title-area>.title-art-dev05{
+    top:-5%!important;
+    height:112%!important;
+    width:98%!important;
+    object-fit:contain!important;
+  }
+  /* Preserve the approved three-card composition: fill its larger row and
+     anchor the cards toward BET, leaving the BET frame undisturbed. */
+  .game-shell>.result-area .result-cards{
+    align-items:end!important;
+  }
+  .game-shell>.result-area .result-cell{
+    align-self:end!important;
+  }
+  .game-shell>.result-area .result-cell .card3d{
+    width:min(100%,20.3dvh,171px)!important;
+    height:auto!important;
+    max-height:100%!important;
+  }
+}
+/* Kill all additional emission and sparkle, including reduced-motion. The
+   remaining metallic highlights are baked into the original texture, with
+   subdued alpha edges in the DEV-06 art asset. */
+.game-shell>.title-area>.title-art-dev05,
+.game-shell>.title-area.is-art-ready>.title-art-dev05{
+  animation:none!important;
+  transition:none!important;
+  filter:drop-shadow(1px 5px 3px #130404d9)
+         drop-shadow(0 2px 1px #180b08c9)!important;
+}
+.game-shell>.title-area>.title-glint-dev05,
+.game-shell>.title-area.is-art-ready>.title-glint-dev05{
+  display:none!important;
+  animation:none!important;
+  opacity:0!important;
+}
+/* When the image is unavailable, the semantic gold text keeps a dark
+   shadow without the old moving, illuminated pseudo-text. */
+.game-shell>.title-area:not(.is-art-ready) .motion-title{
+  filter:drop-shadow(0 5px 3px #0c0204)!important;
+}
+.game-shell>.title-area:not(.is-art-ready) .motion-title::after{
+  display:none!important;
+}
+@media (orientation:portrait) and (max-height:659px){
+  .game-shell{
+    grid-template-rows:9% 9% 21% 5.2% 8.6% minmax(0,47.2%)!important;
+  }
+  .game-shell>.title-area>.title-art-dev05{
+    top:-4%!important;width:91%!important;height:110%!important;
+  }
+}
+@media (orientation:portrait) and (max-width:350px){
+  .game-shell{
+    grid-template-rows:9% 9% 20.9% 5.3% 8.8% minmax(0,47%)!important;
+  }
+  .game-shell>.title-area>.title-art-dev05{
+    top:-4%!important;width:88%!important;height:110%!important;
+  }
+}
+@media (orientation:landscape) and (max-height:470px){
+  /* Keep all landscape grid areas as approved. Only the title art and card
+     width cap change inside their existing cells. */
+  .game-shell>.title-area>.title-art-dev05{
+    top:20%!important;width:79.2%!important;height:65.6%!important;
+  }
+  .game-shell>.result-area .result-cell .card3d{
+    width:min(100%,25dvh)!important;
+    max-height:100%!important;
+  }
+}
