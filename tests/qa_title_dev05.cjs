@@ -2,6 +2,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const {chromium,webkit}=require('playwright');
+const {PNG}=require('pngjs');
 const fs=require('node:fs');
 const BASE=process.env.UNO_QA_URL||'http://127.0.0.1:8080';
 const OUT='artifacts/uno-dev05-title';
@@ -48,6 +49,11 @@ const views=[
      return Number(getComputedStyle(im).opacity)>.98 &&
        Number(getComputedStyle(h1).opacity)<.02;
    },null,{timeout:5000});
+   // Loaded image/style is not the same as painted artwork. Give WebKit and
+   // Chrome two compositor frames plus a small settled-paint interval.
+   await page.evaluate(()=>new Promise(resolve=>
+     requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   await page.waitForTimeout(320);
    const m=await page.evaluate(()=>{
     const r=sel=>{const a=document.querySelector(sel).getBoundingClientRect();
       return {top:a.top,bottom:a.bottom,left:a.left,right:a.right,width:a.width,height:a.height}};
@@ -110,8 +116,22 @@ const views=[
    assert(m.overflow<=3,m);
    assert(m.controls.every(x=>x.present&&x.width>=22),m);
    assert(!errors.length,{engine,viewport:v,errors});
-   await page.screenshot({path:OUT+'/'+engine+'-'+v.name+'.png',fullPage:true});
-   console.log(engine+' '+v.name+' PASS: 1600px neon title fills iPhone width, no overlap, controls preserved');
+   const screenshot=await page.screenshot({path:OUT+'/'+engine+'-'+v.name+'.png',fullPage:false});
+   const img=PNG.sync.read(screenshot);
+   const sx=Math.max(0,Math.floor(m.title.left)+2);
+   const ex=Math.min(img.width,Math.ceil(m.title.right)-2);
+   const sy=Math.max(0,Math.floor(m.title.top)+2);
+   const ey=Math.min(img.height,Math.ceil(m.title.bottom)+3);
+   let goldPixels=0;
+   for(let y=sy;y<ey;y++)for(let x=sx;x<ex;x++){
+     const k=(y*img.width+x)*4;
+     const R=img.data[k],G=img.data[k+1],B=img.data[k+2];
+     if(R>165 && G>87 && B<160 && R>G+18)goldPixels++;
+   }
+   if(v.w<v.h)assert(goldPixels>=500,
+     JSON.stringify({engine,viewport:v,issue:'wordmark not painted onscreen',
+       goldPixels,region:{sx,ex,sy,ey},image:m.goldImage,title:m.title}));
+   console.log(engine+' '+v.name+' PASS: 1600px iPhone title + '+goldPixels+' visible gold pixels, no overlap');
    await context.close();
   }
   await browser.close();
