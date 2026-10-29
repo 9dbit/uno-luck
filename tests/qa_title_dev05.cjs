@@ -84,8 +84,10 @@ const views=[
    assert(Math.abs(titleMid-imageMid)<5,m);
    // Preserve room for glowing bevel without covering the result cards.
    if(v.w<v.h){
-     assert(m.goldImage.bottom<=m.cards.top+12,m);
-     assert(m.goldImage.top>=m.gameHeader.bottom-22,m);
+     assert(m.goldImage.bottom<=m.cards.top+12,
+       JSON.stringify({engine,viewport:v,issue:'title overlaps cards',image:m.goldImage,cards:m.cards,title:m.title}));
+     assert(m.goldImage.top>=m.gameHeader.bottom-22,
+       JSON.stringify({engine,viewport:v,issue:'title overlaps header',image:m.goldImage,header:m.gameHeader,title:m.title}));
    }
    assert(m.overflow<=3,m);
    assert(m.controls.every(x=>x.present&&x.width>=22),m);
@@ -96,4 +98,4 @@ const views=[
   }
   await browser.close();
  }
-})().catch(e=>{console.error(e);process.exitCode=1;});
+})().catch(e=>{console.error(e);process.exit(1);});
