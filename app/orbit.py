@@ -342,6 +342,8 @@ def pick(request: Request, response: Response, payload: PickRequest):
                            (spin.new_id(),aid,'orbit_payout',credited,new_balance,stamp))
                 db.execute('INSERT INTO spins(id,account_id,request_id,stake,payout,delta,balance_after,combo,cards_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
                            (rid,aid,row['start_key'],row['stake'],credited,credited-row['stake'],new_balance,row['combo'],row['cards_json'],stamp))
+                from .round_outbox import capture
+                capture(db, rid)
             else:
                 db.execute('UPDATE orbit_rounds SET picked=? WHERE id=?',(picked,rid))
         db.execute('INSERT INTO orbit_requests(account_id,request_id,round_id,selected_count) VALUES(?,?,?,?)',
