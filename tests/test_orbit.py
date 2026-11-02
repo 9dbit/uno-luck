@@ -39,7 +39,12 @@ def test_route_and_rules(c):
     assert 'SPIN' in page.text
     assert c.get('/spin-legacy').status_code==200
     rules=c.get('/api/orbit/state').json()['rules']
-    assert rules['win_probability_percent']==80
+    assert orbit.WIN_PERCENT==80
+    assert 'win_probability_percent' not in rules
+    assert 'winning_combinations_percent' not in rules
+    assert '%' not in rules['note']
+    for tier in rules['celebrations']:
+        assert set(tier)=={'rank','title','theme','multiplier','pattern','rule'}
     assert rules['virtual_only'] is True
     assert rules['payout_multiplier']==2
 

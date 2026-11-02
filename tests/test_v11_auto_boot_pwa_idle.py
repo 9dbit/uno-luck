@@ -35,7 +35,7 @@ def test_softtech_zoom_loading_height_and_logo_pulse():
     assert '5.6dvh' in LAYOUT
     assert 'height:clamp(34px,5.6dvh,52px)!important' in LAYOUT
     assert 'is-zooming' in BOOT
-    assert 'boot.js?v=1134' in HTML
+    assert 'boot.js?v=1144' in HTML
     assert "studio()?.armMusicOnSplashGesture?.()" in BOOT
     assert "const musicPromise=Promise.resolve(studio()?.prepareMusicMedia?.())" in BOOT
 
@@ -44,12 +44,12 @@ def test_pwa_uses_visible_iphone_viewport_and_respects_safe_area():
     assert "window.visualViewport" in VIEWPORT
     assert "visualViewport?.addEventListener('resize'" in VIEWPORT
     assert "'--uno-wheel-size'" in VIEWPORT
-    assert "rect.height-shift-2" in VIEWPORT
+    assert "rect.height-shift-captionHeight-4" in VIEWPORT
     assert "env(safe-area-inset-top" in LAYOUT
     assert "env(safe-area-inset-bottom" in LAYOUT
     assert 'var(--uno-wheel-size' in LAYOUT
-    assert '/assets/art/viewport-v11.css?v=1137' in HTML
-    assert '/assets/viewport-v11.js?v=1125' in HTML
+    assert '/assets/art/viewport-v11.css?v=1143' in HTML
+    assert '/assets/viewport-v11.js?v=1140' in HTML
     assert 'height:var(--uno-viewport-height,100dvh)!important' in LAYOUT
 
 
@@ -86,7 +86,7 @@ def test_led_previews_show_random_uno_cards_not_nine_ones():
     assert "this.displays[PICKS]={...this.lastSelected}" in WHEEL
     assert "this.displays[PICKS]={...this.ready.card}" in WHEEL
     assert "textContent='1'" not in WHEEL
-    assert 'ledwheel.js?v=1129' in HTML
+    assert 'ledwheel.js?v=1139' in HTML
     assert 'ledwheel.css?v=10' in HTML
     assert 'Sembilan panel kartu UNO berwarna' in HTML
 
@@ -95,9 +95,20 @@ def test_iphone15pro_pwa_background_full_bleed_and_safe_area():
     assert "--uno-wheel-drop" in VIEWPORT
     assert 'else update(); // First paint must not wait' in VIEWPORT
     assert 'update(); // Manual/boot refresh is synchronous' in VIEWPORT
-    assert "rect.height-shift-2" in VIEWPORT
+    assert "rect.height-shift-captionHeight-4" in VIEWPORT
     assert "height:100lvh" in LAYOUT
     assert "body::before" in LAYOUT
     assert "url('/assets/art/v4/lava-temple.webp')!important" in LAYOUT
     assert "@media (display-mode:standalone)" in LAYOUT
     assert "padding-bottom:max(env(safe-area-inset-bottom,0px),5px)" in LAYOUT
+
+def test_solid_uno_wheel_card_lighting():
+    assert "clip-path:none!important" in LAYOUT
+    assert "background:#e82032!important" in LAYOUT
+    assert "background:#1169e9!important" in LAYOUT
+    assert "background:#16ae50!important" in LAYOUT
+    assert "background:#f5c916!important" in LAYOUT
+    assert "led-dimmed .led-screen" in LAYOUT
+    assert "filter:brightness(.37) saturate(.72)!important" in LAYOUT
+    assert "led-illuminated .led-screen" in LAYOUT
+    assert "filter:brightness(1.35) saturate(1.25)!important" in LAYOUT

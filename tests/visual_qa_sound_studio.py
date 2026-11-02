@@ -79,7 +79,7 @@ def main():
         assert before_index!=after_index, 'Illuminated LED panel must advance clockwise'
         assert page.locator('#orbit-ring .led-illuminated').count()==1
         assert slots_before==slots_after, 'Idle must never rotate the nine metal frames'
-        page.locator('#menu-open').click()
+        page.goto('http://127.0.0.1:8080/admin',wait_until='domcontentloaded')
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         editor=page.locator('.sound-studio')
         assert editor.locator('details.studio-cue').count()==12
@@ -143,13 +143,14 @@ def main():
         splash.locator('summary').click()
         splash.locator('input[type=file]').set_input_files(str(tone))
         splash.locator('.studio-status').get_by_text('Audio tersimpan:',exact=False).wait_for(timeout=10000)
-        page.reload(wait_until='domcontentloaded')
+        page.goto('http://127.0.0.1:8080/',wait_until='domcontentloaded')
         page.locator('#boot-play').click(timeout=17000)
         page.locator('#game-shell').wait_for(state='visible',timeout=25000)
         assert page.locator('#boot-start-sound').count()==0
         stored=page.evaluate("window.UNOLuckSoundStudio.profile('push-button')")
         assert stored['start']==0.1 and stored['fileName']=='qa-tone.wav'
         assert page.evaluate("window.UNOLuckSoundStudio.profile('soft-tech-splash-screen').custom")
+        page.goto('http://127.0.0.1:8080/admin',wait_until='domcontentloaded')
         page.evaluate("""() => {
             window.__splashStartCount=0;
             const start=AudioBufferSourceNode.prototype.start;
@@ -159,7 +160,6 @@ def main():
             };
         }""")
         assert page.evaluate("window.__splashStartCount")==0, 'Autoplay audio must be blocked'
-        page.locator('#menu-open').click()
         page.get_by_role('button',name='Sound Studio · 12 Custom Sound Effects').click()
         storedSplash=page.locator('.sound-studio details.studio-cue').first
         storedSplash.locator('summary').click()

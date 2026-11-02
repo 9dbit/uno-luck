@@ -5,6 +5,7 @@ real money prizes, user accounts, or cash-value balances.
 """
 from __future__ import annotations
 import os
+import hashlib
 import re
 import secrets
 import time
@@ -14,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .engine import COLORS, RuleError, UnoGame
@@ -24,15 +25,62 @@ from .sound_cloud import router as sound_cloud_router, sound_health
 
 APP_ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
+# CP09 is health-only and never touches game state or guest balances.
+@app.on_event("startup")
+async def gameops_bridge_start():
+    from .gameops_heartbeat import start_bridge
+    app.state.gameops_bridge_stop = start_bridge("uno-luck", version="1.0.0")
+
+
+@app.on_event("shutdown")
+async def gameops_bridge_stop():
+    stop = getattr(app.state, "gameops_bridge_stop", None)
+    if stop:
+        stop()
+
+
 app.include_router(spin_router)
 app.include_router(orbit_router)
 app.include_router(sound_cloud_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")
 
+# One content-derived release shared by the shell and foreground update check.
+UI_RELEASE = hashlib.sha256(b"".join(
+    p.relative_to(APP_ROOT).as_posix().encode() + p.read_bytes()
+    for p in sorted((APP_ROOT / "static").rglob("*"))
+    if p.is_file() and p.suffix in {".html", ".js", ".css", ".webmanifest"}
+)).hexdigest()[:20]
+
+
+@app.middleware("http")
+async def shell_cache_policy(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path in {"/", "/admin", "/admin/", "/classic", "/spin-legacy", "/api/ui-version"} or path.endswith(".html"):
+        response.headers["Cache-Control"] = "no-store"
+    elif path.startswith("/assets/") and path.endswith((".js", ".css", ".webmanifest")):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
+
+@app.get("/api/ui-version", include_in_schema=False)
+async def ui_version():
+    return JSONResponse({"release": UI_RELEASE}, headers={"Cache-Control": "no-store"})
+
 
 @app.get("/")
 async def homepage():
-    return FileResponse(APP_ROOT / "static" / "orbit-index.html")
+    html = (APP_ROOT / "static" / "orbit-index.html").read_text()
+    return HTMLResponse(html.replace("__UNO_RELEASE__", UI_RELEASE),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin", include_in_schema=False)
+@app.get("/admin/", include_in_schema=False)
+async def admin_page():
+    # Audio mutations retain the existing server-side admin-token checks.
+    return FileResponse(APP_ROOT / "static" / "admin.html",
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/spin-legacy")

@@ -160,8 +160,7 @@ def rules_view() -> dict:
         "refill_bonus": REFILL_COINS,
         "paytable": [{"id": "COLOR_MATCH", "description": "3 kartu memiliki warna sama", "multiplier": 2},
                      {"id": "NO_MATCH", "description": "Warna tidak semua sama", "multiplier": 0}],
-        "probability_color_match": 0.0625,
-        "note": "Empat warna dipilih secara independen dan merata. Koin demo tidak punya nilai uang.",
+        "note": "Hasil ditentukan server. Koin demo tidak punya nilai uang.",
     }
 
 

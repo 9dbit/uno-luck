@@ -1,0 +1,161 @@
+"""Visual rules, confirmed BET and bounded AUTO using browser-only server fixtures.
+
+All /pick requests are fulfilled in the isolated browser; published audio and
+live accounts are never written. Existing server/LED suites cover settlement
+and animation separately; this suite exercises the actual player controls.
+"""
+import sys
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from app.orbit import classify_rank
+
+URL='http://127.0.0.1:8080'
+OUT=Path('artifacts/uno-v1146-player-panels')
+OUT.mkdir(parents=True,exist_ok=True)
+SIZES=[(320,568),(320,700),(393,659),(393,852),(390,844),(430,932),(852,393),(1440,1000)]
+
+with sync_playwright() as pw:
+    for engine in ('chromium','webkit'):
+        browser=getattr(pw,engine).launch()
+        context=browser.new_context(viewport={'width':393,'height':852},reduced_motion='reduce')
+        baseline=context.request.get(URL+'/api/sounds/manifest').json()
+        state=context.request.get(URL+'/api/orbit/state').json()
+        state.update(round=None,recent=[])
+        state['account']['balance']=1000
+        page=context.new_page();errors=[];requests=[];held=[]
+        mode={'value':'normal'}
+        page.on('pageerror',lambda e:errors.append(str(e)))
+        page.route('**/api/orbit/state',lambda r:r.fulfill(json=state))
+
+        def respond(route):
+            data=route.request.post_data_json
+            current=state['round']
+            if not current:
+                state['account']['balance']-=data['stake']
+                current={'id':'fixture-round','stake':data['stake'],'picked':0,'cards':[],
+                         'complete':False,'combo':None,'tier':None,'payout':None,'delta':None}
+            current['picked']+=1
+            current['cards']=[{'color':c,'face':str(i+1)} for i,c in enumerate(('red','blue','green')[:current['picked']])]
+            if current['picked']==3:
+                current.update(complete=True,combo='NO_MATCH',payout=0,delta=-current['stake'])
+            state['round']=None if current['complete'] else current
+            route.fulfill(json={'account':state['account'],'round':current})
+
+        def pick(route):
+            requests.append(route.request.post_data_json)
+            if mode['value']=='hold':held.append(route)
+            elif mode['value']=='fail':route.abort()
+            else:respond(route)
+        page.route('**/api/orbit/pick',pick)
+        page.goto(URL,wait_until='domcontentloaded')
+        page.locator('#boot-play').click(timeout=17000)
+        page.locator('#game-shell').wait_for(state='visible',timeout=26000)
+
+        def menu(name):
+            page.locator('#profile-btn').click()
+            page.get_by_role('button',name=name,exact=True).click()
+        def close():page.locator('#modal-close').click()
+        def bounds():
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+            assert page.locator('#modal-content').evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
+            box=page.locator('#modal-close').bounding_box()
+            assert box['y']>=0 and box['y']+box['height']<=page.viewport_size['height']
+            if page.locator('.panel-primary').count():
+                action=page.locator('.panel-primary').bounding_box()
+                assert action['y']>=0 and action['y']+action['height']<=page.viewport_size['height']
+                top=action['y']
+                page.locator('#modal-content').evaluate('(e)=>e.scrollTop=e.scrollHeight')
+                assert abs(page.locator('.panel-primary').bounding_box()['y']-top)<1
+                page.locator('#modal-content').evaluate('(e)=>e.scrollTop=0')
+        for width,height in SIZES:
+            page.set_viewport_size({'width':width,'height':height})
+            menu('Game Rules')
+            assert page.locator('.rules-tier').count()==5
+            assert page.locator('.rules-hand .card3d').count()==15
+            for rank in range(1,6):
+                cards=page.locator(f'.rules-tier[data-rank="{rank}"] .card3d').evaluate_all('(nodes)=>nodes.map(n=>({color:n.dataset.color,face:n.dataset.face}))')
+                assert classify_rank(cards)==rank
+            assert page.locator('.rules-multiplier').all_text_contents()==['200× BET','80× BET','30× BET','10× BET','2× BET']
+            assert '%' not in page.locator('#modal-content').text_content()
+            top=page.locator('#modal-close').bounding_box()['y']
+            page.locator('#modal-content').evaluate('(e)=>e.scrollTop=e.scrollHeight')
+            assert abs(page.locator('#modal-close').bounding_box()['y']-top)<1
+            page.locator('summary').click();bounds()
+            page.locator('#modal-content').evaluate('(e)=>e.scrollTop=0')
+            page.screenshot(path=str(OUT/f'{engine}-rules-{width}x{height}.png'));close()
+            menu('Bet Setting');bounds()
+            assert page.locator('[data-bet]').count()==5
+            page.screenshot(path=str(OUT/f'{engine}-bet-{width}x{height}.png'));close()
+            page.locator('#auto-btn').click();bounds()
+            page.locator('[data-rounds="3"]').click()
+            assert page.locator('.auto-budget dd').nth(1).inner_text()=='75 Coin'
+            page.screenshot(path=str(OUT/f'{engine}-auto-{width}x{height}.png'));close()
+        assert requests==[],requests
+        page.set_viewport_size({'width':393,'height':852})
+        menu('Bet Setting');page.locator('[data-bet="250"]').click();close()
+        assert page.locator('#last-stake').inner_text()=='25'  # Cancel discards draft.
+        menu('Bet Setting');page.locator('[data-bet="250"]').click()
+        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
+        assert page.locator('#last-stake').inner_text()=='250'
+        page.locator('#auto-btn').click();page.locator('[data-rounds="10"]').click()
+        assert page.locator('#auto-start').is_disabled()
+        assert page.locator('.auto-budget dd').nth(1).inner_text()=='2.500 Coin';close()
+        menu('Bet Setting');page.locator('[data-bet="25"]').click()
+        page.get_by_role('button',name='GUNAKAN BET',exact=True).click()
+        # Speed up only animation in this control test; separate suites test LED timing.
+        page.evaluate('''() => {wheel.begin=()=>{};wheel.settle=async()=>true;wheel.transferTo=async()=>{};}''')
+        for count in (1,3,5,10):
+            start=len(requests)
+            page.locator('#auto-btn').click();page.locator(f'[data-rounds="{count}"]').click()
+            page.locator('#auto-start').click()
+            page.wait_for_function('() => !isAuto&&!isSpinning',timeout=25000)
+            assert len(requests)-start==count*3,(engine,count,len(requests)-start)
+        assert len({r['request_id'] for r in requests})==len(requests)
+
+        # STOP while the first server response is in flight: no second pick.
+        mode['value']='hold';start=len(requests)
+        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click();page.locator('#auto-start').click()
+        page.wait_for_timeout(100)
+        assert len(held)==1
+        menu('Bet Setting')
+        assert page.get_by_role('button',name='GUNAKAN BET',exact=True).is_disabled();close()
+        page.locator('#auto-btn').click();respond(held.pop())
+        page.wait_for_function('() => !isAuto&&!isSpinning')
+        assert len(requests)==start+1
+        menu('Bet Setting')
+        assert all(page.locator('[data-bet]').nth(i).is_disabled() for i in range(5))
+        assert page.get_by_role('button',name='GUNAKAN BET',exact=True).is_disabled();close()
+        state['account']['balance']=0;page.evaluate('() => loadState(true)')
+        page.locator('#auto-btn').click();page.locator('[data-rounds="1"]').click()
+        assert page.locator('.auto-budget dd').nth(1).inner_text()=='0 Coin'
+        assert page.locator('#auto-start').is_enabled()
+        mode['value']='normal';start=len(requests);page.locator('#auto-start').click()
+        page.wait_for_function('() => !isAuto&&!isSpinning')
+        assert len(requests)==start+2  # Finish paid partial round, no new charge.
+
+        # Reloaded paid round can have a different stake than the default selector.
+        state['account']['balance']=20
+        state['round']={'id':'restored-round','stake':10,'picked':1,'cards':[{'color':'red','face':'1'}],
+                        'complete':False,'combo':None,'tier':None,'payout':None,'delta':None}
+        page.evaluate('() => {stakeIndex=1;return loadState(true);}')
+        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click()
+        assert page.locator('.auto-budget dd').nth(1).inner_text()=='20 Coin'
+        start=len(requests);page.locator('#auto-start').click()
+        page.wait_for_function('() => !isAuto&&!isSpinning')
+        assert len(requests)-start==8
+        assert all(r['stake']==10 for r in requests[start:])
+        assert state['account']['balance']==0
+
+        state['account']['balance']=1000;page.evaluate('() => loadState(true)')
+        mode['value']='fail';start=len(requests)
+        page.locator('#auto-btn').click();page.locator('[data-rounds="3"]').click();page.locator('#auto-start').click()
+        page.wait_for_function('() => !isAuto&&!isSpinning')
+        assert len(requests)==start+1
+        assert page.evaluate('() => pendingInfo()!==null')
+        page.locator('#auto-btn').click();assert page.locator('#auto-start').is_disabled();close()
+        assert context.request.get(URL+'/api/sounds/manifest').json()==baseline
+        assert not errors,errors
+        context.close();browser.close()
+        print('PASS:',engine,'visual rules, responsive BET/AUTO, confirmed bet, exact round limits, STOP, paid-round resume, failure recovery, unchanged sound')

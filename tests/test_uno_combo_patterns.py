@@ -70,7 +70,8 @@ def test_constant_probabilities_and_no_undocumented_bonus():
         200,80,30,10,2]
     rules=orbit.public_rules()
     assert rules['rules_version']==2
-    assert sum(t['conditional_win_probability_percent'] for t in rules['celebrations'])==100
+    assert sum(t['weight'] for t in orbit.CELEBRATIONS.values()) / 10000==100
+    assert all('conditional_win_probability_percent' not in t for t in rules['celebrations'])
 
 
 def test_live_api_keeps_pattern_secret_until_third_spin(tmp_path,monkeypatch):

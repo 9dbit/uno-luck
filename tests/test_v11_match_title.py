@@ -59,7 +59,7 @@ def test_background_and_accessible_audio_self_test_are_bundled():
     assert 'match-sr-only' in STYLE
     assert 'id="match-live"' in HTML
     assert 'testSound' in (SRC/'art/sound.js').read_text()
-    assert 'Tes Suara Meriah' in (SRC/'orbit.js').read_text()
+    assert 'Tes Suara Meriah' in (SRC/'admin.html').read_text()
     assert "testSound(){" in (SRC/'art/sound.js').read_text()
 
 

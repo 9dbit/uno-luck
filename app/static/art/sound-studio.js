@@ -29,9 +29,14 @@ async function syncCloud(force=false){
     await cloudFetch;
   }
   cloudFetch=(async()=>{
-    const response=await fetch('/api/sounds/manifest',{cache:'no-store'});
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),6000);
+    let data;
+    try{
+    const response=await fetch('/api/sounds/manifest',{cache:'no-store',signal:controller.signal});
     if(!response.ok)throw Error('Cloud catalog HTTP '+response.status);
-    const data=await response.json();
+    data=await response.json();
+    }finally{clearTimeout(timeout);}
     if(data.ready!==true){cloudReady=false;cloudError='Cloud storage belum siap';return false;}
     cloudReady=true;cloudError='';
     if(data.revision!==cloudRevision){
@@ -257,10 +262,12 @@ function stopMusicMedia({invalidate=false}={}){
   }
 }
 async function prepareMusicMedia(){
-  if(bgmPrepared&&bgmRevision===cloudRevision)return true;
   if(bgmPreparation)return bgmPreparation;
   bgmPreparation=(async()=>{
     await syncCloud();
+    // A failed catalog request may have prepared the bundled fallback. Check
+    // its revision only AFTER the shared retry, alongside splash preparation.
+    if(bgmPrepared&&bgmRevision===cloudRevision)return true;
     const revision=cloudRevision;
     const cfg=liveProfile('background-music');
     let url,ownedUrl=null,period=0;
@@ -417,7 +424,11 @@ function isMusicWebAudioPlaying(){return Boolean(loop?.source);}
 async function prepareSplashMedia(){
   await syncCloud();
   const cfg=liveProfile('soft-tech-splash-screen');
-  if(!cfg.custom&&cfg.source!=='custom')return false;
+  if(!cfg.custom&&cfg.source!=='custom'){
+    splashError=cloudError?'Koneksi Sound Cloud belum tersedia. Coba lagi setelah jaringan tersambung.':
+      'File Soft Tech Splash belum tersedia di Sound Cloud.';
+    return false;
+  }
   if(splashUrl)return true;
   if(splashPreparation)return splashPreparation;
   splashPreparation=(async()=>{

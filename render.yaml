@@ -1,0 +1,27 @@
+# Independent staging only. First deploy must use a CI-verified commit.
+services:
+  - type: web
+    name: uno-luck-render-staging
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    repo: https://github.com/9dbit/uno-luck
+    branch: fix/uno-v13-solid-uno-led-emissive-20261019
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: "off"
+    healthCheckPath: /health
+    numInstances: 1
+    disk:
+      name: uno-luck-staging-data
+      mountPath: /data/uno-luck
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: UNO_SOUND_STORAGE_DIR
+        value: /data/uno-luck
+      - key: UNO_SPIN_DB_PATH
+        value: /data/uno-luck/database/uno_luck_spin.sqlite3
+      - key: UNO_SOUND_ADMIN_TOKEN
+        generateValue: true

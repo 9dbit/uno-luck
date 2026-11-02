@@ -128,6 +128,10 @@
     illuminate(index){
       // One RAF / one clock tick controls glyphs, LED glow and LED SFX.
       this.advanceFaces(index);
+      this.setLight(index);
+    }
+    setLight(index){
+      // Change illumination without advancing faces when locking a server ACK.
       const old=this.chaseIndex;
       this.chaseIndex=index;
       if(old<0){
@@ -157,8 +161,13 @@
     }
     startIdle(){
       this.stopIdle();
-      if(this.active||!this.idleEnabled||document.hidden||!this.nodes.length)return;
-      this.host.classList.remove('led-running','led-slowing');
+      if(this.active||document.hidden||!this.nodes.length)return;
+      this.host.classList.remove('led-running','led-slowing','led-locked');
+      if(!this.idleEnabled){
+        this.host.classList.add('led-idle');
+        this.setLight(PICKS);
+        return;
+      }
       this.host.classList.add('led-idle','led-ambient');
       this.chaseFace();
       this.illuminate(0);
@@ -304,7 +313,7 @@
       this.displays[PICKS]={...this.ready.card};
       this.host.classList.remove('led-running','led-slowing');
       this.host.classList.add('led-locked');
-      this.clearIllumination();
+      this.setLight(PICKS);
       // The other eight symbols are already painted. Only the center receives
       // a new server-authorized card during lock-in.
       this.paint(PICKS,this.ready.card);

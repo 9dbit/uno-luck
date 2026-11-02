@@ -1,13 +1,18 @@
 name: Test UNO LUCK Spin
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/uno-v13-solid-uno-led-emissive-20261019']
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,6 +23,8 @@ jobs:
       - run: node --check app/static/boot.js
       - run: node --check app/static/viewport-v11.js
       - run: node --check app/static/orbit.js
+      - run: node --check app/static/admin.js
+      - run: node --check app/static/pwa-update.js
       - run: node --check app/static/art/motion.js
       - run: node --check app/static/art/ledwheel.js
       - run: node --check app/static/art/sound.js
@@ -29,6 +36,7 @@ jobs:
 
   visual-qa:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -48,11 +56,17 @@ jobs:
           done
           python -m py_compile tests/visual_qa_shared_sound.py tests/visual_qa_smooth_hud_splash.py tests/visual_qa_iphone15pro_fullbleed.py
           python tests/visual_qa_led_chase.py
+          python tests/visual_qa_player_admin.py
+          python tests/visual_qa_player_panels.py
+          python tests/visual_qa_pwa_recovery.py
+          python tests/visual_qa_solid_led.py
           python tests/visual_qa_smooth_hud_splash.py
           python tests/visual_qa_iphone15pro_fullbleed.py
+          UNO_QA_ENGINE=chromium python tests/visual_qa_iphone15pro_fullbleed.py
           python tests/visual_qa_sound_studio.py
           python tests/visual_qa_jackpot_sfx.py
           python tests/visual_qa_ios_safari_audio.py
+          python tests/visual_qa_gameplay_music.py
           python tests/visual_qa_shared_sound.py
       - name: Upload QA screenshots
         if: always()
@@ -60,6 +74,12 @@ jobs:
         with:
           name: uno-v11-sound-studio-responsive
           path: |
+            artifacts/uno-v13-solid-led/*
+            artifacts/uno-v1143-player-admin/*
+            artifacts/uno-v1146-player-panels/*
+            artifacts/uno-v1144-pwa-recovery/*
+            artifacts/uno-v11-led-chase/*.png
+            artifacts/uno-v11-gameplay-music/*.png
             artifacts/uno-v12-iphone15pro-fullbleed/*.png
             artifacts/uno-v11-sound-studio/*.png
             artifacts/uno-v11-jackpot-audio/*.png
@@ -69,6 +89,7 @@ jobs:
 
   volume-runtime:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Validate mounted volume is writable by application user
@@ -84,3 +105,27 @@ jobs:
           python3 -c 'import json; a=json.load(open("/tmp/uno-sound-probe.json")); assert a["ready"] and a["published_cues"]==0'
           test "$(docker exec uno-volume-test stat -c %u /data/uno-luck-audio)" = 10001
           echo "PASS: Railway style volume is writable as UID 10001"
+      - name: Verify Render disk preserves paid rounds across container replacement
+        run: |
+          mkdir -p "$RUNNER_TEMP/uno-render-test"
+          chmod 0700 "$RUNNER_TEMP/uno-render-test"
+          start_render_test() {
+            docker run -d --name uno-render-test -p 127.0.0.1:18086:8080 \
+              -v "$RUNNER_TEMP/uno-render-test:/data/uno-luck" \
+              -e UNO_SOUND_STORAGE_DIR=/data/uno-luck \
+              -e UNO_SPIN_DB_PATH=/data/uno-luck/database/uno_luck_spin.sqlite3 \
+              uno-volume-runtime
+            for i in $(seq 1 40); do
+              if curl -fsS http://127.0.0.1:18086/health >/dev/null; then return 0; fi
+              sleep 1
+            done
+            docker logs uno-render-test
+            return 1
+          }
+          start_render_test
+          python3 tests/volume_round_probe.py seed --snapshot "$RUNNER_TEMP/uno-round.json"
+          test "$(docker exec uno-render-test stat -c %u /data/uno-luck/database/uno_luck_spin.sqlite3)" = 10001
+          docker stop uno-render-test
+          docker rm uno-render-test
+          start_render_test
+          python3 tests/volume_round_probe.py check --snapshot "$RUNNER_TEMP/uno-round.json"
