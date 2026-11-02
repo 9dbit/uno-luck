@@ -1,0 +1,23 @@
+name: CP15 Live Isolated Pilot Acceptance
+on:
+  push:
+    branches: [verify/cp15-live-pilot-20261103]
+    paths: [tests/cp15_live_pilot_smoke.py, .github/workflows/cp15-live-pilot.yml]
+permissions:
+  contents: read
+jobs:
+  live-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: New isolated pilot only, three guest rounds and verified delivery
+        run: python tests/cp15_live_pilot_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cp15-live-pilot-evidence
+          path: cp15-live-pilot/
+          retention-days: 14
