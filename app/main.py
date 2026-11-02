@@ -25,6 +25,20 @@ from .sound_cloud import router as sound_cloud_router, sound_health
 
 APP_ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
+# CP09 is health-only and never touches game state or guest balances.
+@app.on_event("startup")
+async def gameops_bridge_start():
+    from .gameops_heartbeat import start_bridge
+    app.state.gameops_bridge_stop = start_bridge("uno-luck", version="1.0.0")
+
+
+@app.on_event("shutdown")
+async def gameops_bridge_stop():
+    stop = getattr(app.state, "gameops_bridge_stop", None)
+    if stop:
+        stop()
+
+
 app.include_router(spin_router)
 app.include_router(orbit_router)
 app.include_router(sound_cloud_router)
