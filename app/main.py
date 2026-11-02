@@ -30,6 +30,8 @@ app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, red
 async def gameops_bridge_start():
     from .gameops_heartbeat import start_bridge
     app.state.gameops_bridge_stop = start_bridge("uno-luck", version="1.0.0")
+    from .round_outbox import start
+    app.state.gameops_outbox_stop = start()
 
 
 @app.on_event("shutdown")
@@ -37,6 +39,9 @@ async def gameops_bridge_stop():
     stop = getattr(app.state, "gameops_bridge_stop", None)
     if stop:
         stop()
+    stop_outbox = getattr(app.state,"gameops_outbox_stop",None)
+    if stop_outbox:
+        stop_outbox()
 
 
 app.include_router(spin_router)
@@ -92,6 +97,12 @@ async def legacy_spin_home():
 async def classic_home():
     """Preserve Classic implementation for regression checks, not the main game."""
     return FileResponse(APP_ROOT / "static" / "index.html")
+
+
+@app.get("/api/gameops/status", include_in_schema=False)
+async def gameops_status():
+    from .round_outbox import status
+    return JSONResponse(status(),headers={"Cache-Control":"no-store"})
 
 
 @app.get("/health")

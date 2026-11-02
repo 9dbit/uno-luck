@@ -88,6 +88,8 @@ def connection() -> sqlite3.Connection:
                 );
             """)
             INITIALIZED.add(path)
+    from .round_outbox import ensure_schema
+    ensure_schema(db)
     return db
 
 
@@ -273,6 +275,8 @@ def place(request: Request, response: Response, payload: PlaceInput):
                     json.dumps(cards, separators=(",", ":")), created))
         db.execute("INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)",
                    (new_id(), account["id"], "spin:" + combo, credited_delta, balance, created))
+        from .round_outbox import capture
+        capture(db, spin_id)
         db.commit()
         response.headers["Cache-Control"] = "no-store"
         updated = db.execute("SELECT * FROM accounts WHERE id=?", (account["id"],)).fetchone()
