@@ -1,0 +1,32 @@
+name: CP15 UNO Atomic Outbox
+on:
+  push:
+    branches: [feat/cp15-uno-outbox-20261103]
+  pull_request:
+    paths: ['app/**','tests/test_gameops_outbox.py','deploy/start-web.sh','.github/workflows/cp15-outbox.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r requirements.txt pytest==9.0.2 httpx==0.28.1 Pillow
+      - run: python -m compileall -q app
+      - name: Frozen game and atomic observation regression
+        run: python -m pytest -q tests/test_engine.py tests/test_orbit.py tests/test_spin.py tests/test_uno_combo_patterns.py tests/test_gameops_outbox.py | tee cp15-tests.log
+      - name: Verify original game UI and runtime boundaries
+        run: |
+          git fetch --depth=1 origin c8327f47086d524a43559e297a42bef183d514e4
+          test -z "$(git diff c8327f47086d524a43559e297a42bef183d514e4 HEAD -- app/static app/engine.py app/sound_cloud.py)"
+          test ! -f tools/apply-cp15.py
+          test ! -f .github/workflows/cp15-prepare.yml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cp15-uno-tested
+          path: cp15-tests.log
+          retention-days: 14
