@@ -1,0 +1,30 @@
+name: CP16 Source Wallet Verification
+on:
+  push:
+    branches: [feat/cp16-authoritative-wallet-20261103]
+  pull_request:
+    paths: ['app/wallet_link.py','app/spin.py','app/main.py','tests/test_wallet_link.py','.github/workflows/cp16-wallet.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r requirements.txt pytest httpx
+      - name: Keep original gameplay, artwork and audio byte-identical
+        run: git diff --exit-code 5c060f8562aa98554f9fb064710042f07c658b40 -- app/orbit.py app/engine.py app/static app/sound_cloud.py
+      - name: All source regression and wallet tests
+        run: python -m pytest -q | tee source-regression.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cp16-source-regression
+          path: |
+            source-regression.log
+            sources/CP16_SOURCE_WALLET.md
+          retention-days: 14
