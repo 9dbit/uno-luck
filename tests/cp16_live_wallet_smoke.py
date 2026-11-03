@@ -26,6 +26,8 @@ def call(base, path, opener=None):
             return r.status,json.loads(data)
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read(8192))
+    except (TimeoutError, OSError) as e:
+        return 503, {"error":"temporary_network_failure"}
 
 def check(name, **details):
     checks.append({"name":name,"status":"PASS",**details})
