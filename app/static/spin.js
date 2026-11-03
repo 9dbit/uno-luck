@@ -324,7 +324,7 @@ function openWallet(){
 function openMenu(){
   showModal('Menu UNO LUCK');panel().append(node('strong','',`Pemain ${account?.name||'Player'} · Level ${account?.level||1}`));
   const actions=node('div','button-stack');$('modal-content').append(actions);
-  for(const [label,fn] of [['✦ Koin Virtual',openWallet],['▤ Riwayat PLACE',openHistory],['🎯 Aturan & Peluang',openRules],['👤 Profil Pemain',openProfile]]){
+  for(const [label,fn] of [['✦ Koin Virtual',openWallet],['▤ Riwayat PLACE',openHistory],['🎯 Game Rules',openRules],['👤 Profil Pemain',openProfile]]){
     const b=node('button','',label);b.addEventListener('click',fn);actions.append(b);
   }
   block('UNO LUCK Spin v0.5 · Demo tanpa nilai uang.');
@@ -347,14 +347,14 @@ async function openHistory(){
 function openRules(){
   showModal('Aturan Color Match');panel().append(node('strong','','3 WARNA SAMA = 2× BIAYA PLACE'));
   block('Reel menampilkan tiga kartu dengan warna primer merah, biru, kuning, dan hijau. Bila semuanya berwarna sama, saldo mendapat pengembalian 2× biaya PLACE. Jika tidak, pengembalian nol. Angka dan simbol tidak memengaruhi hadiah.');
-  block('Peluang Color Match = 1/16 (6,25%) per spin. Warna dipilih independen di server. Hasil tidak dijamin dan ini bukan tabel hadiah resmi UNO.');
-  block('Biaya PLACE: 10, 25, 50, 100, atau 250 koin virtual. Turbo hanya mempercepat animasi, Auto maksimal 10 putaran dan dapat dihentikan; peluang tidak berubah.');
+  block('Hasil ditentukan oleh server dan tidak dijamin. Ini bukan tabel hadiah resmi UNO.');
+  block('Biaya PLACE: 10, 25, 50, 100, atau 250 koin virtual. Turbo hanya mempercepat animasi, Auto maksimal 10 putaran dan dapat dihentikan.');
   block('Animasi slot dan efek pecah-pecah hanya visual. Hasil selalu dihitung server dan hanya Color Match mendapat burst. Wild tidak termasuk dalam ruleset Color Match v1.');
   panel().append(node('strong','','Game demo saja: koin tidak dapat dibeli, dipindahtangankan, atau diuangkan.'));
 }
 function listeners(){
   $('place-btn').addEventListener('click',place);
-  $('turbo-btn').addEventListener('click',()=>{if(spinning)return;turbo=!turbo;$('turbo-btn').setAttribute('aria-pressed',String(turbo));audioReady().then(ok=>{if(ok)sound('tap');});toast(turbo?'Turbo aktif, peluang tidak berubah.':'Turbo nonaktif.');});
+  $('turbo-btn').addEventListener('click',()=>{if(spinning)return;turbo=!turbo;$('turbo-btn').setAttribute('aria-pressed',String(turbo));audioReady().then(ok=>{if(ok)sound('tap');});toast(turbo?'Turbo aktif, animasi lebih cepat.':'Turbo nonaktif.');});
   $('auto-btn').addEventListener('click',autoLoop);
   $('stake-minus').addEventListener('click',()=>{if(spinning||auto)return;stakeIndex=Math.max(0,stakeIndex-1);audioReady().then(ok=>{if(ok)sound('tap');});renderCost();});
   $('stake-plus').addEventListener('click',()=>{if(spinning||auto)return;stakeIndex=Math.min(costOptions.length-1,stakeIndex+1);audioReady().then(ok=>{if(ok)sound('tap');});renderCost();});

@@ -120,6 +120,8 @@
 .celebration-actual strong{color:#ffe69c;font-size:clamp(12px,3.5vw,19px);font-weight:1000;}
 .celebration-actual span{color:#fff6d9;font-weight:800;font-size:clamp(11px,2.9vw,15px);}
 .celebration-preview{color:#ffce3e;font-size:12px;}
+.celebration-actual .celebration-pattern{color:#fff3c3;font-size:clamp(10px,2.2vw,13px);font-weight:700;line-height:1.2;max-width:100%;text-wrap:balance;}
+.celebration-actual .celebration-pattern[hidden]{display:none!important;}
 .celebration-continue{z-index:3;min-width:130px;min-height:44px;margin-top:9px;padding:9px 18px;
  border:2px solid #fff1aa;border-radius:999px;color:#fff9ed;font-weight:1000;
  font-size:15px;background:linear-gradient(#f43d37,#ab071b 54%,#5d010c);

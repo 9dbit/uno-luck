@@ -2,23 +2,56 @@
 <html lang="id">
 <head>
   <meta charset="utf-8">
+  <meta name="uno-release" content="__UNO_RELEASE__">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#0b0006">
-  <meta name="description" content="UNO LUCK Color Match: kartu melingkar dan tiga pilihan SPIN, memakai koin virtual gratis.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
-  <link rel="icon" href="/assets/spin-icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#160002">
+  <meta name="description" content="UNO LUCK Dragon Spin. Kumpulkan tiga kartu berwarna sama untuk Color Match dan celebration berjenjang. Bermain dengan koin virtual.">
+  <meta name="application-name" content="UNO LUCK">
+  <meta name="apple-mobile-web-app-title" content="UNO LUCK">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="canonical" href="https://uno-luck-web-staging.up.railway.app/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="UNO LUCK">
+  <meta property="og:locale" content="id_ID">
+  <meta property="og:url" content="https://uno-luck-web-staging.up.railway.app/">
+  <meta property="og:title" content="UNO LUCK | Dragon Spin">
+  <meta property="og:description" content="UNO LUCK Dragon Spin, Color Match, lima celebration, dan koin virtual.">
+  <meta property="og:image" content="https://uno-luck-web-staging.up.railway.app/assets/branding/uno-luck-og-1200x630.jpg?v=20261019b">
+  <meta property="og:image:secure_url" content="https://uno-luck-web-staging.up.railway.app/assets/branding/uno-luck-og-1200x630.jpg?v=20261019b">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="UNO LUCK golden winged card logo">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="UNO LUCK | Dragon Spin">
+  <meta name="twitter:description" content="UNO LUCK Dragon Spin dengan Color Match dan koin virtual.">
+  <meta name="twitter:image" content="https://uno-luck-web-staging.up.railway.app/assets/branding/uno-luck-og-1200x630.jpg?v=20261019b">
+  <link rel="manifest" href="/assets/spin-manifest.webmanifest?v=20261019b">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/branding/uno-luck-icon-180.png?v=20261019b">
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/branding/uno-luck-icon-48.png?v=20261019b">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/branding/uno-luck-icon-32.png?v=20261019b">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self' blob:; font-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+
   <link rel="stylesheet" href="/assets/orbit.css?v=9">
   <link rel="stylesheet" href="/assets/art/motion.css?v=9">
-  <link rel="stylesheet" href="/assets/art/ledwheel.css?v=9">
+  <link rel="stylesheet" href="/assets/art/ledwheel.css?v=10">
   <link rel="stylesheet" href="/assets/art/fidelity.css?v=91">
-  <link rel="stylesheet" href="/assets/art/celebrations.css?v=100">
+  <link rel="stylesheet" href="/assets/art/celebrations.css?v=101">
   <link rel="stylesheet" href="/assets/art/v11.css?v=110">
+  <link rel="stylesheet" href="/assets/art/sound-studio.css?v=1120">
+  <link rel="stylesheet" href="/assets/art/viewport-v11.css?v=1143">
   <title>UNO LUCK | Dragon Spin v1.1</title>
 </head>
 <body>
   <div class="boot-overlay" id="boot-overlay" aria-label="Memulai permainan">
     <section class="boot-stage boot-softtech" id="boot-softtech" aria-label="Soft Tech">
       <img class="boot-softtech-logo" id="boot-softtech-img" src="/assets/boot-softtech.webp" alt="Soft Tech" fetchpriority="high">
+      <button id="boot-play" class="boot-play" type="button" disabled aria-label="Mulai dengan suara" aria-live="polite">
+        <span class="boot-play-symbol" aria-hidden="true">▶</span>
+        <span id="boot-play-text">PLAY WITH SOUND</span>
+      </button>
+      <p id="boot-play-error" class="boot-play-error" role="alert" aria-live="assertive" hidden></p>
     </section>
     <section class="boot-stage boot-banner" id="boot-banner" aria-label="Memuat UNO LUCK" hidden>
       <img id="boot-banner-img" class="boot-banner-img" src="/assets/boot-uno-banner.webp" alt="UNO LUCK" decoding="async">
@@ -29,30 +62,25 @@
           <span class="boot-loading-label" id="boot-loading-label">loading game system</span>
         </div>
         <strong id="boot-loading-percent" class="boot-loading-percent">0%</strong>
-        <div class="boot-ready-actions" id="boot-ready-actions" hidden>
-          <button type="button" class="boot-sound-start" id="boot-with-audio" aria-label="Let's Play dengan suara">♫</button>
-          <button type="button" class="boot-continue" id="boot-continue">LET'S PLAY</button>
-        </div>
       </div>
     </section>
   </div>
   <main class="game-shell is-booting" id="game-shell" aria-hidden="true">
     <header class="game-header">
       <img class="uno-logo" src="/assets/art/v1/logo.webp" alt="UNO LUCK">
-      <button class="balance-chip" id="wallet-open" type="button" aria-label="Saldo koin virtual">
+      <button class="balance-chip" id="wallet-open" type="button" aria-label="Coin dan History Bet">
         <span class="coin" aria-hidden="true">✦</span>
-        <span class="balance-readout"><small>KOIN VIRTUAL</small><strong id="wallet-balance">1.000</strong></span>
+        <span class="balance-readout"><small>Coin</small><strong id="wallet-balance">1.000</strong></span>
         <span class="chip-plus" aria-hidden="true">+</span>
       </button>
       <button class="round-hud-btn" id="gift-btn" type="button" aria-label="Klaim hadiah harian"><span aria-hidden="true">🎁</span></button>
-      <button class="avatar-btn" id="profile-btn" type="button" aria-label="Profil pemain"><img src="/assets/art/v1/avatar.webp" alt=""></button>
-      <button class="round-hud-btn menu" id="menu-open" type="button" aria-label="Menu"><span aria-hidden="true">☰</span></button>
+      <button class="avatar-btn" id="profile-btn" type="button" aria-label="Profil dan menu" aria-haspopup="dialog"><img src="/assets/art/v1/avatar.webp" alt=""></button>
     </header>
     <section class="title-area" aria-label="Mode permainan">
       <h1 class="motion-title">DRAGON SPIN</h1>
       <img id="color-match-burst" class="color-match-burst" src="/assets/art/v4/color-match.webp" alt="" aria-hidden="true" hidden>
       <span id="match-live" class="match-sr-only" role="status" aria-live="assertive"></span>
-      <p>3 kartu sewarna <span>•</span> <strong>bonus 2×–200×</strong></p>
+      <p>3 kartu <span>•</span> 5 kombinasi <span>•</span> <strong>2×–200×</strong></p>
     </section>
     <section class="result-area" aria-label="Tiga kartu hasil SPIN">
       <div class="result-frame" id="result-frame">
@@ -74,7 +102,7 @@
       <div class="wheel-stage">
       <img class="dragon-wheel-art wheel-static-v09" src="/assets/art/v2/wheel-dragon.webp" alt="" aria-hidden="true" decoding="async">
       <div class="ring-halo" aria-hidden="true"></div>
-      <div id="orbit-ring" class="wheel-led-ring" aria-label="Sembilan display LED kartu tetap, konten berpindah dari kiri ke kanan"></div>
+      <div id="orbit-ring" class="wheel-led-ring" aria-label="Sembilan panel kartu UNO berwarna; bingkai tetap, lampu berjalan, simbol berubah saat SPIN"></div>
       <div class="pick-point" id="pick-point" aria-hidden="true">▼</div>
       <div class="action-row">
         <button class="side-action" id="turbo-btn" type="button" aria-label="Turbo" aria-pressed="false"><span class="action-icon">ϟ</span><small>TURBO</small></button>
@@ -96,7 +124,7 @@
         <b class="step-arrow" aria-hidden="true">›</b>
         <div class="step"><span class="step-number">3</span><div class="step-slots"><i></i><i></i><i></i></div><small>KANAN</small></div>
       </div>
-      <div class="footer-aux"><span id="connection-status">Menghubungkan…</span><span>80% Color Match · Koin virtual</span></div>
+      <div class="footer-aux"><span id="connection-status">Menghubungkan…</span><span>5 KOMBINASI · Koin virtual</span></div>
     </footer>
   </main>
   <section id="celebration-overlay" class="celebration-overlay" aria-label="Celebration" role="dialog" aria-modal="true" hidden>
@@ -104,6 +132,7 @@
     <img id="celebration-art" class="celebration-art" src="/assets/art/v3/tier-5.webp" alt="Ilustrasi peringkat celebration" draggable="false">
     <div class="celebration-actual" role="status" aria-live="polite">
       <strong id="celebration-title">LUCKY COLOR WIN</strong>
+      <small id="celebration-pattern" class="celebration-pattern" hidden></small>
       <span id="celebration-amount">Kembali 0 koin</span>
       <small id="celebration-preview" class="celebration-preview" hidden>DEMO VISUAL · TIDAK ADA HADIAH</small>
     </div>
@@ -113,11 +142,15 @@
     <div class="modal-card"><div class="modal-header"><h2 id="modal-title">UNO LUCK</h2><button id="modal-close" type="button" aria-label="Tutup">×</button></div><div class="modal-content" id="modal-content"></div></div>
   </dialog>
   <script src="/assets/art/motion.js?v=8" defer></script>
-  <script src="/assets/art/ledwheel.js?v=9" defer></script>
-  <script src="/assets/art/sound.js?v=100" defer></script>
-  <script src="/assets/art/match-announce.js?v=110" defer></script>
-  <script src="/assets/art/celebrations.js?v=110" defer></script>
-  <script src="/assets/orbit.js?v=110" defer></script>
-  <script src="/assets/boot.js?v=6" defer></script>
+  <script src="/assets/art/ledwheel.js?v=1139" defer></script>
+  <script src="/assets/art/sound.js?v=1133" defer></script>
+  <script src="/assets/art/mirror-loop.js?v=1120" defer></script>
+  <script src="/assets/art/sound-studio.js?v=1144" defer></script>
+  <script src="/assets/art/match-announce.js?v=111" defer></script>
+  <script src="/assets/art/celebrations.js?v=1117" defer></script>
+  <script src="/assets/orbit.js?v=1145" defer></script>
+  <script src="/assets/pwa-update.js?v=1144" defer></script>
+  <script src="/assets/viewport-v11.js?v=1140" defer></script>
+  <script src="/assets/boot.js?v=1144" defer></script>
 </body>
 </html>

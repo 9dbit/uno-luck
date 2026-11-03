@@ -20,7 +20,7 @@ def test_approved_master_assets_unchanged_and_one_logo():
 
 def test_real_balance_label_without_changing_coin_binding():
     assert 'class="balance-readout"' in HTML
-    assert '<small>KOIN VIRTUAL</small>' in HTML
+    assert '<small>Coin</small>' in HTML
     assert HTML.count('id="wallet-balance"')==1
     assert 'balance-chip .balance-readout strong' in STYLE
 

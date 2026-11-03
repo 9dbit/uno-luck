@@ -88,6 +88,10 @@ def connection() -> sqlite3.Connection:
                 );
             """)
             INITIALIZED.add(path)
+    from .round_outbox import ensure_schema
+    ensure_schema(db)
+    from .wallet_link import ensure_schema as ensure_wallet
+    ensure_wallet(db)
     return db
 
 
@@ -117,14 +121,26 @@ def get_account(request: Request, response: Response, db: sqlite3.Connection) ->
 
     token = secrets.token_urlsafe(36)
     account_id = new_id()
-    db.execute(
-        "INSERT INTO accounts(id,token_hash,display_name,balance,created_at) VALUES(?,?,?,?,?)",
-        (account_id, token_hash(token), "Player", INITIAL_COINS, utc_timestamp()),
-    )
-    db.execute(
-        "INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)",
-        (new_id(), account_id, "welcome", INITIAL_COINS, INITIAL_COINS, utc_timestamp()),
-    )
+    owned_transaction = not db.in_transaction
+    if owned_transaction:
+        db.execute("BEGIN IMMEDIATE")
+    try:
+        db.execute(
+            "INSERT INTO accounts(id,token_hash,display_name,balance,created_at) VALUES(?,?,?,?,?)",
+            (account_id, token_hash(token), "Player", INITIAL_COINS, utc_timestamp()),
+        )
+        from .wallet_link import register_account
+        register_account(db, account_id)
+        db.execute(
+            "INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)",
+            (new_id(), account_id, "welcome", INITIAL_COINS, INITIAL_COINS, utc_timestamp()),
+        )
+        if owned_transaction:
+            db.commit()
+    except Exception:
+        if owned_transaction and db.in_transaction:
+            db.rollback()
+        raise
     # HTTPS on Railway; the browser can never read the guest token.
     secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").split(",")[0] == "https"
     response.set_cookie(COOKIE, token, httponly=True, secure=secure, samesite="lax", max_age=60 * 60 * 24 * 90, path="/")
@@ -160,8 +176,7 @@ def rules_view() -> dict:
         "refill_bonus": REFILL_COINS,
         "paytable": [{"id": "COLOR_MATCH", "description": "3 kartu memiliki warna sama", "multiplier": 2},
                      {"id": "NO_MATCH", "description": "Warna tidak semua sama", "multiplier": 0}],
-        "probability_color_match": 0.0625,
-        "note": "Empat warna dipilih secara independen dan merata. Koin demo tidak punya nilai uang.",
+        "note": "Hasil ditentukan server. Koin demo tidak punya nilai uang.",
     }
 
 
@@ -274,6 +289,8 @@ def place(request: Request, response: Response, payload: PlaceInput):
                     json.dumps(cards, separators=(",", ":")), created))
         db.execute("INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)",
                    (new_id(), account["id"], "spin:" + combo, credited_delta, balance, created))
+        from .round_outbox import capture
+        capture(db, spin_id)
         db.commit()
         response.headers["Cache-Control"] = "no-store"
         updated = db.execute("SELECT * FROM accounts WHERE id=?", (account["id"],)).fetchone()
