@@ -1,0 +1,22 @@
+name: CP16 Source Wallet Safety
+on:
+  push:
+    branches: [feat/cp16-source-wallet-20261103]
+  pull_request:
+    paths: ['app/source_wallet.py','app/spin.py','app/main.py','tests/test_source_wallet.py']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r requirements.txt pytest httpx
+      - run: python -m pytest -q
+      - name: Preserve game rules and UI
+        run: |
+          git fetch --depth=1 origin 5c060f8562aa98554f9fb064710042f07c658b40
+          git diff --exit-code 5c060f8562aa98554f9fb064710042f07c658b40 -- app/engine.py app/orbit.py app/static
