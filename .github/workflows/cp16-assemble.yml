@@ -16,7 +16,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - name: Decode hash-verified patch and apply only expected files
+      - name: Decode hash-verified patch and apply runtime files only
         run: |
           python - <<'PY'
           import base64,hashlib,pathlib,subprocess,zlib
@@ -28,20 +28,19 @@ jobs:
           allowed={'.github/workflows/cp16-wallet.yml','app/main.py','app/spin.py','app/source_wallet.py','tests/test_source_wallet.py','sources/CP16_SOURCE_WALLET.md'}
           changed={line.split(' b/',1)[1] for line in patch.decode().splitlines() if line.startswith('diff --git ')}
           assert changed==allowed,(changed,allowed)
-          subprocess.run(['git','apply','--check','-'],input=patch,check=True)
-          subprocess.run(['git','apply','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--exclude=.github/workflows/*','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--exclude=.github/workflows/*','-'],input=patch,check=True)
           subprocess.run(['git','diff','--exit-code',base,'--','app/engine.py','app/orbit.py','app/static'],check=True)
           for p in pathlib.Path('.cp16-transfer').glob('*.b64'):p.unlink()
           pathlib.Path('.cp16-source.patch.zlib.b64').unlink(missing_ok=True)
-          pathlib.Path('.github/workflows/cp16-assemble.yml').unlink()
           PY
       - run: pip install -r requirements.txt pytest httpx
       - run: python -m pytest -q
-      - name: Commit tested source without transfer/assembler
+      - name: Commit tested runtime source without transfer data
         run: |
           git config user.name '9dbit'
           git config user.email '154832153+9dbit@users.noreply.github.com'
-          git add -A
+          git add app tests sources .cp16-transfer .cp16-source.patch.zlib.b64
           git commit -m 'feat(cp16): authoritative staged source balance ledger and idempotent signed commands'
           git push origin HEAD:feat/cp16-source-wallet-20261103
           git rev-parse HEAD
