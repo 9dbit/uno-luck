@@ -19,7 +19,10 @@ jobs:
       - name: Keep original gameplay, artwork and audio byte-identical
         run: git diff --exit-code 5c060f8562aa98554f9fb064710042f07c658b40 -- app/orbit.py app/engine.py app/static app/sound_cloud.py
       - name: All source regression and wallet tests
-        run: python -m pytest -q | tee source-regression.log
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q | tee source-regression.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
