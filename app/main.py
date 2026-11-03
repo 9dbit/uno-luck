@@ -32,6 +32,8 @@ async def gameops_bridge_start():
     app.state.gameops_bridge_stop = start_bridge("uno-luck", version="1.0.0")
     from .round_outbox import start
     app.state.gameops_outbox_stop = start()
+    from .wallet_link import start as start_wallet
+    app.state.gameops_wallet_stop = start_wallet()
 
 
 @app.on_event("shutdown")
@@ -42,6 +44,9 @@ async def gameops_bridge_stop():
     stop_outbox = getattr(app.state,"gameops_outbox_stop",None)
     if stop_outbox:
         stop_outbox()
+    stop_wallet = getattr(app.state, "gameops_wallet_stop", None)
+    if stop_wallet:
+        stop_wallet()
 
 
 app.include_router(spin_router)
@@ -378,3 +383,7 @@ async def ws_game(ws: WebSocket):
             room.sockets.pop(member.id, None)
             room.last_activity = time.time()
             await broadcast(room)
+
+# CP16 isolated source wallet API, disabled by default.
+from .wallet_link import router as wallet_router
+app.include_router(wallet_router)
