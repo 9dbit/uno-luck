@@ -1,0 +1,37 @@
+name: CP16 Read-only Pilot Preflight
+on:
+  push:
+    branches: [verify/cp16-staging-pilot-20261103]
+    paths: ['.github/workflows/cp16-live-preflight.yml']
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read public health and persistent stream, no authentication or writes
+        run: |
+          python - <<'PY'
+          import json,urllib.request,uuid,pathlib,datetime
+          pilot='https://uno-game-data-pilot-staging.up.railway.app'
+          admin='https://playground-admin-production.up.railway.app'
+          def get(url):
+            with urllib.request.urlopen(url,timeout=20) as r:
+              assert r.status==200
+              return json.load(r)
+          health=get(pilot+'/health')
+          source=get(pilot+'/api/gameops/status')
+          receiver=get(admin+'/health')
+          assert source['environment']=='staging' and source['enabled'] is True
+          uuid.UUID(source['stream_id'])
+          result={'scope':'isolated_staging_pilot','readOnly':True,'adminAccountUsed':False,'source':source,'receiver':receiver,'health':health,'checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          pathlib.Path('preflight').mkdir()
+          pathlib.Path('preflight/result.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp16-live-preflight
+          path: preflight/
+          retention-days: 14
