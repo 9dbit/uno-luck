@@ -32,6 +32,8 @@ async def gameops_bridge_start():
     app.state.gameops_bridge_stop = start_bridge("uno-luck", version="1.0.0")
     from .round_outbox import start
     app.state.gameops_outbox_stop = start()
+    from .source_wallet import start as start_wallet
+    app.state.gameops_wallet_stop = start_wallet()
 
 
 @app.on_event("shutdown")
@@ -42,6 +44,9 @@ async def gameops_bridge_stop():
     stop_outbox = getattr(app.state,"gameops_outbox_stop",None)
     if stop_outbox:
         stop_outbox()
+    stop_wallet = getattr(app.state, "gameops_wallet_stop", None)
+    if stop_wallet:
+        stop_wallet()
 
 
 app.include_router(spin_router)
@@ -103,6 +108,12 @@ async def classic_home():
 async def gameops_status():
     from .round_outbox import status
     return JSONResponse(status(),headers={"Cache-Control":"no-store"})
+
+
+@app.get("/api/gameops/wallet-status", include_in_schema=False)
+def wallet_observation_status():
+    from .source_wallet import status
+    return status()
 
 
 @app.get("/health")

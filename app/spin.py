@@ -90,6 +90,8 @@ def connection() -> sqlite3.Connection:
             INITIALIZED.add(path)
     from .round_outbox import ensure_schema
     ensure_schema(db)
+    from .source_wallet import ensure_schema as ensure_wallet_schema
+    ensure_wallet_schema(db)
     return db
 
 
@@ -119,14 +121,24 @@ def get_account(request: Request, response: Response, db: sqlite3.Connection) ->
 
     token = secrets.token_urlsafe(36)
     account_id = new_id()
-    db.execute(
-        "INSERT INTO accounts(id,token_hash,display_name,balance,created_at) VALUES(?,?,?,?,?)",
-        (account_id, token_hash(token), "Player", INITIAL_COINS, utc_timestamp()),
-    )
-    db.execute(
-        "INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)",
-        (new_id(), account_id, "welcome", INITIAL_COINS, INITIAL_COINS, utc_timestamp()),
-    )
+    own_transaction = not db.in_transaction
+    if own_transaction:
+        db.execute("BEGIN IMMEDIATE")
+    try:
+        db.execute(
+            "INSERT INTO accounts(id,token_hash,display_name,balance,created_at) VALUES(?,?,?,?,?)",
+            (account_id, token_hash(token), "Player", INITIAL_COINS, utc_timestamp()),
+        )
+        db.execute(
+            "INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)",
+            (new_id(), account_id, "welcome", INITIAL_COINS, INITIAL_COINS, utc_timestamp()),
+        )
+        if own_transaction:
+            db.commit()
+    except Exception:
+        if own_transaction:
+            db.rollback()
+        raise
     # HTTPS on Railway; the browser can never read the guest token.
     secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").split(",")[0] == "https"
     response.set_cookie(COOKIE, token, httponly=True, secure=secure, samesite="lax", max_age=60 * 60 * 24 * 90, path="/")
