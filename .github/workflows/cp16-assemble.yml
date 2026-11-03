@@ -14,7 +14,7 @@ jobs:
         with: {fetch-depth: 0, ref: feat/cp16-authoritative-wallet-20261103}
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - name: Verify transferred source and exact baseline
+      - name: Verify source diff and exact baseline
         run: |
           python - <<'PY'
           import base64,zlib,hashlib,subprocess
@@ -26,22 +26,21 @@ jobs:
           data=zlib.decompress(base64.b64decode(text,validate=True))
           assert hashlib.sha256(data).hexdigest()=='a6f56d486befed6c05797000e4baebe009d90dbc7b05a7fc6e35bcb1d42b0428'
           subprocess.run(['git','diff','--exit-code','5c060f8562aa98554f9fb064710042f07c658b40','--','app','tests','sources'],check=True)
-          subprocess.run(['git','apply','--check','-'],input=data,check=True)
-          subprocess.run(['git','apply','-'],input=data,check=True)
-          hashes={'app/wallet_link.py':'06708468216d4cc828d0a1f17e020970b1c5d66b4367c6f71cca751eedfc96fb','app/spin.py':'748017b03cf80fdfa9df79acec1bb6c98e9f0e67d571ead1fc737b54373892c7','app/main.py':'c6600aa16a4e030ecdabf3fd3ddeaef8c13e7c726c9f9adc2d2fa9135e5e7d9b','tests/test_wallet_link.py':'d01191c9016ec3cb86195d6704b75b265fe879ee067b88036bfbff207d1d9d34','sources/CP16_SOURCE_WALLET.md':'da1bd3e29ea6ceba3522cea4e4b869003bdc30d34fc9a12bcc67a543abdd6983','.github/workflows/cp16-wallet.yml':'dc11d7423e6302594fd2410896d8b93ca5885d8b066dc4ccbd443e4c9810e684'}
+          subprocess.run(['git','apply','--exclude=.github/workflows/*','--check','-'],input=data,check=True)
+          subprocess.run(['git','apply','--exclude=.github/workflows/*','-'],input=data,check=True)
+          hashes={'app/wallet_link.py':'06708468216d4cc828d0a1f17e020970b1c5d66b4367c6f71cca751eedfc96fb','app/spin.py':'748017b03cf80fdfa9df79acec1bb6c98e9f0e67d571ead1fc737b54373892c7','app/main.py':'c6600aa16a4e030ecdabf3fd3ddeaef8c13e7c726c9f9adc2d2fa9135e5e7d9b','tests/test_wallet_link.py':'d01191c9016ec3cb86195d6704b75b265fe879ee067b88036bfbff207d1d9d34','sources/CP16_SOURCE_WALLET.md':'da1bd3e29ea6ceba3522cea4e4b869003bdc30d34fc9a12bcc67a543abdd6983'}
           for name,expected in hashes.items():assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           subprocess.run(['git','diff','--exit-code','5c060f8562aa98554f9fb064710042f07c658b40','--','app/orbit.py','app/engine.py','app/static','app/sound_cloud.py'],check=True)
-          print('Verified exact source files. Gameplay and static assets unchanged.')
+          print('Verified source. Gameplay and static assets unchanged.')
           PY
       - run: pip install -r requirements.txt pytest httpx
       - run: python -m pytest -q
-      - name: Commit verified source and remove temporary transfer
+      - name: Commit source files only
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           rm -rf .cp16-transfer
-          rm .github/workflows/cp16-assemble.yml
-          git add app/wallet_link.py app/spin.py app/main.py tests/test_wallet_link.py sources/CP16_SOURCE_WALLET.md .github/workflows/cp16-wallet.yml
-          git add -u .cp16-transfer .github/workflows/cp16-assemble.yml
+          git add app/wallet_link.py app/spin.py app/main.py tests/test_wallet_link.py sources/CP16_SOURCE_WALLET.md
+          git add -u .cp16-transfer
           git commit -m 'feat(cp16): verified authoritative source wallet journal and acknowledged commands'
           git push origin HEAD:feat/cp16-authoritative-wallet-20261103
