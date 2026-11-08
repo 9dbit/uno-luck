@@ -71,6 +71,14 @@ async def classic_home():
 
 @app.get("/health")
 async def health():
+    if agency.enabled():
+        try:
+            db = agency.db_open()
+            db.execute('SELECT 1')
+            db.close()
+        except Exception:
+            return JSONResponse({'ok': False, 'wallet': 'playground', 'database': 'unavailable'}, status_code=503)
+        return {'ok': True, 'game': 'UNO LUCK', 'wallet': 'playground', 'mode': 'sandbox', 'database': 'connected', 'source_commit': os.getenv('RAILWAY_GIT_COMMIT_SHA', ''), 'math': 'orbit-80-tier-v1'}
     return {"ok": True, "version": "0.6.0", "game": "UNO LUCK SPIN", "money_enabled": False, "main_mode": "spin"}
 
 

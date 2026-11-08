@@ -37,6 +37,8 @@ def validate_config():
         if not Path(path).is_absolute():
             raise RuntimeError('UNO_AGENCY_DB_PATH must point to a persistent volume')
         wallet()
+        db = db_open()
+        db.close()
 
 def wallet():
     return AgencyWallet(os.environ['AGENCY_WALLET_ORIGIN'], os.environ['AGENCY_WALLET_KEY_ID'],
@@ -264,7 +266,12 @@ def recover_due():
 
 def worker(stop):
     while not stop.wait(30):
-        recover_due()
+        try:
+            recover_due()
+        except sqlite3.Error:
+            # Do not terminate the worker on a transient volume/locking failure.
+            # Health checks will report database unavailability separately.
+            continue
 
 @router.get('/mode')
 def mode(response: Response):

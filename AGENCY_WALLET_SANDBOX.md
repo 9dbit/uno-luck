@@ -4,7 +4,7 @@ This opt-in runtime uses the Playground central wallet for the actual three-card
 
 ## Deployment
 
-Use a separate service, one Uvicorn worker and one replica, with a persistent volume mounted at `/data`. Set:
+Use a separate service with `Dockerfile.agency`, one Uvicorn worker and one replica, and a persistent volume mounted at `/data`. Set:
 
 - `AGENCY_WALLET_MODE=sandbox` (live mode is rejected on startup)
 - `UNO_AGENCY_DB_PATH=/data/agency.sqlite3`
@@ -12,7 +12,7 @@ Use a separate service, one Uvicorn worker and one replica, with a persistent vo
 - `AGENCY_WALLET_KEY_ID` and `AGENCY_WALLET_SECRET`: a server-only, game `uno-luck`, environment `sandbox` key registered in Playground
 - `PORT=8000`
 
-Start: `uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-access-log`.
+Railway start: `python -m app.agency_start`. The sandbox image sets ownership of the dedicated volume directory and drops to UID/GID 10001 before importing the app. Startup and `/health` validate the database. For local non-Railway QA use `uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --no-access-log`.
 
 `AGENCY_WALLET_LOCAL_QA=1` allows a loopback HTTP wallet for isolated tests only; never set it on Railway. Keep the volume when updating the deployment. Back up SQLite with its online backup API; do not copy only the main file while WAL transactions are active. SQLite serializes reservation/settlement requests, including network waits; this sandbox is not a horizontally scalable production runtime.
 
