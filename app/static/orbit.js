@@ -1,3 +1,4 @@
+let agencyMode=false;
 'use strict';
 /* UNO LUCK v1.1: server-picked three cards, one GPU wheel with independent transparent card assets. */
 const $ = id => document.getElementById(id);
@@ -95,7 +96,7 @@ async function api(path,method='GET',body){
   const req={method,credentials:'same-origin',headers:{}};
   if(method!=='GET'){req.headers['Content-Type']='application/json';req.headers['X-UNO-Client']='spin-ui';req.body=JSON.stringify(body??{});}
   let response;
-  try{response=await fetch('/api/orbit'+path,req);}catch(_){throw Error('Koneksi terputus. Periksa internet dan coba lagi.');}
+  try{response=await fetch((agencyMode?'/api/agency':'/api/orbit')+path,req);}catch(_){throw Error('Koneksi terputus. Periksa internet dan coba lagi.');}
   let data;try{data=await response.json();}catch(_){throw Error('Server mengirim respons tak valid.');}
   if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:`HTTP ${response.status}`);
   return data;
@@ -158,7 +159,7 @@ async function pickOne(){
   let confirmed=null;
   try {
     wheel.begin({turbo:isTurbo});
-    confirmed=await api('/pick','POST',{request_id:pending.id,stake});
+    confirmed=await api('/pick','POST',{request_id:pending.id,stake,...(agencyMode?{expected_phase:pending.expected,round_id:pending.expected>1?currentRound?.id:null}:{})});
     const phase=confirmed.round.picked;
     const card=confirmed.round.cards[phase-1];
     if(!card)throw Error('Server belum memberikan kartu terpilih');
@@ -216,9 +217,9 @@ function modalButton(parent,text,fn){const b=document.createElement('button');b.
 function closeModal(){if($('modal').open)$('modal').close();}
 async function claimDaily(){try{const x=await legacyBonus('daily');syncAccount(x.account);sfx('coin');say(`Hadiah +${idMoney(x.credited)} koin virtual`);closeModal();}catch(e){say(e.message);}}
 async function claimRefill(){try{const x=await legacyBonus('refill');syncAccount(x.account);sfx('coin');say(`Refill gratis +${idMoney(x.credited)} koin`);closeModal();}catch(e){say(e.message);}}
-function showWallet(){const area=modal('Koin Virtual');paragraph(area,`Saldo saat ini ${idMoney(account?.balance||0)} koin.`);paragraph(area,'Tidak ada deposit, penarikan tunai, jual-beli koin, atau hadiah bernilai uang.');modalButton(area,'🎁 Klaim +250 harian',claimDaily).disabled=!account?.daily_available;modalButton(area,'✦ Refill gratis +1.000',claimRefill).disabled=!account?.refill_available;}
+function showWallet(){const area=modal('Koin Virtual');paragraph(area,`Saldo saat ini ${idMoney(account?.balance||0)} koin.`);paragraph(area,agencyMode?'Sandbox: saldo berasal dari wallet Playground. Ronde yang ditinggalkan selesai otomatis setelah 15 menit. Top up dan bantuan melalui website agen.':'Tidak ada deposit, penarikan tunai, jual-beli koin, atau hadiah bernilai uang.');modalButton(area,'🎁 Klaim +250 harian',claimDaily).disabled=!account?.daily_available;modalButton(area,'✦ Refill gratis +1.000',claimRefill).disabled=!account?.refill_available;}
 async function showHistory(){const area=modal('Riwayat Ronde');try{const x=await api('/state');const list=x.recent||[];if(!list.length)paragraph(area,'Belum ada ronde selesai.');for(const item of list){const row=document.createElement('div');row.className='history-line';row.textContent=`${item.tier?.title||(item.combo==='COLOR_MATCH'?'LUCKY COLOR WIN':'NO MATCH')} · Biaya ${idMoney(item.stake)} · ${item.delta>=0?'+':''}${idMoney(item.delta)} koin`;area.append(row);}}catch(e){paragraph(area,e.message);}}
-function showRules(){const area=modal('Aturan UNO LUCK Color Match');paragraph(area,'Satu ronde memiliki tiga SPIN: kartu kiri, tengah, lalu kanan. Kartu yang terpilih adalah kartu tepat di posisi tengah atas carousel saat berhenti.');paragraph(area,'Biaya ronde hanya dipotong sekali pada SPIN pertama. Tiga warna sama memenangkan salah satu bonus 2×, 10×, 30×, 80×, atau 200× setelah SPIN ketiga.');paragraph(area,'Peluang Color Match 80% per ronde, NO MATCH 20%. Dari ronde menang: Rank 1 0,01%; Rank 2 0,09%; Rank 3 0,4%; Rank 4 3%; Rank 5 96,5%. Semua hasil independen dari putaran sebelumnya; tidak ada jaminan jackpot berdasarkan jumlah cycle.');paragraph(area,'Angka kartu, Reverse, Skip dan +2 hanya simbol dalam mode ini. AUTO hingga 10 ronde dan TURBO hanya mengubah kecepatan animasi, bukan peluang menang.');paragraph(area,'Semua koin virtual tidak memiliki nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat membatasi payout yang benar-benar dikreditkan. Peluang tinggi dan bonus besar berarti ekonomi koin gratis dapat terus bertambah.');}
+function showRules(){const area=modal('Aturan UNO LUCK Color Match');paragraph(area,'Satu ronde memiliki tiga SPIN: kartu kiri, tengah, lalu kanan. Kartu yang terpilih adalah kartu tepat di posisi tengah atas carousel saat berhenti.');paragraph(area,'Biaya ronde hanya dipotong sekali pada SPIN pertama. Tiga warna sama memenangkan salah satu bonus 2×, 10×, 30×, 80×, atau 200× setelah SPIN ketiga.');paragraph(area,'Peluang Color Match 80% per ronde, NO MATCH 20%. Dari ronde menang: Rank 1 0,01%; Rank 2 0,09%; Rank 3 0,4%; Rank 4 3%; Rank 5 96,5%. Semua hasil independen dari putaran sebelumnya; tidak ada jaminan jackpot berdasarkan jumlah cycle.');paragraph(area,'Angka kartu, Reverse, Skip dan +2 hanya simbol dalam mode ini. AUTO hingga 10 ronde dan TURBO hanya mengubah kecepatan animasi, bukan peluang menang.');paragraph(area,agencyMode?'Mode sandbox Playground: saldo, stake dan payout dicatat di wallet pusat; tidak ada batas saldo lokal atau refill gratis. Ronde yang ditinggalkan diselesaikan otomatis setelah 15 menit berdasarkan hasil tersimpan.':'Semua koin virtual tidak memiliki nilai uang dan tidak dapat dibeli atau dicairkan. Batas saldo 1.000.000 koin dapat membatasi payout yang benar-benar dikreditkan. Peluang tinggi dan bonus besar berarti ekonomi koin gratis dapat terus bertambah.');}
 function showStakeChoices(){const area=modal('Biaya SPIN');paragraph(area,'Pilih biaya satu ronde tiga SPIN. Perubahan hanya dapat dilakukan sebelum ronde dimulai.');for(const [i,cost] of STAKES.entries()){const btn=modalButton(area,`${cost===STAKES[stakeIndex]?'✓ ':''}${idMoney(cost)} koin`,()=>{stakeIndex=i;paintRound(null,true);updateButtons();closeModal();say(`Biaya ronde berikutnya ${idMoney(cost)} koin.`);});btn.disabled=!!currentRound;}}
 function showCelebrationGallery(){
   const area=modal('Galeri Celebration · Demo Visual');
@@ -250,7 +251,7 @@ function showSoundVolume(){
   }
 }
 function showMenu(){const area=modal('Menu UNO LUCK');modalButton(area,'Aturan & Peluang 80%',showRules);modalButton(area,'Biaya SPIN: '+idMoney(currentRound?.stake??STAKES[stakeIndex]),showStakeChoices);modalButton(area,'Riwayat Ronde',showHistory);modalButton(area,'Galeri 5 Celebration (demo)',showCelebrationGallery);modalButton(area,'Volume Efek Suara',showSoundVolume);modalButton(area,'Tes Suara Meriah',testSound);modalButton(area,'Koin Virtual',showWallet);modalButton(area,musicEnabled?'Matikan musik':'Nyalakan musik',()=>{musicEnabled=!musicEnabled;localStorage.setItem(MUTE_MUSIC,musicEnabled?'on':'off');if(!musicEnabled)stopMusic();else unlockAudio();closeModal();});modalButton(area,sfxEnabled?'Matikan efek suara':'Nyalakan efek suara',()=>{sfxEnabled=!sfxEnabled;localStorage.setItem(MUTE_EFFECTS,sfxEnabled?'on':'off');window.UNOLuckSound?.setEnabled(sfxEnabled);if(sfxEnabled)unlockAudio().then(()=>sfx('tap'));closeModal();});paragraph(area,'UNO LUCK v1.1 · staging · hadiah virtual tanpa nilai tunai.');}
-function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
+function showProfile(){if(agencyMode){const area=modal('Profil Playground');paragraph(area,'Profil dan keamanan akun dikelola dari website agen.');return;}const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 async function loadState(quiet=false){
   try{const data=await api('/state');syncAccount(data.account);currentRound=data.round;
     if(data.round){paintRound(data.round);}else if(data.recent?.length){const lastSpin=data.recent[0];last={...lastSpin,complete:true,picked:3};paintRound(last);}else paintRound(null,true);
@@ -281,4 +282,22 @@ function listeners(){
   document.addEventListener('touchend',activate,{passive:true,capture:true});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){stopMusic();if(isAuto)cancelAuto=true;}else startMusic();});
 }
-resetRing();listeners();window.UNOLuckSound?.setEnabled(sfxEnabled);loadState();
+async function bootstrapAgency(){
+  const params=new URLSearchParams(location.hash.slice(1));
+  const launch=params.get('playground_launch');
+  if(launch){sessionStorage.setItem('unoAgencyLaunch',launch);params.delete('playground_launch');history.replaceState(null,'',location.pathname+location.search+(params.size?'#'+params:''));}
+  try{
+    const mode=await fetch('/api/agency/mode',{credentials:'same-origin'}).then(r=>r.json());
+    agencyMode=mode.agency===true;
+    if(agencyMode){$('wallet-balance').textContent='—';document.querySelector('.balance-readout small').textContent='PLAYGROUND · SANDBOX';$('gift-btn').title='Hadiah dikelola dari website agen';}
+    const pending=sessionStorage.getItem('unoAgencyLaunch');
+    if(pending){
+      if(!agencyMode)throw Error('Game ini belum terhubung ke wallet agen. Kembali ke website agen.');
+      const r=await fetch('/api/agency/launch',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({token:pending})});
+      const body=await r.json();if(!r.ok){if(r.status<500&&r.status!==429)sessionStorage.removeItem('unoAgencyLaunch');throw Error(body.detail||'Launch gagal.');}
+      sessionStorage.removeItem('unoAgencyLaunch');
+    }
+    await loadState();
+  }catch(e){$('connection-status').textContent='OFFLINE';say(e.message);}
+}
+resetRing();listeners();window.UNOLuckSound?.setEnabled(sfxEnabled);bootstrapAgency();

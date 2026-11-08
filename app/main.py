@@ -14,7 +14,21 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from contextlib import asynccontextmanager
+import threading
+from . import agency
+
+@asynccontextmanager
+async def lifespan(app):
+    agency.validate_config()
+    stop = threading.Event()
+    if agency.enabled():
+        thread = threading.Thread(target=agency.worker, args=(stop,), daemon=True)
+        thread.start()
+    yield
+    stop.set()
+
 from fastapi.staticfiles import StaticFiles
 
 from .engine import COLORS, RuleError, UnoGame
@@ -22,7 +36,18 @@ from .spin import router as spin_router
 from .orbit import router as orbit_router
 
 APP_ROOT = Path(__file__).resolve().parent
-app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
+app.include_router(agency.router)
+
+@app.middleware("http")
+async def isolate_agency_wallet(request, call_next):
+    if agency.enabled() and (request.url.path.startswith(('/api/spin', '/api/orbit')) or request.url.path in ('/classic','/spin-legacy')):
+        return JSONResponse({'detail': 'Mode agen memakai wallet Playground. Fitur saldo demo lokal dinonaktifkan.'}, status_code=403)
+    response = await call_next(request)
+    if request.url.path.startswith('/api/agency'):
+        response.headers['Cache-Control'] = 'no-store'
+    return response
+
 app.include_router(spin_router)
 app.include_router(orbit_router)
 app.mount("/assets", StaticFiles(directory=APP_ROOT / "static"), name="assets")
@@ -46,6 +71,14 @@ async def classic_home():
 
 @app.get("/health")
 async def health():
+    if agency.enabled():
+        try:
+            db = agency.db_open()
+            db.execute('SELECT 1')
+            db.close()
+        except Exception:
+            return JSONResponse({'ok': False, 'wallet': 'playground', 'database': 'unavailable'}, status_code=503)
+        return {'ok': True, 'game': 'UNO LUCK', 'wallet': 'playground', 'mode': 'sandbox', 'database': 'connected', 'source_commit': os.getenv('RAILWAY_GIT_COMMIT_SHA', ''), 'math': 'orbit-80-tier-v1'}
     return {"ok": True, "version": "0.6.0", "game": "UNO LUCK SPIN", "money_enabled": False, "main_mode": "spin"}
 
 
