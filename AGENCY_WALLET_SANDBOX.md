@@ -4,7 +4,7 @@ This opt-in runtime uses the Playground central wallet for the actual three-card
 
 ## Deployment
 
-Use a separate service with `Dockerfile.agency`, one Uvicorn worker and one replica, and a persistent volume mounted at `/data`. Set:
+Use a separate service with the default `Dockerfile`, which drops privileges before serving both guest and sandbox modes. The optional `Dockerfile.agency` is sandbox-only. Run one Uvicorn worker and one replica, and a persistent volume mounted at `/data`. Set:
 
 - `AGENCY_WALLET_MODE=sandbox` (live mode is rejected on startup)
 - `UNO_AGENCY_DB_PATH=/data/agency.sqlite3`
@@ -28,7 +28,7 @@ A background worker checks every 30 seconds. Rounds abandoned for 15 minutes set
 
 ## Validation
 
-- 117 pytest tests pass, including pre-existing guest tests and 11 native scenarios: duplicate payloads, unknown responses after central commit, concurrent clicks, restart/new launch, cross-tenant isolation, precision, denied guest APIs, settlement on abandonment and live-mode rejection.
+- 118 pytest tests pass, including pre-existing guest tests and 11 native scenarios: duplicate payloads, unknown responses after central commit, concurrent clicks, restart/new launch, cross-tenant isolation, precision, denied guest APIs, settlement on abandonment and live-mode rejection.
 - Playground `tests/agency-native-uno.cjs` runs the real FastAPI server, signed central API and SQLite with Chromium at 393×852. It restarts the game server after card one, completes the same round and checks the central settlement journal and reconciliation.
 - Run from Playground with `UNO_NATIVE_PATH=/path/to/uno-luck NATIVE_PYTHON=/path/to/venv/bin/python npm run test:agency`.
 - Tests use disposable balances and PGlite. They do not transfer money, mutate customer wallets or certify external payment settlement.
