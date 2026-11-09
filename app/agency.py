@@ -18,6 +18,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field, StrictInt
 from .agency_wallet import AgencyWallet, AgencyWalletError
+from .native_locks import operation_lock, active_lock_count
 from .deployment_identity import open_bound_database, public_identity, canonical_path, requested_identity, require_play, validate_redeemed, cookie_value, runtime_health
 
 router = APIRouter(prefix='/api/agency', tags=['Soft Tech sandbox'])
@@ -141,7 +142,15 @@ def row_get(db, rid):
     return db.execute('SELECT * FROM agency_rounds WHERE id=?', (rid,)).fetchone()
 
 def advance(db, rid):
-    """Called with SQLite write lock, AFTER the durable intent was committed.
+    if db.in_transaction:
+        raise RuntimeError('Native wallet callbacks require a committed intent')
+    row = row_get(db, rid)
+    if not row: raise HTTPException(404, 'Ronde tidak tersedia')
+    with operation_lock('player:' + row['actor']), operation_lock('round:' + rid):
+        return _advance_unlocked(db, rid)
+
+def _advance_unlocked(db, rid):
+    """Called with a per-round process lock, AFTER the durable intent was committed.
     No response may reveal cards until reserve is confirmed. An unknown response
     leaves the same intent for retry; no local refund or second outcome exists.
     """
@@ -189,17 +198,16 @@ def state(request, response):
     db = db_open()
     try:
         s, actor = session(db, request)
-        db.execute('BEGIN IMMEDIATE')
-        row = active(db, actor)
-        if row:
-            row = advance(db, row['id'])
-        db.commit()
-        hist = db.execute("SELECT * FROM agency_rounds WHERE actor=? AND state='settled' ORDER BY created_at DESC LIMIT 8", (actor,)).fetchall()
-        rules = orbit.public_rules() | {'coin_cap': None, 'wallet': 'soft-tech', 'abandonment_seconds': DEADLINE,
-           'note': 'Sandbox Soft Tech: satu biaya untuk tiga kartu. Ronde yang ditinggalkan diselesaikan otomatis setelah 15 menit dengan hasil tersimpan. Tidak ada refill lokal. Saldo dan batas mengikuti Soft Tech.'}
-        response.headers['Cache-Control'] = 'no-store'
-        return {'account': snapshot(db, s, actor), 'round': view_round(row) if row and row['state'] != 'settled' else None,
-                'recent': [view_round(r) for r in hist], 'rules': rules}
+        with operation_lock('player:' + actor):
+            row = active(db, actor)
+            if row:
+                row = advance(db, row['id'])
+            hist = db.execute("SELECT * FROM agency_rounds WHERE actor=? AND state='settled' ORDER BY created_at DESC LIMIT 8", (actor,)).fetchall()
+            rules = orbit.public_rules() | {'coin_cap': None, 'wallet': 'soft-tech', 'abandonment_seconds': DEADLINE,
+               'note': 'Sandbox Soft Tech: satu biaya untuk tiga kartu. Ronde yang ditinggalkan diselesaikan otomatis setelah 15 menit dengan hasil tersimpan. Tidak ada refill lokal. Saldo dan batas mengikuti Soft Tech.'}
+            response.headers['Cache-Control'] = 'no-store'
+            return {'account': snapshot(db, s, actor), 'round': view_round(row) if row and row['state'] != 'settled' else None,
+                    'recent': [view_round(r) for r in hist], 'rules': rules}
     finally:
         db.close()
 
@@ -221,51 +229,48 @@ def pick(request, response, payload):
     db = db_open()
     try:
         s, actor = session(db, request)
-        db.execute('BEGIN IMMEDIATE')
-        duplicate = db.execute('SELECT * FROM agency_requests WHERE actor=? AND request_id=?', (actor, p.request_id)).fetchone()
-        if duplicate:
-            if duplicate['stake'] != p.stake or duplicate['phase'] != p.expected_phase or (p.expected_phase > 1 and p.round_id != duplicate['round_id']):
-                raise HTTPException(409, 'Idempotency key digunakan dengan payload berbeda')
-            rid, phase = duplicate['round_id'], duplicate['phase']
-        else:
-            r = active(db, actor)
-            if r:
-                if r['state'] != 'reserved' or p.expected_phase != r['picked'] + 1 or p.round_id != r['id'] or p.stake != r['stake']:
-                    raise HTTPException(409, 'Ronde berubah. Muat ulang dan lanjutkan ronde tersimpan.')
-                rid, phase = r['id'], p.expected_phase
-                db.execute('UPDATE agency_rounds SET picked=?,state=? WHERE id=?', (phase, 'settling' if phase == 3 else 'reserved', rid))
+        with operation_lock('player:' + actor):
+            db.execute('BEGIN IMMEDIATE')
+            duplicate = db.execute('SELECT * FROM agency_requests WHERE actor=? AND request_id=?', (actor, p.request_id)).fetchone()
+            if duplicate:
+                if duplicate['stake'] != p.stake or duplicate['phase'] != p.expected_phase or (p.expected_phase > 1 and p.round_id != duplicate['round_id']):
+                    raise HTTPException(409, 'Idempotency key digunakan dengan payload berbeda')
+                rid, phase = duplicate['round_id'], duplicate['phase']
             else:
-                if p.expected_phase != 1 or p.round_id:
-                    raise HTTPException(409, 'Tidak ada ronde yang menunggu fase ini')
-                cards = orbit.choose_cards()
-                tier = orbit.classify_rank(cards)
-                combo = 'COLOR_MATCH' if tier is not None else 'NO_MATCH'
-                payout = p.stake * orbit.CELEBRATIONS[tier]['multiplier'] if tier else 0
-                rid, phase = 'uno-' + secrets.token_hex(24), 1
-                db.execute('INSERT INTO agency_rounds(id,actor,session_json,stake,cards_json,combo,tier,payout,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-                    (rid, actor, json.dumps(s), p.stake, json.dumps(cards, separators=(',', ':')), combo, tier, payout, time.time()))
-            db.execute('INSERT INTO agency_requests VALUES(?,?,?,?,?)', (actor, p.request_id, rid, phase, p.stake))
-        # Critical boundary: record outcome and requested phase before networking.
-        db.commit()
-        db.execute('BEGIN IMMEDIATE')
-        r = advance(db, rid)
-        db.commit()
-        response.headers['Cache-Control'] = 'no-store'
-        return {'round': view_round(r, phase), 'account': snapshot(db, s, actor), 'replayed': bool(duplicate)}
+                r = active(db, actor)
+                if r:
+                    if r['state'] != 'reserved' or p.expected_phase != r['picked'] + 1 or p.round_id != r['id'] or p.stake != r['stake']:
+                        raise HTTPException(409, 'Ronde berubah. Muat ulang dan lanjutkan ronde tersimpan.')
+                    rid, phase = r['id'], p.expected_phase
+                    db.execute('UPDATE agency_rounds SET picked=?,state=? WHERE id=?', (phase, 'settling' if phase == 3 else 'reserved', rid))
+                else:
+                    if p.expected_phase != 1 or p.round_id:
+                        raise HTTPException(409, 'Tidak ada ronde yang menunggu fase ini')
+                    cards = orbit.choose_cards()
+                    tier = orbit.classify_rank(cards)
+                    combo = 'COLOR_MATCH' if tier is not None else 'NO_MATCH'
+                    payout = p.stake * orbit.CELEBRATIONS[tier]['multiplier'] if tier else 0
+                    rid, phase = 'uno-' + secrets.token_hex(24), 1
+                    db.execute('INSERT INTO agency_rounds(id,actor,session_json,stake,cards_json,combo,tier,payout,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
+                        (rid, actor, json.dumps(s), p.stake, json.dumps(cards, separators=(',', ':')), combo, tier, payout, time.time()))
+                db.execute('INSERT INTO agency_requests VALUES(?,?,?,?,?)', (actor, p.request_id, rid, phase, p.stake))
+            # Critical boundary: record outcome and requested phase before networking.
+            db.commit()
+            r = advance(db, rid)
+            response.headers['Cache-Control'] = 'no-store'
+            return {'round': view_round(r, phase), 'account': snapshot(db, s, actor), 'replayed': bool(duplicate)}
     finally:
         db.close()
 
 def recover_due():
-    """Single replica worker; safe with concurrent browser retries via SQLite lock."""
+    """Single replica worker shares per-round locks with browser retries."""
     if os.getenv('AGENCY_ENVIRONMENT', 'sandbox') == 'production': return
     db = db_open()
     try:
         ids = [r['id'] for r in db.execute("SELECT id FROM agency_rounds WHERE state NOT IN ('settled','failed') AND created_at<? LIMIT 20", (time.time()-DEADLINE,))]
         for rid in ids:
             try:
-                db.execute('BEGIN IMMEDIATE')
                 advance(db, rid)
-                db.commit()
             except Exception:
                 if db.in_transaction:
                     db.rollback()
