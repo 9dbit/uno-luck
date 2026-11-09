@@ -18,5 +18,5 @@ if [ -n "${UNO_SOUND_STORAGE_DIR:-}" ]; then
   echo "[UNO SOUND] Persistent volume directories prepared"
 fi
 
-# Drop privileges before reading any app data or serving public traffic.
+# Start backup loop as non-root in the same volume-owning service; opt-in only.\nif [ "${ENGINE_BACKUP_ENABLED:-false}" = "true" ]; then\n  runuser -u runner -- python /app/scripts/native_backup_loop.py --database "${UNO_AGENCY_DB_PATH:?}" --game uno &\nfi\n\n# Drop privileges before reading any app data or serving public traffic.
 exec runuser -u runner -- uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8080}"
