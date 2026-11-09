@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from . import agency
 from .agency_wallet import transport_metrics
-from .native_observability import thread_limiter_health
+from .native_observability import thread_limiter_health, phase_health, NativePhaseMiddleware
 ROOT=Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app):
@@ -34,6 +34,9 @@ app.mount('/assets',StaticFiles(directory=ROOT/'static'),name='assets')
 @app.middleware('http')
 async def headers(req,next):
     r=await next(req);r.headers.update({'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY'});return r
+app.add_middleware(NativePhaseMiddleware, routes={
+    ('GET', '/api/agency/state'): 'state',
+    ('POST', '/api/agency/pick'): 'request_unclassified'})
 @app.get('/')
 async def home():
     html=(ROOT/'static/orbit-index.html').read_text()
@@ -44,7 +47,7 @@ async def home():
 @app.get('/health')
 async def health(limiter_health: dict = Depends(thread_limiter_health)):
     db=agency.db_open();db.execute('SELECT 1');db.close()
-    return {**agency.runtime_health(),**limiter_health,'callback_transport':transport_metrics(),'pending_operation_locks':agency.active_lock_count(),'ok':True,'provider':'soft-tech','game':'UNO LUCK','version':'provider-v1','environment':os.getenv('AGENCY_ENVIRONMENT','sandbox'),'deployment_identity':agency.public_identity('uno-luck',os.environ['UNO_AGENCY_DB_PATH']),'database':'connected','source_commit':os.getenv('RAILWAY_GIT_COMMIT_SHA',''),'math_sha256':hashlib.sha256((ROOT/'orbit.py').read_bytes()).hexdigest()}
+    return {**agency.runtime_health(),**limiter_health,**phase_health(),'callback_transport':transport_metrics(),'pending_operation_locks':agency.active_lock_count(),'ok':True,'provider':'soft-tech','game':'UNO LUCK','version':'provider-v1','environment':os.getenv('AGENCY_ENVIRONMENT','sandbox'),'deployment_identity':agency.public_identity('uno-luck',os.environ['UNO_AGENCY_DB_PATH']),'database':'connected','source_commit':os.getenv('RAILWAY_GIT_COMMIT_SHA',''),'math_sha256':hashlib.sha256((ROOT/'orbit.py').read_bytes()).hexdigest()}
 @app.get('/health/backup')
 async def backup_health():
     from scripts.native_backup_status import backup_health as read_backup_health

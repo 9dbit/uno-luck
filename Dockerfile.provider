@@ -4,6 +4,6 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
-COPY scripts/native_backup.py scripts/native_backup_loop.py scripts/native_backup_status.py scripts/native_retention.py ./scripts/
+COPY scripts/native_backup.py scripts/native_backup_loop.py scripts/native_backup_status.py scripts/native_retention.py scripts/native_volume.py ./scripts/
 EXPOSE 8080
 CMD ["uvicorn", "app.provider_main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log"]

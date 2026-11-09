@@ -19,6 +19,9 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field, StrictInt
 from .agency_wallet import AgencyWallet, AgencyWalletError
 from .native_locks import operation_lock, active_lock_count
+from .native_observability import (phase as phase_span, phase_call, measured, measured_lock,
+    begin_immediate, commit_db, execute_write, close_db, classify_operation,
+    classify_replay_state, recovery_operation, run_observed, CALLBACK_PHASES)
 from .deployment_identity import initialize_bound_database, open_bound_database, public_identity, canonical_path, requested_identity, require_play, validate_redeemed, cookie_value, runtime_health
 
 router = APIRouter(prefix='/api/agency', tags=['Soft Tech sandbox'])
@@ -49,14 +52,15 @@ def wallet():
     return AgencyWallet(os.environ['AGENCY_WALLET_ORIGIN'], os.environ['AGENCY_WALLET_KEY_ID'],
                         os.environ['AGENCY_WALLET_SECRET'], allow_local=os.getenv('AGENCY_WALLET_LOCAL_QA') == '1')
 
+@measured('db_open_total')
 def db_open(*, initialize=False):
     path = canonical_path(os.environ['UNO_AGENCY_DB_PATH'])
     os.environ['UNO_AGENCY_DB_PATH'] = path
     opener = initialize_bound_database if initialize else open_bound_database
-    db = opener(path, 'uno-luck')
+    db = phase_call('open_bound_total', opener, path, 'uno-luck')
     db.row_factory = sqlite3.Row
-    db.execute('PRAGMA foreign_keys=ON')
-    db.execute('PRAGMA busy_timeout=30000')
+    phase_call('connection_pragmas', db.execute, 'PRAGMA foreign_keys=ON')
+    phase_call('connection_pragmas', db.execute, 'PRAGMA busy_timeout=30000')
     with SCHEMA_LOCK:
         if path not in _initialized:
             db.execute('PRAGMA journal_mode=WAL')
@@ -92,12 +96,13 @@ def guard(request):
         raise HTTPException(403, 'Unsupported client')
 
 def remote(action, payload):
-    try:
-        return wallet().request(action, payload)
-    except AgencyWalletError:
-        raise
-    except Exception:
-        raise HTTPException(503, 'Koneksi wallet terputus. Ulangi permintaan yang sama; hasil ronde tetap tersimpan.') from None
+    with phase_span(CALLBACK_PHASES.get(action)):
+        try:
+            return wallet().request(action, payload)
+        except AgencyWalletError:
+            raise
+        except Exception:
+            raise HTTPException(503, 'Koneksi wallet terputus. Ulangi permintaan yang sama; hasil ronde tetap tersimpan.') from None
 
 class LaunchInput(BaseModel):
     token: str = Field(min_length=30, max_length=120, pattern=r'^[A-Za-z0-9_-]+$')
@@ -129,6 +134,7 @@ def launch(request: Request, response: Response, payload: LaunchInput):
     finally:
         db.close()
 
+@measured('session_validation')
 def session(db, request):
     require_play()
     raw = request.cookies.get(COOKIE, '')
@@ -149,7 +155,8 @@ def advance(db, rid):
         raise RuntimeError('Native wallet callbacks require a committed intent')
     row = row_get(db, rid)
     if not row: raise HTTPException(404, 'Ronde tidak tersedia')
-    with operation_lock('player:' + row['actor']), operation_lock('round:' + rid):
+    classify_replay_state(row['state'], row['state'] == 'settled' and row['picked'] == 3)
+    with measured_lock('player_lock_acquire', operation_lock('player:' + row['actor'])), measured_lock('round_lock_acquire', operation_lock('round:' + rid)):
         return _advance_unlocked(db, rid)
 
 def _advance_unlocked(db, rid):
@@ -169,10 +176,10 @@ def _advance_unlocked(db, rid):
             # A definitive rejection cannot have created this identical reserve.
             # Unknown transport/5xx errors remain pending, including lost responses.
             if 400 <= exc.status < 500 and exc.status not in (408, 429):
-                db.execute("UPDATE agency_rounds SET state='failed',error_status=? WHERE id=?", (exc.status, rid))
-                db.commit()
+                execute_write('autocommit_failure_execute', db, "UPDATE agency_rounds SET state='failed',error_status=? WHERE id=?", (exc.status, rid))
+                commit_db(db)
             raise HTTPException(exc.status if exc.status < 500 else 503, 'Reservasi wallet belum berhasil. Periksa saldo, sesi dan risk pool agen.') from None
-        db.execute("UPDATE agency_rounds SET central_id=?,state='reserved',picked=1 WHERE id=?", (central['id'], rid))
+        execute_write('autocommit_result_execute', db, "UPDATE agency_rounds SET central_id=?,state='reserved',picked=1 WHERE id=?", (central['id'], rid))
         r = row_get(db, rid)
     if r['state'] in ('reserved', 'settling') and (r['picked'] == 3 or time.time() >= r['created_at'] + DEADLINE):
         try:
@@ -180,19 +187,22 @@ def _advance_unlocked(db, rid):
                              'evidence': 'uno-orbit-agency-v1:' + sha(r['cards_json'] + ':' + str(r['tier']) + ':' + str(r['stake']))})
         except AgencyWalletError:
             raise HTTPException(503, 'Settlement menunggu rekonsiliasi wallet; hasil ronde sudah tersimpan.') from None
-        db.execute("UPDATE agency_rounds SET state='settled',picked=3,finished_at=? WHERE id=?", (time.time(), rid))
+        execute_write('autocommit_result_execute', db, "UPDATE agency_rounds SET state='settled',picked=3,finished_at=? WHERE id=?", (time.time(), rid))
     return row_get(db, rid)
 
+@measured('history_read')
 def active(db, actor):
     # Match the existing partial-index predicate so SQLite can use its actor key.
     return db.execute("SELECT * FROM agency_rounds WHERE actor=? AND state NOT IN ('failed','settled') ORDER BY created_at LIMIT 1", (actor,)).fetchone()
 
+@measured('response_assembly_inclusive')
 def snapshot(db, s, actor):
     try:
         balance = remote('status', {'tenant_id': s['tenant_id'], 'session_id': s['session_id']})
     except AgencyWalletError:
         raise HTTPException(503, 'Saldo pusat belum tersedia. Coba kembali tanpa mengulangi ronde baru.') from None
-    count = db.execute("SELECT count(*) n,sum(CASE WHEN payout>0 THEN 1 ELSE 0 END) wins FROM agency_rounds WHERE actor=? AND state='settled'", (actor,)).fetchone()
+    with phase_span('history_read'):
+        count = db.execute("SELECT count(*) n,sum(CASE WHEN payout>0 THEN 1 ELSE 0 END) wins FROM agency_rounds WHERE actor=? AND state='settled'", (actor,)).fetchone()
     return {'id': sha(actor), 'name': 'Player Soft Tech', 'balance': int(balance['balance']) / (10**s['coin_scale']), 'reserved': int(balance['reserved']) / (10**s['coin_scale']),
             'spins': count['n'], 'wins': count['wins'] or 0, 'level': 1, 'daily_available': False, 'refill_available': False,
             'wallet': 'soft-tech', 'simulation': True}
@@ -202,18 +212,19 @@ def state(request, response):
     db = db_open()
     try:
         s, actor = session(db, request)
-        with operation_lock('player:' + actor):
+        with measured_lock('player_lock_acquire', operation_lock('player:' + actor)):
             row = active(db, actor)
             if row:
                 row = advance(db, row['id'])
-            hist = db.execute("SELECT * FROM agency_rounds WHERE actor=? AND state='settled' ORDER BY created_at DESC LIMIT 8", (actor,)).fetchall()
+            with phase_span('history_read'):
+                hist = db.execute("SELECT * FROM agency_rounds WHERE actor=? AND state='settled' ORDER BY created_at DESC LIMIT 8", (actor,)).fetchall()
             rules = orbit.public_rules() | {'coin_cap': None, 'wallet': 'soft-tech', 'abandonment_seconds': DEADLINE,
                'note': 'Sandbox Soft Tech: satu biaya untuk tiga kartu. Ronde yang ditinggalkan diselesaikan otomatis setelah 15 menit dengan hasil tersimpan. Tidak ada refill lokal. Saldo dan batas mengikuti Soft Tech.'}
             response.headers['Cache-Control'] = 'no-store'
             return {'account': snapshot(db, s, actor), 'round': view_round(row) if row and row['state'] != 'settled' else None,
                     'recent': [view_round(r) for r in hist], 'rules': rules}
     finally:
-        db.close()
+        close_db(db)
 
 class PickInput(BaseModel):
     request_id: str = Field(min_length=12, max_length=80, pattern=r'^[A-Za-z0-9_-]+$')
@@ -230,57 +241,62 @@ def pick(request, response, payload):
         raise HTTPException(422, 'request_id, stake dan fase ronde harus valid') from None
     if p.stake not in spin.COSTS:
         raise HTTPException(422, 'Biaya SPIN tidak valid')
+    classify_operation(('pick1', 'pick2', 'pick3')[p.expected_phase - 1])
     db = db_open()
     try:
         s, actor = session(db, request)
-        with operation_lock('player:' + actor):
-            db.execute('BEGIN IMMEDIATE')
+        with measured_lock('player_lock_acquire', operation_lock('player:' + actor)):
+            begin_immediate(db)
             duplicate = db.execute('SELECT * FROM agency_requests WHERE actor=? AND request_id=?', (actor, p.request_id)).fetchone()
             if duplicate:
                 if duplicate['stake'] != p.stake or duplicate['phase'] != p.expected_phase or (p.expected_phase > 1 and p.round_id != duplicate['round_id']):
                     raise HTTPException(409, 'Idempotency key digunakan dengan payload berbeda')
                 rid, phase = duplicate['round_id'], duplicate['phase']
+                classify_operation('replay_pending')
             else:
                 r = active(db, actor)
                 if r:
                     if r['state'] != 'reserved' or p.expected_phase != r['picked'] + 1 or p.round_id != r['id'] or p.stake != r['stake']:
                         raise HTTPException(409, 'Ronde berubah. Muat ulang dan lanjutkan ronde tersimpan.')
                     rid, phase = r['id'], p.expected_phase
-                    db.execute('UPDATE agency_rounds SET picked=?,state=? WHERE id=?', (phase, 'settling' if phase == 3 else 'reserved', rid))
+                    execute_write('autocommit_intent_execute', db, 'UPDATE agency_rounds SET picked=?,state=? WHERE id=?', (phase, 'settling' if phase == 3 else 'reserved', rid))
                 else:
                     if p.expected_phase != 1 or p.round_id:
                         raise HTTPException(409, 'Tidak ada ronde yang menunggu fase ini')
-                    cards = orbit.choose_cards()
-                    tier = orbit.classify_rank(cards)
-                    combo = 'COLOR_MATCH' if tier is not None else 'NO_MATCH'
-                    payout = p.stake * orbit.CELEBRATIONS[tier]['multiplier'] if tier else 0
-                    rid, phase = 'uno-' + secrets.token_hex(24), 1
-                    db.execute('INSERT INTO agency_rounds(id,actor,session_json,stake,cards_json,combo,tier,payout,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
+                    with phase_span('local_prepare'):
+                        cards = orbit.choose_cards()
+                        tier = orbit.classify_rank(cards)
+                        combo = 'COLOR_MATCH' if tier is not None else 'NO_MATCH'
+                        payout = p.stake * orbit.CELEBRATIONS[tier]['multiplier'] if tier else 0
+                        rid, phase = 'uno-' + secrets.token_hex(24), 1
+                    execute_write('autocommit_intent_execute', db, 'INSERT INTO agency_rounds(id,actor,session_json,stake,cards_json,combo,tier,payout,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
                         (rid, actor, json.dumps(s), p.stake, json.dumps(cards, separators=(',', ':')), combo, tier, payout, time.time()))
-                db.execute('INSERT INTO agency_requests VALUES(?,?,?,?,?)', (actor, p.request_id, rid, phase, p.stake))
+                execute_write('autocommit_intent_execute', db, 'INSERT INTO agency_requests VALUES(?,?,?,?,?)', (actor, p.request_id, rid, phase, p.stake))
             # Critical boundary: record outcome and requested phase before networking.
-            db.commit()
+            commit_db(db)
             r = advance(db, rid)
             response.headers['Cache-Control'] = 'no-store'
             return {'round': view_round(r, phase), 'account': snapshot(db, s, actor), 'replayed': bool(duplicate)}
     finally:
-        db.close()
+        close_db(db)
 
+@recovery_operation
 def recover_due():
     """Single replica worker shares per-round locks with browser retries."""
     if os.getenv('AGENCY_ENVIRONMENT', 'sandbox') == 'production': return
     db = db_open()
     try:
-        ids = [r['id'] for r in db.execute("SELECT id FROM agency_rounds WHERE state NOT IN ('failed','settled') AND created_at<? LIMIT 20", (time.time()-DEADLINE,))]
+        with phase_span('recovery_scan'):
+            ids = [r['id'] for r in db.execute("SELECT id FROM agency_rounds WHERE state NOT IN ('failed','settled') AND created_at<? LIMIT 20", (time.time()-DEADLINE,))]
         for rid in ids:
             try:
                 advance(db, rid)
             except Exception:
                 if db.in_transaction:
-                    db.rollback()
+                    phase_call('explicit_rollback', db.rollback)
                 # No outcome/token/secret in logs. The durable row is retried later.
     finally:
-        db.close()
+        close_db(db)
 
 def worker(stop):
     while not stop.wait(30):
@@ -297,16 +313,23 @@ def mode(response: Response):
     return {'agency': enabled(), 'environment': os.getenv('AGENCY_ENVIRONMENT','sandbox') if enabled() else None, 'play_enabled': os.getenv('AGENCY_ENVIRONMENT','sandbox')!='production'}
 
 @router.get('/state')
-def state_route(request: Request, response: Response):
+async def state_route(request: Request, response: Response):
+    return await run_observed(request, _state_route, request, response)
+
+def _state_route(request, response):
     if not enabled():
         raise HTTPException(404, 'Integrasi agen tidak diaktifkan')
     return state(request, response)
 
 @router.post('/pick')
-def pick_route(request: Request, response: Response, payload: PickInput):
+async def pick_route(request: Request, response: Response, payload: PickInput):
+    return await run_observed(request, _pick_route, request, response, payload)
+
+def _pick_route(request, response, payload):
     return pick(request, response, payload.model_dump())
 
 
+@measured('response_assembly_inclusive')
 def view_round(row, phase=None):
     """Reuse the live engine presentation and actual-card rank classification."""
     from . import orbit
