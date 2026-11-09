@@ -3,11 +3,12 @@ from contextlib import asynccontextmanager
 import hashlib, os, threading, sys, json
 from datetime import datetime,timezone
 from pathlib import Path
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from . import agency
 from .agency_wallet import transport_metrics
+from .native_observability import thread_limiter_health
 ROOT=Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app):
@@ -41,9 +42,9 @@ async def home():
     html=html.replace(anchor,'<script src="/assets/provider-client.js?v=1" defer></script>\n'+anchor,1)
     return HTMLResponse(html.replace('__UNO_RELEASE__','softtech-provider-v1'))
 @app.get('/health')
-async def health():
+async def health(limiter_health: dict = Depends(thread_limiter_health)):
     db=agency.db_open();db.execute('SELECT 1');db.close()
-    return {**agency.runtime_health(),'callback_transport':transport_metrics(),'pending_operation_locks':agency.active_lock_count(),'ok':True,'provider':'soft-tech','game':'UNO LUCK','version':'provider-v1','environment':os.getenv('AGENCY_ENVIRONMENT','sandbox'),'deployment_identity':agency.public_identity('uno-luck',os.environ['UNO_AGENCY_DB_PATH']),'database':'connected','source_commit':os.getenv('RAILWAY_GIT_COMMIT_SHA',''),'math_sha256':hashlib.sha256((ROOT/'orbit.py').read_bytes()).hexdigest()}
+    return {**agency.runtime_health(),**limiter_health,'callback_transport':transport_metrics(),'pending_operation_locks':agency.active_lock_count(),'ok':True,'provider':'soft-tech','game':'UNO LUCK','version':'provider-v1','environment':os.getenv('AGENCY_ENVIRONMENT','sandbox'),'deployment_identity':agency.public_identity('uno-luck',os.environ['UNO_AGENCY_DB_PATH']),'database':'connected','source_commit':os.getenv('RAILWAY_GIT_COMMIT_SHA',''),'math_sha256':hashlib.sha256((ROOT/'orbit.py').read_bytes()).hexdigest()}
 @app.get('/health/backup')
 async def backup_health():
     from scripts.native_backup_status import backup_health as read_backup_health

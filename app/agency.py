@@ -72,6 +72,8 @@ def db_open(*, initialize=False):
               created_at REAL NOT NULL, finished_at REAL, error_status INTEGER);
             CREATE UNIQUE INDEX IF NOT EXISTS agency_active ON agency_rounds(actor)
               WHERE state NOT IN ('failed','settled') OR (state='settled' AND picked<3);
+            CREATE INDEX IF NOT EXISTS agency_actor_history
+              ON agency_rounds(actor,state,created_at DESC,payout);
             CREATE TABLE IF NOT EXISTS agency_requests (
               actor TEXT NOT NULL, request_id TEXT NOT NULL, round_id TEXT NOT NULL REFERENCES agency_rounds(id),
               phase INTEGER NOT NULL, stake INTEGER NOT NULL, PRIMARY KEY(actor,request_id));
@@ -182,7 +184,8 @@ def _advance_unlocked(db, rid):
     return row_get(db, rid)
 
 def active(db, actor):
-    return db.execute("SELECT * FROM agency_rounds WHERE actor=? AND state NOT IN ('settled','failed') ORDER BY created_at LIMIT 1", (actor,)).fetchone()
+    # Match the existing partial-index predicate so SQLite can use its actor key.
+    return db.execute("SELECT * FROM agency_rounds WHERE actor=? AND state NOT IN ('failed','settled') ORDER BY created_at LIMIT 1", (actor,)).fetchone()
 
 def snapshot(db, s, actor):
     try:
@@ -268,7 +271,7 @@ def recover_due():
     if os.getenv('AGENCY_ENVIRONMENT', 'sandbox') == 'production': return
     db = db_open()
     try:
-        ids = [r['id'] for r in db.execute("SELECT id FROM agency_rounds WHERE state NOT IN ('settled','failed') AND created_at<? LIMIT 20", (time.time()-DEADLINE,))]
+        ids = [r['id'] for r in db.execute("SELECT id FROM agency_rounds WHERE state NOT IN ('failed','settled') AND created_at<? LIMIT 20", (time.time()-DEADLINE,))]
         for rid in ids:
             try:
                 advance(db, rid)
