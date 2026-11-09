@@ -20,7 +20,7 @@ fi
 
 # Start backup loop as non-root in the same volume-owning service; opt-in only.
 if [ "${ENGINE_BACKUP_ENABLED:-false}" = "true" ]; then
-  runuser -u runner -- python /app/scripts/native_backup_loop.py --database "${UNO_AGENCY_DB_PATH:?}" --game uno &
+  echo "[ENGINE BACKUP] launching UNO worker"\n  runuser -u runner -- python /app/scripts/native_backup_loop.py --database "${UNO_AGENCY_DB_PATH:?}" --game uno &
 fi
 
 # Drop privileges before reading any app data or serving public traffic.
