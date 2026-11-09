@@ -88,7 +88,15 @@ def test_returning_actor_state_and_results_with_growing_unrelated_history(native
             plan = explain(db, sql)
             expected_index = 'agency_active' if name == 'active' else 'agency_actor_history'
             assert any('SEARCH agency_rounds' in step and expected_index in step for step in plan), plan
-            assert not any('SCAN agency_rounds' in step or 'TEMP B-TREE' in step for step in plan), plan
+            assert not any('SCAN agency_rounds' in step for step in plan), plan
+            if name == 'active':
+                # Some SQLite builds retain ORDER BY for this UNIQUE actor
+                # lookup. Its input has at most one row even without LIMIT.
+                index = next(row for row in db.execute('PRAGMA index_list(agency_rounds)') if row['name'] == expected_index)
+                assert index['unique'] == 1
+                assert len(db.execute(sql.split(' ORDER BY', 1)[0]).fetchall()) == 1
+            else:
+                assert not any('TEMP B-TREE' in step for step in plan), plan
             if name == 'count':
                 assert any('COVERING INDEX' in step for step in plan), plan
             # Independent table scan, including the previous NOT IN spelling.
