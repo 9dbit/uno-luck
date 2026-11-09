@@ -1,6 +1,6 @@
 """Isolated Soft Tech entrypoint; live game math/assets remain byte-identical."""
 from contextlib import asynccontextmanager
-import hashlib, os, threading, subprocess, sys
+import hashlib, os, threading, sys
 from pathlib import Path
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -10,17 +10,16 @@ ROOT=Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app):
     agency.validate_config()
-    backup_process=None
     if os.getenv('ENGINE_BACKUP_ENABLED')=='true':
-        print('[ENGINE BACKUP] launching UNO provider worker',flush=True)
-        backup_process=subprocess.Popen([sys.executable,'scripts/native_backup_loop.py','--database',os.environ['UNO_AGENCY_DB_PATH'],'--game','uno'],stdout=sys.stdout,stderr=sys.stderr)
+        print('[ENGINE BACKUP] launching UNO provider worker thread',flush=True)
+        def backup_loop():
+            from scripts.native_backup_loop import run
+            sys.argv=['native_backup_loop','--database',os.environ['UNO_AGENCY_DB_PATH'],'--game','uno']
+            run()
+        threading.Thread(target=backup_loop,name='native-backup',daemon=True).start()
     stop=threading.Event();threading.Thread(target=agency.worker,args=(stop,),daemon=True).start()
     yield
     stop.set()
-    if backup_process is not None:
-        backup_process.terminate()
-        try: backup_process.wait(timeout=5)
-        except subprocess.TimeoutExpired: backup_process.kill()
 app=FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
 app.include_router(agency.router)
 app.mount('/assets',StaticFiles(directory=ROOT/'static'),name='assets')
