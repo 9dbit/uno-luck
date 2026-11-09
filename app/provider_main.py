@@ -16,7 +16,9 @@ async def lifespan(app):
         def backup_loop():
             try:
                 print('[ENGINE BACKUP] UNO worker thread entered',flush=True)
+                print('[ENGINE BACKUP] UNO importing backup module',flush=True)
                 from scripts.native_backup_loop import run
+                print('[ENGINE BACKUP] UNO module loaded',flush=True)
                 run(['--database',os.environ['UNO_AGENCY_DB_PATH'],'--game','uno'])
             except BaseException as exc:
                 print(f'[ENGINE BACKUP] UNO worker terminated: {type(exc).__name__}: {str(exc)[:160]}',flush=True)
