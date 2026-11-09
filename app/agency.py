@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field, StrictInt
 from .agency_wallet import AgencyWallet, AgencyWalletError
 from .native_locks import operation_lock, active_lock_count
-from .deployment_identity import open_bound_database, public_identity, canonical_path, requested_identity, require_play, validate_redeemed, cookie_value, runtime_health
+from .deployment_identity import initialize_bound_database, open_bound_database, public_identity, canonical_path, requested_identity, require_play, validate_redeemed, cookie_value, runtime_health
 
 router = APIRouter(prefix='/api/agency', tags=['Soft Tech sandbox'])
 COOKIE = 'uno_agency'
@@ -42,17 +42,18 @@ def validate_config():
         if os.getenv('ENGINE_RESTORE_OBJECT_KEY') or os.getenv('ENGINE_RESTORE_OBJECT'):
             from scripts.native_backup import restore_from_remote
             restore_from_remote(canonical_path(path), 'uno', requested_identity('uno-luck', path))
-        db = db_open()
+        db = db_open(initialize=True)
         db.close()
 
 def wallet():
     return AgencyWallet(os.environ['AGENCY_WALLET_ORIGIN'], os.environ['AGENCY_WALLET_KEY_ID'],
                         os.environ['AGENCY_WALLET_SECRET'], allow_local=os.getenv('AGENCY_WALLET_LOCAL_QA') == '1')
 
-def db_open():
+def db_open(*, initialize=False):
     path = canonical_path(os.environ['UNO_AGENCY_DB_PATH'])
     os.environ['UNO_AGENCY_DB_PATH'] = path
-    db = open_bound_database(path, 'uno-luck')
+    opener = initialize_bound_database if initialize else open_bound_database
+    db = opener(path, 'uno-luck')
     db.row_factory = sqlite3.Row
     db.execute('PRAGMA foreign_keys=ON')
     db.execute('PRAGMA busy_timeout=30000')
