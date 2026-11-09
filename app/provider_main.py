@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from . import agency
+from .agency_wallet import transport_metrics
 ROOT=Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app):
@@ -42,7 +43,7 @@ async def home():
 @app.get('/health')
 async def health():
     db=agency.db_open();db.execute('SELECT 1');db.close()
-    return {**agency.runtime_health(),'pending_operation_locks':agency.active_lock_count(),'ok':True,'provider':'soft-tech','game':'UNO LUCK','version':'provider-v1','environment':os.getenv('AGENCY_ENVIRONMENT','sandbox'),'deployment_identity':agency.public_identity('uno-luck',os.environ['UNO_AGENCY_DB_PATH']),'database':'connected','source_commit':os.getenv('RAILWAY_GIT_COMMIT_SHA',''),'math_sha256':hashlib.sha256((ROOT/'orbit.py').read_bytes()).hexdigest()}
+    return {**agency.runtime_health(),'callback_transport':transport_metrics(),'pending_operation_locks':agency.active_lock_count(),'ok':True,'provider':'soft-tech','game':'UNO LUCK','version':'provider-v1','environment':os.getenv('AGENCY_ENVIRONMENT','sandbox'),'deployment_identity':agency.public_identity('uno-luck',os.environ['UNO_AGENCY_DB_PATH']),'database':'connected','source_commit':os.getenv('RAILWAY_GIT_COMMIT_SHA',''),'math_sha256':hashlib.sha256((ROOT/'orbit.py').read_bytes()).hexdigest()}
 @app.get('/health/backup')
 async def backup_health():
     from scripts.native_backup_status import backup_health as read_backup_health
