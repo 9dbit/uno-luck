@@ -13,8 +13,12 @@ async def lifespan(app):
     if os.getenv('ENGINE_BACKUP_ENABLED')=='true':
         print('[ENGINE BACKUP] launching UNO provider worker thread',flush=True)
         def backup_loop():
-            from scripts.native_backup_loop import run
-            run(['--database',os.environ['UNO_AGENCY_DB_PATH'],'--game','uno'])
+            try:
+                print('[ENGINE BACKUP] UNO worker thread entered',flush=True)
+                from scripts.native_backup_loop import run
+                run(['--database',os.environ['UNO_AGENCY_DB_PATH'],'--game','uno'])
+            except BaseException as exc:
+                print(f'[ENGINE BACKUP] UNO worker terminated: {type(exc).__name__}: {str(exc)[:160]}',flush=True)
         threading.Thread(target=backup_loop,name='native-backup',daemon=True).start()
     stop=threading.Event();threading.Thread(target=agency.worker,args=(stop,),daemon=True).start()
     yield
