@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from . import agency
+from .sound_cloud import manifest as sound_manifest, download as sound_download
 ROOT=Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app):
@@ -28,6 +29,10 @@ async def lifespan(app):
     stop.set()
 app=FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
 app.include_router(agency.router)
+# The native client consumes published sound assets. Keep this entrypoint
+# read-only: never mount the legacy Sound Studio admin/publishing router.
+app.add_api_route('/api/sounds/manifest', sound_manifest, methods=['GET'])
+app.add_api_route('/api/sounds/files/{cue}', sound_download, methods=['GET'])
 app.mount('/assets',StaticFiles(directory=ROOT/'static'),name='assets')
 @app.middleware('http')
 async def headers(req,next):

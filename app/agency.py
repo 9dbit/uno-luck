@@ -306,4 +306,7 @@ def pick_route(request: Request, response: Response, payload: PickInput):
 def view_round(row, phase=None):
     """Reuse the live engine presentation and actual-card rank classification."""
     from . import orbit
-    return orbit.view_round(dict(row) | {'rules_version': orbit.RULES_VERSION}, phase) if row else None
+    # The locked client uses the persisted Unix timestamp in its History Bet
+    # view. The legacy round presenter omits history metadata by design.
+    return (orbit.view_round(dict(row) | {'rules_version': orbit.RULES_VERSION}, phase)
+            | {'created_at': row['created_at']}) if row else None
