@@ -1,0 +1,150 @@
+{
+  "reviewed_at": "2026-11-09T20:56:21.642156+00:00",
+  "source_base": "84ad2a989a9b5f109703eb8ab8605a315afbb6f2",
+  "method": "pip-audit 2.10.1 against PyPI, direct pins then complete installed runtime dependency closure with extras/markers evaluated for Python 3.12 Linux x86_64; --disable-pip --no-deps avoids unrelated resolver/network approval",
+  "before_findings": [
+    {
+      "package": "cryptography",
+      "version": "47.0.0",
+      "advisories": [
+        {
+          "id": "PYSEC-2026-3554",
+          "aliases": [
+            "GHSA-m2h6-j472-rp4c",
+            "CVE-2026-69248"
+          ],
+          "fix_versions": [
+            "49.0.0"
+          ]
+        },
+        {
+          "id": "PYSEC-2026-3552",
+          "aliases": [
+            "CVE-2026-69247",
+            "GHSA-g6cj-pr64-35w5"
+          ],
+          "fix_versions": [
+            "50.0.0"
+          ]
+        },
+        {
+          "id": "PYSEC-2026-3553",
+          "aliases": [
+            "CVE-2026-69249",
+            "GHSA-jwv3-5hgf-82ww"
+          ],
+          "fix_versions": [
+            "49.0.0"
+          ]
+        },
+        {
+          "id": "GHSA-537c-gmf6-5ccf",
+          "aliases": [],
+          "fix_versions": [
+            "48.0.1"
+          ]
+        }
+      ]
+    },
+    {
+      "package": "starlette",
+      "version": "0.50.0",
+      "advisories": [
+        {
+          "id": "PYSEC-2026-161",
+          "aliases": [
+            "X41-2026-002",
+            "GHSA-86qp-5c8j-p5mr",
+            "CVE-2026-48710"
+          ],
+          "fix_versions": [
+            "1.0.1"
+          ]
+        },
+        {
+          "id": "PYSEC-2026-2281",
+          "aliases": [
+            "GHSA-wqp7-x3pw-xc5r",
+            "CVE-2026-48818"
+          ],
+          "fix_versions": [
+            "1.1.0"
+          ]
+        },
+        {
+          "id": "PYSEC-2026-2280",
+          "aliases": [
+            "GHSA-x746-7m8f-x49c",
+            "CVE-2026-48817"
+          ],
+          "fix_versions": [
+            "1.1.0"
+          ]
+        },
+        {
+          "id": "PYSEC-2026-249",
+          "aliases": [
+            "CVE-2026-54283",
+            "GHSA-82w8-qh3p-5jfq"
+          ],
+          "fix_versions": [
+            "1.3.1"
+          ]
+        },
+        {
+          "id": "PYSEC-2026-248",
+          "aliases": [
+            "GHSA-jp82-jpqv-5vv3",
+            "CVE-2026-54282"
+          ],
+          "fix_versions": [
+            "1.3.0"
+          ]
+        }
+      ]
+    }
+  ],
+  "fixed_pins": {
+    "fastapi": "0.138.2",
+    "starlette": "1.3.1",
+    "cryptography": "50.0.2"
+  },
+  "credential_signature_scan": {
+    "repo": "uno-luck",
+    "tracked_text_files_scanned": 120,
+    "binary_files_skipped": 44,
+    "files_over_2mb_skipped": 0,
+    "matches": [],
+    "scope": "Known credential signatures in tracked source only; not entropy scanning, Git history, archives, runtime variables or independent penetration test"
+  },
+  "old_archive_compatibility": {
+    "producer": "cryptography 47.0.0",
+    "reader": "cryptography 50.0.2",
+    "verified": true,
+    "test": "tests/test_native_backup.py::test_cryptography47_archive_restores_after_security_upgrade"
+  },
+  "local_tests": {
+    "passed": 62,
+    "subtests_passed": 38
+  },
+  "sources": [
+    "https://cryptography.io/en/latest/changelog/",
+    "https://github.com/pyca/cryptography/security/advisories/GHSA-537c-gmf6-5ccf",
+    "https://github.com/pyca/cryptography/security/advisories/GHSA-g6cj-pr64-35w5",
+    "https://github.com/Kludex/starlette/security/advisories/GHSA-82w8-qh3p-5jfq",
+    "https://github.com/Kludex/starlette/security/advisories/GHSA-86qp-5c8j-p5mr",
+    "https://pypi.org/project/fastapi/0.138.2/"
+  ],
+  "limits": [
+    "Application engineering review only; independent penetration test and RNG/math certificate outstanding",
+    "Dependency closure describes this test runtime; Docker base image/OS packages and npm Studio build dependencies not audited here",
+    "Some transitive packages and base-image tags remain unpinned; final image SBOM/digest gate remains required",
+    "Python API body buffering has no complete streaming cap before parsing; separate availability hardening remains open",
+    "No raw environment variables, runtime credentials or Git history scanned"
+  ],
+  "post_fix_audit": {
+    "packages": 29,
+    "reported_vulnerabilities": 0,
+    "dependency_closure_verified": true
+  }
+}
