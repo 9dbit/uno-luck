@@ -50,7 +50,7 @@ async def backup_health():
         return JSONResponse({'ok':False,'backup_verified':False},status_code=503)
     try:
         marker=json.loads(status.read_text())
-        if marker.get('backup_verified') is False: raise ValueError('last backup attempt failed')
+        if marker.get('backup_verified') is not True: raise ValueError('backup not verified')
         verified_at=datetime.fromisoformat(marker['verified_at'])
         if verified_at.tzinfo is None or (datetime.now(timezone.utc)-verified_at).total_seconds()>90000: raise ValueError('backup too old')
         return {'ok':True,'backup_verified':True,'verified_at':marker['verified_at']}
