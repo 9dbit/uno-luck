@@ -12,6 +12,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY scripts/build_social_assets.py ./scripts/build_social_assets.py
+COPY scripts/native_backup.py ./scripts/native_backup.py
 # Render a static 1200x630 JPEG preview and correct-size iOS/PWA icons from
 # the existing branded game image before dropping build-only Pillow.
 RUN pip install --no-cache-dir Pillow \
