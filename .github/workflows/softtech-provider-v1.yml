@@ -1,0 +1,93 @@
+name: Soft Tech native provider release
+on:
+  push:
+    branches: [feat/softtech-provider-v1-20261109]
+    paths: ['.provider-source.lzma.b64', '.github/workflows/softtech-provider-v1.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Materialize verified source and enforce locked game sources
+        run: |
+          python - <<'PY'
+          import base64,lzma,json,pathlib,hashlib
+          raw=base64.b64decode(pathlib.Path('.provider-source.lzma.b64').read_text())
+          assert hashlib.sha256(raw).hexdigest()=='45fc25ae1179bf1ff8d1dd6f15a231621a5293e63a050bb01dc890411b16e9bf','Source archive checksum mismatch'
+          files=json.loads(lzma.decompress(raw))
+          for name,content in files.items():
+              p=pathlib.Path(name)
+              assert not p.is_absolute() and '..' not in p.parts and not name.startswith('.github/')
+              p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
+          lock=json.loads(pathlib.Path('SOFTTECH_PROVIDER_SOURCE_LOCK.json').read_text())
+          for name,digest in lock['sha256'].items():assert hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()==digest,name
+          pathlib.Path('/tmp/provider-files.json').write_text(json.dumps(list(files)))
+          print('Verified original UNO rule classifier, payout generator, frontend and layout source hashes.')
+          PY
+          python -m compileall -q app/agency.py app/agency_wallet.py app/provider_main.py
+          node --check app/static/provider-client.js
+      - name: Install test dependencies
+        run: pip install -r requirements.txt pytest httpx Pillow
+      - name: Native adapter and existing engine regressions
+        run: |
+          python - <<'PY'
+          import os,tempfile,uuid
+          from fastapi.testclient import TestClient
+          with tempfile.TemporaryDirectory() as d:
+              os.environ.update(AGENCY_WALLET_MODE='sandbox',UNO_AGENCY_DB_PATH=d+'/native.sqlite',AGENCY_WALLET_ORIGIN='https://softtech.example',AGENCY_WALLET_KEY_ID='test-engine',AGENCY_WALLET_SECRET='q'*40)
+              from app import agency,orbit
+              from app.provider_main import app
+              calls=[]
+              class Wallet:
+                  def request(self,action,p):
+                      calls.append((action,p))
+                      if action=='redeem':return dict(tenant_id='operator-A',player_id='player-A',session_id='session-A',game='uno-luck',coin_scale=2,currency='VCOIN')
+                      if action=='status':return dict(balance='10000000',reserved='0')
+                      if action=='reserve':return dict(id='provider-round-A')
+                      if action=='settle':return dict(status='settled')
+                      raise AssertionError(action)
+              agency.wallet=lambda:Wallet()
+              with TestClient(app) as c:
+                  h={'X-UNO-Client':'spin-ui'}
+                  assert c.get('/health').json()['provider']=='soft-tech'
+                  assert c.post('/api/agency/launch',headers=h,json={'token':'t'*48}).status_code==200
+                  state=c.get('/api/agency/state').json();stake=state['rules']['stake_options'][0];rid=None
+                  for phase in range(1,4):
+                      data={'request_id':str(uuid.uuid4()),'stake':stake,'expected_phase':phase,'round_id':rid if phase>1 else None}
+                      r=c.post('/api/agency/pick',headers=h,json=data);assert r.status_code==200,r.text
+                      outcome=r.json()['round'];rid=outcome['id']
+                  assert outcome['complete']
+                  rank=orbit.classify_rank(outcome['cards'])
+                  assert outcome['payout']==(stake*orbit.CELEBRATIONS[rank]['multiplier'] if rank else 0)
+                  assert c.post('/api/agency/pick',headers=h,json=data).json()['round']['id']==rid
+                  assert len([x for x in calls if x[0]=='reserve'])==1
+                  settlements=[x[1] for x in calls if x[0]=='settle'];assert len(settlements)==1
+                  assert settlements[0]['payout']==str(outcome['payout']*100)
+                  assert c.post('/api/spin/refill',headers=h,json={}).status_code==403
+          print('PASS native adapter, exact deployed rank classifier, currency scale, duplicate settlement, local wallet denial')
+          PY
+          python -m pytest -q tests/test_orbit.py tests/test_celebration_tiers.py
+      - name: Commit verified runtime sources
+        run: |
+          python - <<'PY'
+          import json,subprocess,pathlib
+          files=json.loads(pathlib.Path('/tmp/provider-files.json').read_text())
+          subprocess.run(['git','add','--',*files],check=True)
+          PY
+          git config user.name 'Soft Tech release validation'
+          git config user.email '154832153+9dbit@users.noreply.github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(provider): validated isolated UNO runtime, live math and art preserved'
+            git push origin HEAD:feat/softtech-provider-v1-20261109
+          fi
+          git rev-parse HEAD
