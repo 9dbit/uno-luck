@@ -1,0 +1,9 @@
+{
+  "base_commit": "c8327f47086d524a43559e297a42bef183d514e4",
+  "sha256": {
+    "app/orbit.py": "ba122e4b6903bfe0bab1a98ba0c76bbbec9936d05133f82150908c466342c85e",
+    "app/spin.py": "8c2fefef6f6cca6d5c5eb7af8fdfb0babe40ef6368e971d6e4b532ce09dbdd7b",
+    "app/static/orbit.js": "03db104e9ac435fcad54075c5af69699a1630d3ce08d12577d154672c8c14aca",
+    "app/static/orbit-index.html": "a0a55739d05ddd87d2accef70517add4ffc4b7f8817b791f26ea0be328c9373a"
+  }
+}
