@@ -1,2 +1,4 @@
 fastapi==0.128.2
 uvicorn[standard]==0.48.0
+boto3==1.43.118
+cryptography>=44,<48
