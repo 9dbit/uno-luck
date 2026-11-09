@@ -30,7 +30,7 @@ def run(argv=None):
                 continue
             print(json.dumps({'event':'engine.backup.started','game':args.game}),flush=True)
             result=backup_once(args.database,args.game,os.environ['ENGINE_BACKUP_S3_BUCKET'],'native')
-            status_file.write_text(json.dumps({'verified_at':datetime.now(timezone.utc).isoformat(),'object':result['object'],'sha256':result['manifest']['sha256']}))
+            status_file.write_text(json.dumps({'backup_verified':True,'verified_at':datetime.now(timezone.utc).isoformat(),'object':result['object'],'sha256':result['manifest']['sha256']}))
             print(json.dumps({'event':'engine.backup.remote_verified','game':args.game,
                               'object':result['object'],'sha256':result['manifest']['sha256']}),flush=True)
         except Exception as exc:
