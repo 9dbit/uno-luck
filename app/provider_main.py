@@ -1,6 +1,7 @@
 """Isolated Soft Tech entrypoint; live game math/assets remain byte-identical."""
 from contextlib import asynccontextmanager
 import hashlib, os, threading, sys, json
+from datetime import datetime,timezone
 from pathlib import Path
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -47,6 +48,9 @@ async def backup_health():
         return JSONResponse({'ok':False,'backup_verified':False},status_code=503)
     try:
         marker=json.loads(status.read_text())
+        if marker.get('backup_verified') is False: raise ValueError('last backup attempt failed')
+        verified_at=datetime.fromisoformat(marker['verified_at'])
+        if verified_at.tzinfo is None or (datetime.now(timezone.utc)-verified_at).total_seconds()>90000: raise ValueError('backup too old')
         return {'ok':True,'backup_verified':True,'verified_at':marker['verified_at']}
     except (OSError,ValueError,KeyError):
         return JSONResponse({'ok':False,'backup_verified':False},status_code=503)
