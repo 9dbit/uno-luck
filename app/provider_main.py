@@ -1,6 +1,6 @@
 """Isolated Soft Tech entrypoint; live game math/assets remain byte-identical."""
 from contextlib import asynccontextmanager
-import hashlib, os, threading, sys
+import hashlib, os, threading, sys, json
 from pathlib import Path
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -36,6 +36,16 @@ async def home():
 async def health():
     db=agency.db_open();db.execute('SELECT 1');db.close()
     return {'ok':True,'provider':'soft-tech','game':'UNO LUCK','version':'provider-v1','environment':'sandbox','database':'connected','source_commit':os.getenv('RAILWAY_GIT_COMMIT_SHA',''),'math_sha256':hashlib.sha256((ROOT/'orbit.py').read_bytes()).hexdigest()}
+@app.get('/health/backup')
+async def backup_health():
+    status=Path('/data/uno-backup-status.json')
+    if not status.is_file():
+        return JSONResponse({'ok':False,'backup_verified':False},status_code=503)
+    try:
+        marker=json.loads(status.read_text())
+        return {'ok':True,'backup_verified':True,'verified_at':marker['verified_at']}
+    except (OSError,ValueError,KeyError):
+        return JSONResponse({'ok':False,'backup_verified':False},status_code=503)
 @app.get('/api/ui-version')
 async def version(): return {'release':'softtech-provider-v1'}
 @app.get('/api/agency/context')
