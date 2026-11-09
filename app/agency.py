@@ -18,6 +18,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field, StrictInt
 from .agency_wallet import AgencyWallet, AgencyWalletError
+from .deployment_identity import open_bound_database, public_identity, canonical_path, requested_identity, require_play, validate_redeemed, cookie_value, runtime_health
 
 router = APIRouter(prefix='/api/agency', tags=['Soft Tech sandbox'])
 COOKIE = 'uno_agency'
@@ -37,6 +38,9 @@ def validate_config():
         if not Path(path).is_absolute():
             raise RuntimeError('UNO_AGENCY_DB_PATH must point to a persistent volume')
         wallet()
+        if os.getenv('ENGINE_RESTORE_OBJECT_KEY') or os.getenv('ENGINE_RESTORE_OBJECT'):
+            from scripts.native_backup import restore_from_remote
+            restore_from_remote(canonical_path(path), 'uno', requested_identity('uno-luck', path))
         db = db_open()
         db.close()
 
@@ -45,9 +49,9 @@ def wallet():
                         os.environ['AGENCY_WALLET_SECRET'], allow_local=os.getenv('AGENCY_WALLET_LOCAL_QA') == '1')
 
 def db_open():
-    path = os.environ['UNO_AGENCY_DB_PATH']
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(path, timeout=30, isolation_level=None)
+    path = canonical_path(os.environ['UNO_AGENCY_DB_PATH'])
+    os.environ['UNO_AGENCY_DB_PATH'] = path
+    db = open_bound_database(path, 'uno-luck')
     db.row_factory = sqlite3.Row
     db.execute('PRAGMA foreign_keys=ON')
     db.execute('PRAGMA busy_timeout=30000')
@@ -77,6 +81,7 @@ def sha(raw):
     return hashlib.sha256(raw.encode()).hexdigest()
 
 def guard(request):
+    require_play()
     if not enabled():
         raise HTTPException(404, 'Integrasi agen tidak diaktifkan')
     if request.headers.get('x-uno-client') != 'spin-ui' or request.headers.get('sec-fetch-site') == 'cross-site':
@@ -99,7 +104,7 @@ def launch(request: Request, response: Response, payload: LaunchInput):
     # Deterministic secret-derived credentials recover a lost response without
     # storing the raw launch token or a browser-readable session credential.
     token_hash = sha(payload.token)
-    cookie = hmac.new(os.environ['AGENCY_WALLET_SECRET'].encode(), ('cookie:' + payload.token).encode(), 'sha256').hexdigest()
+    cookie = cookie_value(payload.token, 'uno-luck', os.environ['UNO_AGENCY_DB_PATH'])
     rid = 'uno-redeem-' + token_hash
     db = db_open()
     try:
@@ -107,19 +112,21 @@ def launch(request: Request, response: Response, payload: LaunchInput):
         row = db.execute('SELECT * FROM agency_launches WHERE token_hash=?', (token_hash,)).fetchone()
         # Revalidate even a local cached redemption: central expiry is authoritative.
         s = remote('redeem', {'token': payload.token, 'request_id': row['request_id']})
+        validate_redeemed(s, 'uno-luck', os.environ['UNO_AGENCY_DB_PATH'])
         if s.get('game') != 'uno-luck' or type(s.get('coin_scale')) is not int or not 0 <= s['coin_scale'] <= 8:
             raise HTTPException(409, 'UNO provider requires uno-luck and supported currency precision')
         db.execute('UPDATE agency_launches SET session_json=? WHERE token_hash=?', (json.dumps(s), token_hash))
         secure = request.url.scheme == 'https' or request.headers.get('x-forwarded-proto', '').split(',')[0] == 'https'
         response.set_cookie(COOKIE, cookie, secure=secure, httponly=True, samesite='strict', max_age=86400, path='/')
         response.headers['Cache-Control'] = 'no-store'
-        return {'ok': True, 'mode': 'sandbox', 'wallet': 'soft-tech'}
+        return {'ok': True, 'mode': os.getenv('AGENCY_ENVIRONMENT','sandbox'), 'wallet': 'soft-tech'}
     except AgencyWalletError as exc:
         raise HTTPException(exc.status if exc.status < 500 else 503, 'Launch ditolak wallet. Buka kembali game dari website agen.') from None
     finally:
         db.close()
 
 def session(db, request):
+    require_play()
     raw = request.cookies.get(COOKIE, '')
     if not re.fullmatch('[a-f0-9]{64}', raw):
         raise HTTPException(401, 'Buka game dari website agen untuk melanjutkan')
@@ -127,6 +134,7 @@ def session(db, request):
     if not row or not row['session_json']:
         raise HTTPException(401, 'Sesi agen tidak tersedia. Buka kembali dari website agen.')
     s = json.loads(row['session_json'])
+    validate_redeemed(s, 'uno-luck', os.environ['UNO_AGENCY_DB_PATH'])
     return s, s['tenant_id'] + ':' + s['player_id']
 
 def row_get(db, rid):
@@ -249,6 +257,7 @@ def pick(request, response, payload):
 
 def recover_due():
     """Single replica worker; safe with concurrent browser retries via SQLite lock."""
+    if os.getenv('AGENCY_ENVIRONMENT', 'sandbox') == 'production': return
     db = db_open()
     try:
         ids = [r['id'] for r in db.execute("SELECT id FROM agency_rounds WHERE state NOT IN ('settled','failed') AND created_at<? LIMIT 20", (time.time()-DEADLINE,))]
@@ -276,7 +285,7 @@ def worker(stop):
 @router.get('/mode')
 def mode(response: Response):
     response.headers['Cache-Control'] = 'no-store'
-    return {'agency': enabled(), 'environment': 'sandbox' if enabled() else None}
+    return {'agency': enabled(), 'environment': os.getenv('AGENCY_ENVIRONMENT','sandbox') if enabled() else None, 'play_enabled': os.getenv('AGENCY_ENVIRONMENT','sandbox')!='production'}
 
 @router.get('/state')
 def state_route(request: Request, response: Response):
