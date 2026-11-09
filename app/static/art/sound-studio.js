@@ -186,6 +186,9 @@ let celebrationNode=null, celebrationRequest=0;
 let fallbackPlayer=null, fallbackKey=null, fallbackPreview=false;
 let fallbackTimer=null, fallbackRaf=null, fallbackSerial=0, mediaUnlocked=false;
 let splashUrl=null, splashPreparation=null, splashError='',activeTemporaryUrl=null;
+// A fresh native deployment may have no optional published splash clip.
+// Use real shipped audio through the same trusted-click playback path.
+const bundledSplashUrl='/assets/audio/music-loop.mp3';
 const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||
   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const mimeFor=file=>{
@@ -425,9 +428,10 @@ async function prepareSplashMedia(){
   await syncCloud();
   const cfg=liveProfile('soft-tech-splash-screen');
   if(!cfg.custom&&cfg.source!=='custom'){
-    splashError=cloudError?'Koneksi Sound Cloud belum tersedia. Coba lagi setelah jaringan tersambung.':
-      'File Soft Tech Splash belum tersedia di Sound Cloud.';
-    return false;
+    splashUrl=bundledSplashUrl;
+    useFallbackSource('soft-tech-splash-screen',splashUrl);
+    splashError='';
+    return true;
   }
   if(splashUrl)return true;
   if(splashPreparation)return splashPreparation;
@@ -511,6 +515,12 @@ function playSplashGesture(){
   }).catch(error=>{
     splashError='HTML5 Audio: '+String(error?.message||error);
     lastError=splashError;console.warn('[UNO iOS AUDIO]',splashError);
+    // Do not start fallback media asynchronously after a rejected play().
+    // Prepare it now; the existing visible Play button requires a fresh tap.
+    if(splashUrl!==bundledSplashUrl){
+      splashUrl=bundledSplashUrl;
+      useFallbackSource('soft-tech-splash-screen',splashUrl);
+    }
     return false;
   });
 }

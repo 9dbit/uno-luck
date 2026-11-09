@@ -1,1 +1,6 @@
 .provider-return{position:fixed;left:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);z-index:100001;padding:6px 11px;border-radius:999px;background:#16111de8;color:#fff;font:10px monospace;text-decoration:none;max-width:130px;opacity:.85}
+/* Native balances can exceed the legacy demo cap. Give the amount the
+   decorative coin's column so it remains readable beside the history button. */
+.game-header .balance-chip{grid-template-columns:minmax(0,1fr) auto}
+.game-header .balance-chip .coin{display:none}
+.balance-chip .balance-readout strong{width:100%;max-width:100%}
