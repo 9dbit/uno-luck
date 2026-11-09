@@ -45,17 +45,9 @@ async def health():
     return {'ok':True,'provider':'soft-tech','game':'UNO LUCK','version':'provider-v1','environment':'sandbox','database':'connected','source_commit':os.getenv('RAILWAY_GIT_COMMIT_SHA',''),'math_sha256':hashlib.sha256((ROOT/'orbit.py').read_bytes()).hexdigest()}
 @app.get('/health/backup')
 async def backup_health():
-    status=Path('/data/uno-backup-status.json')
-    if not status.is_file():
-        return JSONResponse({'ok':False,'backup_verified':False},status_code=503)
-    try:
-        marker=json.loads(status.read_text())
-        if marker.get('backup_verified') is not True: raise ValueError('backup not verified')
-        verified_at=datetime.fromisoformat(marker['verified_at'])
-        if verified_at.tzinfo is None or (datetime.now(timezone.utc)-verified_at).total_seconds()>90000: raise ValueError('backup too old')
-        return {'ok':True,'backup_verified':True,'verified_at':marker['verified_at']}
-    except (OSError,ValueError,KeyError):
-        return JSONResponse({'ok':False,'backup_verified':False},status_code=503)
+    from scripts.native_backup_status import backup_health as read_backup_health
+    proof=read_backup_health('/data/uno-backup-status.json',os.getenv('RAILWAY_GIT_COMMIT_SHA',''),enabled=os.getenv('ENGINE_BACKUP_ENABLED')=='true')
+    return JSONResponse(proof,status_code=200 if proof['ok'] else 503)
 @app.get('/api/ui-version')
 async def version(): return {'release':'softtech-provider-v1'}
 @app.get('/api/agency/context')

@@ -2,7 +2,7 @@ name: Native engine backup tests
 on:
   push:
     branches: [feat/softtech-provider-v1-20261109]
-    paths: [scripts/native_backup.py, tests/test_native_backup.py, requirements.txt, .github/workflows/native-backup-test.yml]
+    paths: ['scripts/native_backup*.py', 'tests/test_native_backup*.py', app/provider_main.py, Dockerfile.provider, requirements.txt, .github/workflows/native-backup-test.yml]
   workflow_dispatch:
 jobs:
   verify:
@@ -13,4 +13,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install 'boto3==1.43.118' 'cryptography>=44,<48'
-      - run: python -m unittest discover -s tests -p test_native_backup.py -v
+      - run: python -m unittest discover -s tests -p 'test_native_backup*.py' -v
