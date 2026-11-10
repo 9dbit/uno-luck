@@ -54,7 +54,7 @@ jobs:
           python-version: '3.12'
       - name: Install browser test runtime
         run: |
-          pip install playwright==1.51.1
+          pip install playwright==1.51.0
           python -m playwright install --with-deps chromium
       - name: Verify real audio playback and explicit Play failure boundary
         run: python tests/visual_qa_provider_boot_audio.py
