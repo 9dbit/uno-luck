@@ -16,10 +16,13 @@ A configuration change requires a process restart.
 
 This is the shared default limiter used by Starlette's existing synchronous
 offload and synchronous routes. It is not a limit on all process threads:
-background recovery and backup threads retain their existing behavior. The
-`run_observed` wrapper, cancellation semantics, per-player locks, financial
-state machine, commit-before-network ordering, SQLite FULL/WAL settings and
-callback transport are unchanged. The callback pool remains bounded at 40.
+background recovery and backup threads retain their existing behavior.
+`run_observed` observes one acquisition of this same limiter and splits the
+existing dispatch delay into admission and worker-entry intervals; see
+[Native admission observability](native-admission-observability.md). Its AnyIO
+cancellation defaults, per-player locks, financial state machine,
+commit-before-network ordering, SQLite FULL/WAL settings and callback transport
+are preserved. The callback pool remains bounded at 40.
 
 ## Readback and qualification
 

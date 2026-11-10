@@ -139,6 +139,79 @@ def test_health_preserves_identity_guards_and_reports_actual_metrics(configured_
     anyio.run(scenario)
 
 
+def test_complete_public_health_envelope_fits_consumer_cap_at_maximum_width(
+        configured_app, monkeypatch, record_property):
+    """Stress the actual HTTP serializer, not just the native phase subobject."""
+    from app import agency_wallet as wallet
+    from app import deployment_identity as identity
+
+    native_app, path = configured_app
+    monkeypatch.setenv('AGENCY_DEPLOYMENT_ID', 'n' * 128)
+    monkeypatch.setenv('AGENCY_CORE_DEPLOYMENT_ID', 'c' * 128)
+    monkeypatch.setenv(DB_VARIABLE, str(path.with_name('maximum-width.sqlite')))
+    initialize()
+
+    registry = metrics._PhaseMetrics()
+    for cell in registry.cells + registry.counts:
+        for index in range(len(cell)):
+            cell[index] = metrics.MAX_VALUE
+    registry.active = metrics.CAPTURE_LIMIT
+    registry.completed = registry.dropped = metrics.MAX_VALUE
+    monkeypatch.setattr(metrics, '_METRICS', registry)
+
+    # Include all callback fields, not the shorter pre-initialization shape.
+    # Counters use the consumer's largest safe integer width; duration fields
+    # also cover finite floating-point exponent notation. This is synthetic
+    # envelope stress data, not a claim that these counters are reachable.
+    transport = wallet.shared_transport()
+    for name, value in transport.stats.items():
+        transport.stats[name] = sys.float_info.max if isinstance(value, float) else metrics.MAX_VALUE
+    transport.stats['in_flight'] = transport.stats['peak_in_flight'] = wallet.MAX_IN_FLIGHT
+    monkeypatch.setattr(native, 'active_lock_count', lambda: metrics.MAX_VALUE)
+    monkeypatch.setattr(identity, 'platform_health', lambda: {
+        'platform_deployment_id': 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+        'native_volume': {'required': True, 'verified': True,
+                          'verification': 'linux_mountinfo', 'filesystem_type': 'f' * 64}})
+    real_runtime_health = native.runtime_health
+    def wide_runtime_health():
+        result = real_runtime_health()
+        result.update(uptime_seconds=metrics.MAX_VALUE, memory_rss_bytes=metrics.MAX_VALUE,
+                      cpu_usage_microseconds={'user': metrics.MAX_VALUE, 'system': metrics.MAX_VALUE})
+        return result
+    monkeypatch.setattr(native, 'runtime_health', wide_runtime_health)
+
+    async def wide_limiter_health():
+        return {'anyio_thread_limiter': {
+            'total_tokens': 40, 'borrowed_tokens': 40, 'tasks_waiting': metrics.MAX_VALUE}}
+    native_app.dependency_overrides[metrics.thread_limiter_health] = wide_limiter_health
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=native_app),
+                                     base_url='https://native.example') as client:
+            response = await client.get('/health')
+        assert response.status_code == 200
+        health = response.json()
+        phases = health['native_phases']
+        assert set(phases['operations']) == set(metrics.OPERATIONS)
+        assert all(set(row['phases']) == set(metrics.PHASES)
+                   for row in phases['operations'].values())
+        assert health['deployment_identity']['deployment_id'] == 'n' * 128
+        assert health['callback_transport']['http_seconds_total'] == sys.float_info.max
+        assert health['anyio_thread_limiter']['total_tokens'] == 40
+        assert 'synthetic-observability-fixture-secret-only' not in response.text
+        assert 'synthetic-engine' not in response.text
+        wire_bytes = len(response.content)
+        # Default JSON separators are longer than the actual HTTP serializer.
+        conservative_bytes = len(json.dumps(health, allow_nan=False).encode())
+        assert wire_bytes <= conservative_bytes < 262144
+        record_property('complete_health_wire_bytes', wire_bytes)
+        record_property('complete_health_conservative_bytes', conservative_bytes)
+        record_property('consumer_health_byte_limit', 262144)
+    try:
+        anyio.run(scenario)
+    finally:
+        native_app.dependency_overrides.pop(metrics.thread_limiter_health, None)
+
+
 def test_real_health_samples_saturated_default_limiter_before_worker_admission(configured_app):
     native_app, _ = configured_app
 
