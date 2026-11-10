@@ -1,7 +1,7 @@
 name: Soft Tech native provider qualification
 on:
   push:
-    branches: [feat/softtech-provider-v1-20261109, feat/native-admission-observability-20261110]
+    branches: [feat/softtech-provider-v1-20261109, feat/native-admission-observability-20261110, feat/provider-boot-audio-20261110]
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,7 +31,7 @@ jobs:
       - name: Install native test dependencies
         run: pip install -r requirements.txt pytest httpx Pillow
       - name: Native identity, recovery, accounting and math regression tests
-        run: python -m pytest -q tests/test_native_backup.py tests/test_native_backup_streaming.py tests/test_native_backup_status.py tests/test_provider_isolation.py tests/test_native_dr.py tests/test_native_retention.py tests/test_native_concurrency.py tests/test_native_history_queries.py tests/test_native_observability.py tests/test_native_worker_limits.py tests/test_native_volume.py tests/test_native_phase_observability.py tests/test_agency_wallet_transport.py tests/test_orbit.py tests/test_celebration_tiers.py
+        run: python -m pytest -q tests/test_native_backup.py tests/test_native_backup_streaming.py tests/test_native_backup_status.py tests/test_provider_isolation.py tests/test_native_dr.py tests/test_native_retention.py tests/test_native_concurrency.py tests/test_native_history_queries.py tests/test_native_observability.py tests/test_native_worker_limits.py tests/test_native_volume.py tests/test_native_phase_observability.py tests/test_agency_wallet_transport.py tests/test_orbit.py tests/test_celebration_tiers.py tests/test_provider_sound_readonly.py tests/test_v11_splash_sound_reload.py tests/test_v11_sound_lifecycle.py tests/test_v11_ios_safari_audio.py
       - name: Verify real same-filesystem bind mount and fail-closed transitions
         run: sudo unshare --mount --propagation private "$(command -v python)" tests/native_volume_mount_fixture.py
       - name: Build production native image
@@ -42,3 +42,26 @@ jobs:
           trap 'sudo rm -rf "$native_volume_fixture"' EXIT
           docker run --rm -i --network none --entrypoint python softtech-uno-native:ci - unmounted < tests/native_volume_image_probe.py
           docker run --rm -i --network none --mount "type=bind,source=$native_volume_fixture,target=/data" --entrypoint python softtech-uno-native:ci - mounted < tests/native_volume_image_probe.py
+  public-audio-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install browser test runtime
+        run: |
+          pip install playwright==1.51.1
+          python -m playwright install --with-deps chromium
+      - name: Verify real audio playback and explicit Play failure boundary
+        run: python tests/visual_qa_provider_boot_audio.py
+      - name: Preserve audio test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: provider-public-audio
+          path: artifacts/provider-boot-audio/
+          if-no-files-found: error

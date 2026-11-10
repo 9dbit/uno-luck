@@ -343,4 +343,7 @@ def _pick_route(request, response, payload):
 def view_round(row, phase=None):
     """Reuse the live engine presentation and actual-card rank classification."""
     from . import orbit
-    return orbit.view_round(dict(row) | {'rules_version': orbit.RULES_VERSION}, phase) if row else None
+    # The locked History Bet client formats this persisted Unix timestamp.
+    # Add presentation metadata without changing the saved outcome or presenter.
+    return (orbit.view_round(dict(row) | {'rules_version': orbit.RULES_VERSION}, phase)
+            | {'created_at': row['created_at']}) if row else None

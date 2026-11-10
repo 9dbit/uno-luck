@@ -186,6 +186,9 @@ let celebrationNode=null, celebrationRequest=0;
 let fallbackPlayer=null, fallbackKey=null, fallbackPreview=false;
 let fallbackTimer=null, fallbackRaf=null, fallbackSerial=0, mediaUnlocked=false;
 let splashUrl=null, splashPreparation=null, splashError='',activeTemporaryUrl=null;
+// Optional custom catalogs may be empty. This is actual shipped audio, played
+// by the same explicit Play gesture; it never changes a saved sound profile.
+const bundledSplashUrl='/assets/audio/music-loop.mp3';
 const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||
   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const mimeFor=file=>{
@@ -421,13 +424,18 @@ function isMusicMediaPlaying(){
   return bgmStarting||Boolean(bgmPlayer&&!bgmPlayer.paused&&!bgmPlayer.ended);
 }
 function isMusicWebAudioPlaying(){return Boolean(loop?.source);}
+function prepareBundledSplash(){
+  if(splashUrl?.startsWith('blob:'))URL.revokeObjectURL(splashUrl);
+  splashUrl=bundledSplashUrl;
+  useFallbackSource('soft-tech-splash-screen',splashUrl);
+  return true;
+}
 async function prepareSplashMedia(){
   await syncCloud();
   const cfg=liveProfile('soft-tech-splash-screen');
   if(!cfg.custom&&cfg.source!=='custom'){
-    splashError=cloudError?'Koneksi Sound Cloud belum tersedia. Coba lagi setelah jaringan tersambung.':
-      'File Soft Tech Splash belum tersedia di Sound Cloud.';
-    return false;
+    splashError='';
+    return prepareBundledSplash();
   }
   if(splashUrl)return true;
   if(splashPreparation)return splashPreparation;
@@ -446,7 +454,9 @@ async function prepareSplashMedia(){
   })().catch(error=>{
     splashError=String(error?.message||error);lastError=splashError;
     console.warn('[UNO iOS AUDIO] splash preload',splashError);
-    throw error;
+    // Missing local custom bytes do not erase the draft or fabricate playback.
+    // The normal Play gate must still confirm the bundled media really plays.
+    return prepareBundledSplash();
   }).finally(()=>{splashPreparation=null;});
   return splashPreparation;
 }
@@ -457,6 +467,9 @@ function applyMediaBounds(key,player,previewMode=false,looping=false,mirrorDurat
   const duration=Math.max(.05,Number(p.fileDuration)||player.duration||5);
   const bounds=mirrorDuration?
     {start:0,stop:mirrorDuration,length:mirrorDuration,fadeIn:0,fadeOut:0}:
+    key==='soft-tech-splash-screen'&&!previewMode&&splashUrl===bundledSplashUrl?
+    // A long custom clip's trim is not valid for the 14.616s bundled track.
+    {start:0,stop:7,length:7,fadeIn:0,fadeOut:.25}:
     limits(key,duration,{draft:previewMode});
   const start=Math.max(0,bounds.start);
   const stop=Math.max(start+.02,bounds.stop);
@@ -501,18 +514,21 @@ function playSplashGesture(){
   stopFallback();
   const player=useFallbackSource('soft-tech-splash-screen',splashUrl);
   applyMediaBounds('soft-tech-splash-screen',player);
-  let promise;
-  try{promise=player.play();}catch(error){
-    splashError='HTML5 Audio: '+String(error?.message||error);
-    lastError=splashError;return Promise.resolve(false);
-  }
-  return Promise.resolve(promise).then(()=>{
-    mediaUnlocked=true;lastError='';return true;
-  }).catch(error=>{
+  const failed=error=>{
     splashError='HTML5 Audio: '+String(error?.message||error);
     lastError=splashError;console.warn('[UNO iOS AUDIO]',splashError);
+    // Prepare only. Never play a replacement asynchronously after rejection;
+    // the unchanged boot gate reports failure and requires another real click.
+    if(splashUrl!==bundledSplashUrl)prepareBundledSplash();
     return false;
-  });
+  };
+  let promise;
+  try{promise=player.play();}catch(error){
+    return Promise.resolve(failed(error));
+  }
+  return Promise.resolve(promise).then(()=>{
+    mediaUnlocked=true;lastError='';splashError='';return true;
+  }).catch(failed);
 }
 async function playFallback(key,{looping=false,forPreview=false,token=null}={}){
   const entry=known.get(key);if(!entry)return false;

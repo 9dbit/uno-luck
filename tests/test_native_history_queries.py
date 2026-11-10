@@ -55,6 +55,26 @@ def explain(db, sql):
     return [row[3] for row in db.execute('EXPLAIN QUERY PLAN ' + sql)]
 
 
+def test_native_history_and_active_round_expose_persisted_timestamp(native):
+    db, session, request, _ = native
+    actor = 'history-test:returning'
+    insert_round(db, session, 'completed-with-time', actor, created_at=1736195022.125, win=True)
+    insert_round(db, session, 'active-with-time', actor, state='reserved', picked=1, created_at=time.time())
+    before = list(db.iterdump())
+    snapshot = agency.state(request, Response())
+    assert len(snapshot['recent']) == 1
+    for presented in [snapshot['round'], *snapshot['recent']]:
+        saved = db.execute('SELECT * FROM agency_rounds WHERE id=?', (presented['id'],)).fetchone()
+        assert presented['created_at'] == saved['created_at']
+        # The timestamp is the only addition to the locked outcome presenter.
+        expected = orbit.view_round(dict(saved) | {'rules_version': orbit.RULES_VERSION})
+        assert presented == expected | {'created_at': saved['created_at']}
+        assert 'actor' not in presented and 'session_json' not in presented
+    assert snapshot['recent'][0]['created_at'] == 1736195022.125
+    assert list(db.iterdump()) == before
+    assert agency.view_round(None) is None
+
+
 def test_returning_actor_state_and_results_with_growing_unrelated_history(native, monkeypatch):
     db, session, request, _ = native
     actor = 'history-test:returning'

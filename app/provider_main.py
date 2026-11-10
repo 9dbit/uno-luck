@@ -1,4 +1,4 @@
-"""Isolated Soft Tech entrypoint; live game math/assets remain byte-identical."""
+"""Isolated Soft Tech entrypoint; locked game math/client sources are unchanged."""
 from contextlib import asynccontextmanager
 import hashlib, os, threading, sys, json
 from datetime import datetime,timezone
@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from . import agency
+from .sound_cloud import manifest as sound_manifest, download as sound_download
 from .agency_wallet import transport_metrics
 from .native_observability import thread_limiter_health, phase_health, NativePhaseMiddleware
 from .native_worker_limits import configure_native_worker_limit
@@ -32,6 +33,9 @@ async def lifespan(app):
     stop.set()
 app=FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
 app.include_router(agency.router)
+# Playback is public; sound publishing/admin routes remain unmounted here.
+app.add_api_route('/api/sounds/manifest', sound_manifest, methods=['GET'])
+app.add_api_route('/api/sounds/files/{cue}', sound_download, methods=['GET'])
 app.mount('/assets',StaticFiles(directory=ROOT/'static'),name='assets')
 @app.middleware('http')
 async def headers(req,next):
