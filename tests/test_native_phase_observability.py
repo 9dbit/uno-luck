@@ -352,8 +352,11 @@ def test_actual_native_round_completed_replay_and_sql_phase_counts(provider):
     assert replay_metrics['phases']['db_close']['invocations'] == 1
     assert replay_metrics['counters']['dml_success'] == 0
     if IS_UNO:
-        assert replay_metrics['counters']['explicit_transactions_zero_dml'] == 1
-        assert replay_metrics['counters']['explicit_commit_active'] == 1
+        assert replay_metrics['counters']['explicit_transactions_started'] == 0
+        assert replay_metrics['counters']['explicit_transactions_zero_dml'] == 0
+        assert replay_metrics['counters']['explicit_commit_active'] == 0
+        assert replay_metrics['counters']['explicit_commit_noop'] == 0
+        assert 'begin_immediate_wall' not in replay_metrics['phases']
         for operation, result_writes in (('pick1',1),('pick2',0),('pick3',1)):
             row = observed['operations'][operation]
             assert row['counters']['explicit_transactions_with_dml'] == 1
@@ -424,9 +427,10 @@ def test_lost_reserve_and_settle_replay_survive_telemetry_exceptions(provider, m
     assert client.get('/health').json()['pending_operation_locks'] == 0
 
 
-def test_invalid_retry_releases_writer_and_keeps_completed_outcome(provider):
+def test_invalid_retry_releases_resources_and_keeps_completed_outcome(provider):
     client, headers, rounds, database = provider
     path, payload, original = play(client, headers)
+    before = sample()
     changed = dict(payload, expected_phase=2) if IS_UNO else dict(payload, bet='2')
     conflict = client.post(path, headers=headers, json=changed)
     assert conflict.status_code == 409, conflict.text
@@ -437,8 +441,9 @@ def test_invalid_retry_releases_writer_and_keeps_completed_outcome(provider):
     assert observed['active_captures'] == 0
     if IS_UNO:
         rejected = observed['operations']['pick2']
-        assert rejected['counters']['closed_transaction'] == 1
-        assert rejected['counters']['explicit_transactions_zero_dml'] == 1
+        assert rejected['counters']['closed_transaction'] == 0
+        assert rejected['counters']['explicit_transactions_started'] == before['operations']['pick2']['counters']['explicit_transactions_started']
+        assert rejected['counters']['explicit_transactions_zero_dml'] == 0
     else:
         rejected = observed['operations']['request_unclassified']
         assert rejected['counters']['dml_success'] == 0

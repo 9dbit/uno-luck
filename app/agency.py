@@ -246,8 +246,17 @@ def pick(request, response, payload):
     try:
         s, actor = session(db, request)
         with measured_lock('player_lock_acquire', operation_lock('player:' + actor)):
-            begin_immediate(db)
             duplicate = db.execute('SELECT * FROM agency_requests WHERE actor=? AND request_id=?', (actor, p.request_id)).fetchone()
+            saved = row_get(db, duplicate['round_id']) if duplicate else None
+            # Fully settled retries do not write native state. Keep them out of
+            # SQLite's writer queue while retaining the player lock, exact
+            # request validation, phase-limited view and live wallet snapshot.
+            completed_replay = bool(saved and saved['state'] == 'settled' and saved['picked'] == 3)
+            if not completed_replay:
+                begin_immediate(db)
+                # A missing or unfinished request keeps the original durable
+                # transaction path, including its lookup after taking the lock.
+                duplicate = db.execute('SELECT * FROM agency_requests WHERE actor=? AND request_id=?', (actor, p.request_id)).fetchone()
             if duplicate:
                 if duplicate['stake'] != p.stake or duplicate['phase'] != p.expected_phase or (p.expected_phase > 1 and p.round_id != duplicate['round_id']):
                     raise HTTPException(409, 'Idempotency key digunakan dengan payload berbeda')
@@ -273,7 +282,8 @@ def pick(request, response, payload):
                         (rid, actor, json.dumps(s), p.stake, json.dumps(cards, separators=(',', ':')), combo, tier, payout, time.time()))
                 execute_write('autocommit_intent_execute', db, 'INSERT INTO agency_requests VALUES(?,?,?,?,?)', (actor, p.request_id, rid, phase, p.stake))
             # Critical boundary: record outcome and requested phase before networking.
-            commit_db(db)
+            if not completed_replay:
+                commit_db(db)
             r = advance(db, rid)
             response.headers['Cache-Control'] = 'no-store'
             return {'round': view_round(r, phase), 'account': snapshot(db, s, actor), 'replayed': bool(duplicate)}
