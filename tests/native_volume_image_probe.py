@@ -7,9 +7,11 @@ import sys
 import time
 import urllib.request
 from scripts import native_volume
+from app import native_worker_limits
 import scripts.native_backup, scripts.native_backup_loop, scripts.native_backup_status, scripts.native_retention
 
 assert Path(native_volume.__file__).resolve() == Path('/app/scripts/native_volume.py')
+assert Path(native_worker_limits.__file__).resolve() == Path('/app/app/native_worker_limits.py')
 mode = sys.argv[1]
 assert mode in ('mounted', 'unmounted')
 mount = Path('/data')
@@ -20,7 +22,8 @@ env = dict(os.environ, RAILWAY_SERVICE_ID='synthetic-service',
            AGENCY_DEPLOYMENT_ID='native-image-smoke', AGENCY_CORE_DEPLOYMENT_ID='core-image-smoke',
            AGENCY_WALLET_ORIGIN='https://core.example.invalid', AGENCY_WALLET_KEY_ID='synthetic-image-smoke',
            AGENCY_WALLET_SECRET='synthetic-image-secret-never-for-use-' * 2,
-           UNO_AGENCY_DB_PATH='/data/native.sqlite', AGENCY_STUDIO_SYNC='0', ENGINE_BACKUP_ENABLED='false', PORT='18080')
+           UNO_AGENCY_DB_PATH='/data/native.sqlite', AGENCY_STUDIO_SYNC='0', ENGINE_BACKUP_ENABLED='false', PORT='18080',
+           NATIVE_THREAD_TOKENS='80')
 for key in tuple(env):
     if key.startswith('ENGINE_RESTORE_'):
         del env[key]
@@ -59,11 +62,13 @@ else:
         assert health['native_volume']['verification'] == 'linux_mountinfo'
         assert set(health['native_volume']) == {'required', 'verified', 'verification', 'filesystem_type'}
         assert health['cpu_usage_microseconds'] is not None and health['memory_rss_bytes'] > 0
-        assert health['anyio_thread_limiter']['total_tokens'] == 40
+        assert health['anyio_thread_limiter']['total_tokens'] == 80
+        assert health['callback_transport']['pool_limit'] == 40
         phases = health['native_phases']
         assert phases['schema'] == 1 and phases['available'] and phases['capture_limit'] == 1024
         assert phases['active_captures'] == 0 and not phases['telemetry_error']
         assert (mount / 'native.sqlite').is_file()
+        print('PASS: mounted image effective AnyIO worker limit 80 and callback pool 40')
     finally:
         child.terminate()
         try:

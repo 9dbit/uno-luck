@@ -9,9 +9,11 @@ from fastapi.staticfiles import StaticFiles
 from . import agency
 from .agency_wallet import transport_metrics
 from .native_observability import thread_limiter_health, phase_health, NativePhaseMiddleware
+from .native_worker_limits import configure_native_worker_limit
 ROOT=Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app):
+    configure_native_worker_limit()
     agency.validate_config()
     if os.getenv('ENGINE_BACKUP_ENABLED')=='true':
         print('[ENGINE BACKUP] launching UNO provider worker thread',flush=True)
