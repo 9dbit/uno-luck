@@ -15,16 +15,25 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .engine import COLORS, RuleError, UnoGame
 from .spin import router as spin_router
 from .orbit import router as orbit_router
 from .sound_cloud import router as sound_cloud_router, sound_health
+from .production_safety import (is_production, public_request_block,
+                                require_safe_production_configuration)
 
 APP_ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="UNO LUCK Spin Staging", version="1.0.0", docs_url=None, redoc_url=None)
+# Separate production-only startup and public editor/admission safety gates.
+# They are inert on staging and never alter the card engine, odds or Sound Cloud.
+@app.on_event("startup")
+async def production_readiness_gate():
+    require_safe_production_configuration()
+
+
 # CP09 is health-only and never touches game state or guest balances.
 @app.on_event("startup")
 async def gameops_bridge_start():
@@ -54,8 +63,19 @@ UI_RELEASE = hashlib.sha256(b"".join(
 
 @app.middleware("http")
 async def shell_cache_policy(request, call_next):
-    response = await call_next(request)
     path = request.url.path
+    block = public_request_block(request.method, path)
+    if block == "private_editor":
+        return Response(status_code=404, headers={"Cache-Control": "no-store"})
+    if block == "sound_publish":
+        return JSONResponse({"detail": "Public production sound editing is disabled"},
+                            status_code=403, headers={"Cache-Control": "no-store"})
+    if block == "rounds_closed":
+        return JSONResponse({"detail": "Production gameplay admission has not been approved"},
+                            status_code=503, headers={"Cache-Control": "no-store"})
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
     if path in {"/", "/admin", "/admin/", "/classic", "/spin-legacy", "/api/ui-version"} or path.endswith(".html"):
         response.headers["Cache-Control"] = "no-store"
     elif path.startswith("/assets/") and path.endswith((".js", ".css", ".webmanifest")):
@@ -297,6 +317,10 @@ async def broadcast(room: Room) -> None:
 
 @app.websocket("/ws")
 async def ws_game(ws: WebSocket):
+    # Original guest multiplayer is NOT authorized on public production.
+    if is_production():
+        await ws.close(code=1008)
+        return
     # For public deployments, set UNO_ALLOWED_ORIGINS to exact https origins.
     allowed = {item.strip() for item in os.getenv("UNO_ALLOWED_ORIGINS", "").split(",") if item.strip()}
     origin = ws.headers.get("origin", "")
