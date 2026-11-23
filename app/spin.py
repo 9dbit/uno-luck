@@ -15,6 +15,7 @@ import os
 import re
 import secrets
 import sqlite3
+import tempfile
 import threading
 import time
 from datetime import datetime
@@ -23,6 +24,8 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+
+from .production_safety import is_production
 
 router = APIRouter(prefix="/api/spin", tags=["virtual spin"])
 COLORS = ("red", "yellow", "green", "blue")
@@ -39,7 +42,14 @@ INITIALIZED: set[str] = set()
 
 
 def database_path() -> str:
-    return os.getenv("UNO_SPIN_DB_PATH", "/tmp/uno_luck_spin.sqlite3")
+    configured = os.getenv("UNO_SPIN_DB_PATH")
+    if configured:
+        return configured
+    # The old guest fixture remains ephemeral on staging. Production must
+    # never silently fall back to temporary filesystem wallet storage.
+    if is_production():
+        raise RuntimeError("UNO_SPIN_DB_PATH required for production")
+    return str(Path(tempfile.gettempdir()) / "uno_luck_spin.sqlite3")
 
 
 def connection() -> sqlite3.Connection:
@@ -299,8 +309,14 @@ def bonus(request: Request, response: Response, *, kind: str, field: str, amount
             raise HTTPException(409, "Bonus ini sudah diklaim hari ini (WIB)")
         after = min(COIN_CAP, account["balance"] + amount)
         actual = after - account["balance"]
-        # Field name is chosen only by server-side code, not user input.
-        db.execute(f"UPDATE accounts SET balance=?, {field}=? WHERE id=?", (after, date, account["id"]))
+        # Explicit statements avoid interpolating even a server-selected column.
+        statements = {
+            "last_daily": "UPDATE accounts SET balance=?, last_daily=? WHERE id=?",
+            "last_refill": "UPDATE accounts SET balance=?, last_refill=? WHERE id=?",
+        }
+        if field not in statements:
+            raise RuntimeError("Unknown bonus grant category")
+        db.execute(statements[field], (after, date, account["id"]))
         db.execute("INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)",
                    (new_id(), account["id"], kind, actual, after, utc_timestamp()))
         db.commit()
