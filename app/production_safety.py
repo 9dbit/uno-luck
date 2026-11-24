@@ -10,6 +10,7 @@ import os
 from pathlib import PurePosixPath
 from typing import Mapping
 from urllib.parse import urlsplit
+from .demo_security import demo_mode, demo_admission, READ_API, WRITE_API
 
 
 PRODUCTION_KEYS = ("RAILWAY_ENVIRONMENT_NAME", "UNO_DEPLOYMENT_TIER", "UNO_ENVIRONMENT")
@@ -66,11 +67,26 @@ def check_production_environment(values: Mapping[str, str] | None = None) -> tup
         errors.append("GAMEOPS_WALLET_COMMANDS_ENABLED must remain disabled")
     if env.get("UNO_PUBLIC_ROUNDS_ENABLED", "").strip() == "1":
         errors.append("UNO_PUBLIC_ROUNDS_ENABLED is not qualified for production")
+    if demo_mode(env):
+        if env.get("GAMEOPS_BRIDGE_ENABLED", "0") != "0":
+            errors.append("Public demo must have GAMEOPS_BRIDGE_ENABLED=0")
+        if any(env.get(k) for k in ("GAMEOPS_BRIDGE_SECRET", "DATABASE_URL", "REDIS_URL", "UNO_SOUND_ADMIN_TOKEN")):
+            errors.append("Public demo must not hold staging/provider credentials")
+        origins = env.get("UNO_ALLOWED_ORIGINS", "").split(",")
+        if "https://uno.xd-play.com" not in origins or any(
+            o != "https://uno.xd-play.com" and not re_full_demo_host(o) for o in origins
+        ):
+            errors.append("Demo origins must be canonical UNO and its production Railway host")
     if any(k.startswith(("UNO_QA_", "UNO_DEMO_"))
            and str(v).strip().lower() not in ("", "0", "false", "off")
            for k, v in env.items()):
         errors.append("UNO_QA_/UNO_DEMO_ fixtures are active")
     return tuple(errors)
+
+
+def re_full_demo_host(origin):
+    import re
+    return bool(re.fullmatch(r"https://uno-demo-web-production\.[a-z0-9-]*up\.railway\.app", origin))
 
 
 def require_safe_production_configuration(values: Mapping[str, str] | None = None) -> None:
@@ -93,5 +109,10 @@ def public_request_block(method: str, path: str,
     # These original guest and Orbit endpoints are not the certified Genesis
     # admission/wallet protocol. No environment flag unlocks them in this patch.
     if path.startswith(("/api/spin/", "/api/orbit/")):
+        if demo_admission(values) and (
+            (method.upper() in ("GET", "HEAD") and path in READ_API)
+            or WRITE_API.get(path) == method.upper()
+        ):
+            return None
         return "rounds_closed"
     return None

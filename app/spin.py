@@ -26,6 +26,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from .production_safety import is_production
+from .demo_security import demo_mode, COOKIE as DEMO_COOKIE, csrf_token, guard_demo_write, budget
 
 router = APIRouter(prefix="/api/spin", tags=["virtual spin"])
 COLORS = ("red", "yellow", "green", "blue")
@@ -117,14 +118,24 @@ def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("ascii")).hexdigest()
 
 
+def cookie_name():
+    return DEMO_COOKIE if demo_mode() else COOKIE
+
+
 def get_account(request: Request, response: Response, db: sqlite3.Connection) -> sqlite3.Row:
-    raw = request.cookies.get(COOKIE, "")
+    raw = request.cookies.get(cookie_name(), "")
     account = None
     if re.fullmatch(r"[a-zA-Z0-9_-]{30,90}", raw):
         account = db.execute("SELECT * FROM accounts WHERE token_hash=?", (token_hash(raw),)).fetchone()
     if account is not None:
+        if demo_mode():
+            response.headers["X-UNO-CSRF"] = csrf_token(raw)
         return account
 
+    if demo_mode():
+        if not budget.allow("create-account", 60):
+            raise HTTPException(429, "Demo session limit; try again shortly")
+        db.execute("BEGIN IMMEDIATE")
     token = secrets.token_urlsafe(36)
     account_id = new_id()
     db.execute(
@@ -135,13 +146,18 @@ def get_account(request: Request, response: Response, db: sqlite3.Connection) ->
         "INSERT INTO ledger(id,account_id,reason,delta,balance_after,created_at) VALUES(?,?,?,?,?,?)",
         (new_id(), account_id, "welcome", INITIAL_COINS, INITIAL_COINS, utc_timestamp()),
     )
+    if demo_mode():
+        db.commit()
     # HTTPS on Railway; the browser can never read the guest token.
     secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").split(",")[0] == "https"
-    response.set_cookie(COOKIE, token, httponly=True, secure=secure, samesite="lax", max_age=60 * 60 * 24 * 90, path="/")
+    response.set_cookie(cookie_name(), token, httponly=True, secure=demo_mode() or secure, samesite="lax", max_age=60 * 60 * 24 * 90, path="/")
+    if demo_mode():
+        response.headers["X-UNO-CSRF"] = csrf_token(token)
     return db.execute("SELECT * FROM accounts WHERE id=?", (account_id,)).fetchone()
 
 
 def guard_write(request: Request) -> None:
+    guard_demo_write(request)
     if request.headers.get("x-uno-client") != "spin-ui":
         raise HTTPException(status_code=403, detail="Unsupported client")
 
@@ -195,7 +211,7 @@ def spin_history(db: sqlite3.Connection, account_id: str, limit: int = 20) -> li
 
 
 def account_from_session(request: Request, db: sqlite3.Connection) -> sqlite3.Row:
-    raw = request.cookies.get(COOKIE, "")
+    raw = request.cookies.get(cookie_name(), "")
     if not re.fullmatch(r"[a-zA-Z0-9_-]{30,90}", raw):
         raise HTTPException(401, "Open the game to create a guest session")
     account = db.execute("SELECT * FROM accounts WHERE token_hash=?", (token_hash(raw),)).fetchone()

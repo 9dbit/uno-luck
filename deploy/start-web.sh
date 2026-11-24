@@ -19,4 +19,10 @@ if [ -n "${UNO_SOUND_STORAGE_DIR:-}" ]; then
 fi
 
 # Drop privileges before reading any app data or serving public traffic.
+if [ "${UNO_RELEASE_MODE:-}" = "virtual-demo" ]; then
+  case "${UNO_SPIN_DB_PATH:-}" in
+    /data/*/*.sqlite3) install -d -o runner -g runner -m 0750 "$(dirname "$UNO_SPIN_DB_PATH")" ;;
+    *) echo "[UNO DEMO] Persistent database path required" >&2; exit 1 ;;
+  esac
+fi
 exec runuser -u runner -- uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8080}"

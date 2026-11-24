@@ -92,22 +92,24 @@ function updateButtons(){
   $('auto-btn').setAttribute('aria-pressed',String(isAuto));
   $('auto-label').textContent=isAuto?'STOP':'AUTO';
 }
+let demoCsrf='';
 async function api(path,method='GET',body){
   const req={method,credentials:'same-origin',headers:{}};
   const controller=method==='GET'?new AbortController():null;
   const timeout=controller?setTimeout(()=>controller.abort(),6000):null;
   if(controller){req.signal=controller.signal;req.cache='no-store';}
-  if(method!=='GET'){req.headers['Content-Type']='application/json';req.headers['X-UNO-Client']='spin-ui';req.body=JSON.stringify(body??{});}
+  if(method!=='GET'){req.headers['Content-Type']='application/json';req.headers['X-UNO-Client']='spin-ui';req.headers['X-UNO-CSRF']=demoCsrf;req.body=JSON.stringify(body??{});}
   try{
   let response;
   try{response=await fetch('/api/orbit'+path,req);}catch(_){throw Error('Koneksi terputus. Periksa internet dan coba lagi.');}
+  demoCsrf=response.headers.get('X-UNO-CSRF')||demoCsrf;
   let data;try{data=await response.json();}catch(_){throw Error('Server mengirim respons tak valid.');}
   if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:`HTTP ${response.status}`);
   return data;
   }finally{if(timeout!==null)clearTimeout(timeout);}
 }
 async function legacyBonus(endpoint){
-  const response=await fetch('/api/spin/'+endpoint,{method:'POST',headers:{'X-UNO-Client':'spin-ui','Content-Type':'application/json'},credentials:'same-origin',body:'{}'});
+  const response=await fetch('/api/spin/'+endpoint,{method:'POST',headers:{'X-UNO-Client':'spin-ui','X-UNO-CSRF':demoCsrf,'Content-Type':'application/json'},credentials:'same-origin',body:'{}'});
   const data=await response.json();
   if(!response.ok)throw Error(data.detail||'Gagal mengklaim hadiah');
   return data;
@@ -293,7 +295,7 @@ function showMenu(){
   sound.setAttribute('aria-pressed',String(musicEnabled||sfxEnabled));
   modalButton(area,'Bet Setting',showStakeChoices);
 }
-function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui'},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
+function showProfile(){const area=modal('Profil Pemain');paragraph(area,`Nama saat ini: ${account?.name||'Player'}`);const input=document.createElement('input');input.maxLength=20;input.value=account?.name||'Player';input.setAttribute('aria-label','Nama pemain');area.append(input);modalButton(area,'Simpan nama',async()=>{try{const res=await fetch('/api/spin/profile',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json','X-UNO-Client':'spin-ui','X-UNO-CSRF':demoCsrf},body:JSON.stringify({name:input.value})});const value=await res.json();if(!res.ok)throw Error(value.detail||'Tidak dapat menyimpan nama');syncAccount(value.account);closeModal();say('Nama berhasil disimpan.');}catch(e){paragraph(area,e.message);}});}
 let stateLoading=false;
 async function loadState(quiet=false){
   if(stateLoading)return;
