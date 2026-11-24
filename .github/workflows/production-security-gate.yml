@@ -1,0 +1,35 @@
+name: UNO Production Security Gate (Candidate Only)
+on:
+  pull_request:
+    paths:
+      - 'app/main.py'
+      - 'app/production_safety.py'
+      - 'tests/test_production_safety.py'
+      - '.github/workflows/production-security-gate.yml'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install application and audit dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest httpx pip-audit bandit
+      - name: Compile and run fail-closed production tests
+        run: |
+          python -m compileall -q app
+          python -m pytest -q tests/test_production_safety.py tests/test_server.py tests/test_orbit.py tests/test_sound_cloud.py
+      - name: Check dependency vulnerabilities
+        run: python -m pip_audit -r requirements.txt --progress-spinner off
+      - name: Python high-severity security scan
+        run: python -m bandit -r app -ll -ii -q

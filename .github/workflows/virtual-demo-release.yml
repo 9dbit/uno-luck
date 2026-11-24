@@ -1,0 +1,56 @@
+name: UNO isolated virtual demo release
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  demo-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt pytest httpx pip-audit bandit
+      - run: python -m pytest -q
+      - name: Verify deterministic player-only audio adapter
+        run: |
+          python scripts/build_public_audio.py
+          git diff --exit-code -- app/static/art/public-audio.js
+          node --check app/static/art/public-audio.js
+          node --check app/static/orbit.js
+      - run: python -m pip_audit -r requirements.txt --progress-spinner off
+      - run: python -m bandit -r app -ll -ii -q
+  demo-volume:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact candidate with an independent persistent volume
+        run: |
+          docker build -t uno-demo .
+          mkdir -p "$RUNNER_TEMP/uno-demo-data"
+          docker run -d --name uno-demo -p 127.0.0.1:18085:8080 \
+            -v "$RUNNER_TEMP/uno-demo-data:/data" \
+            -e UNO_DEPLOYMENT_TIER=production -e UNO_RELEASE_MODE=virtual-demo \
+            -e UNO_VIRTUAL_DEMO_ENABLED=1 -e GAMEOPS_BRIDGE_ENABLED=0 \
+            -e UNO_ALLOWED_ORIGINS=https://uno.xd-play.com \
+            -e UNO_SPIN_DB_PATH=/data/game/demo.sqlite3 \
+            -e UNO_SOUND_STORAGE_DIR=/data/sounds uno-demo
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:18085/health > /tmp/uno-demo-health.json; then break; fi
+            sleep 1
+          done
+          python -c 'import json; d=json.load(open("/tmp/uno-demo-health.json")); assert d["mode"]=="virtual-demo" and d["launch_enabled"] and not d["money_enabled"]'
+          curl -fsS -H 'Host: uno.xd-play.com' http://127.0.0.1:18085/api/orbit/state > /tmp/uno-demo-state.json
+          docker restart uno-demo
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18085/health > /tmp/uno-demo-health-after.json; then break; fi
+            sleep 1
+          done
+          docker exec uno-demo python -c 'import sqlite3; d=sqlite3.connect("/data/game/demo.sqlite3"); assert d.execute("select count(*) from accounts").fetchone()[0]==1; assert d.execute("pragma integrity_check").fetchone()[0]=="ok"'
+          test "$(docker exec uno-demo stat -c %u /data/game)" = 10001
+      - if: failure()
+        run: docker logs uno-demo
